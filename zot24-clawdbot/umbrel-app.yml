@@ -1,0 +1,60 @@
+manifestVersion: 1.1
+id: zot24-clawdbot
+category: ai
+name: Clawdbot
+version: "1.0.0"
+tagline: Self-hosted AI assistant with Telegram integration
+description: >-
+  Clawdbot is your personal AI assistant that connects Claude and other LLMs
+  to your favorite messaging platforms. Run your own AI-powered chatbot on
+  Umbrel and chat with it directly through Telegram.
+
+
+  Features:
+
+  - Telegram Integration: Create a bot via @BotFather and connect instantly
+
+  - Claude AI: Powered by Anthropic's Claude models for intelligent conversations
+
+  - WebChat UI: Built-in web interface for direct conversations
+
+  - Memory System: Persistent memory across conversations
+
+  - Skills System: Extensible with custom skills and plugins
+
+  - Privacy First: All data stays on your Umbrel, no cloud required
+
+
+  Setup Instructions:
+
+  1. Get an Anthropic API key from console.anthropic.com
+
+  2. Create a Telegram bot via @BotFather and copy the token
+
+  3. Configure the environment variables in Umbrel settings
+
+  4. Start chatting with your bot on Telegram!
+
+
+  The first time you message your bot, you'll receive a pairing code.
+  Approve it through the Clawdbot dashboard to start conversations.
+releaseNotes: >-
+  Initial release with Telegram channel support, WebChat interface,
+  and Claude AI integration.
+developer: Clawdbot
+website: https://clawd.bot
+dependencies: []
+repo: https://github.com/clawdbot/clawdbot
+support: https://github.com/clawdbot/clawdbot/issues
+port: 18790
+gallery:
+  - 1.jpg
+  - 2.jpg
+  - 3.jpg
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: Community
+submission: https://github.com/getumbrel/umbrel-apps/pull/XXX

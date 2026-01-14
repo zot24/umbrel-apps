@@ -1,0 +1,40 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      APP_HOST: zot24-clawdbot_web_1
+      APP_PORT: 18790
+      # Disable auth for WebChat - authentication handled by Umbrel
+      # PROXY_AUTH_ADD: "false"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: clawdbot:local
+    restart: on-failure
+    stop_grace_period: 1m
+    volumes:
+      - ${APP_DATA_DIR}/data:/root/.clawdbot
+      - ${APP_DATA_DIR}/workspace:/root/clawd
+    environment:
+      # Anthropic API Key for Claude models
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # OpenAI API Key (optional, for embeddings/memory search)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Telegram Bot Token (get from @BotFather on Telegram)
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # Gateway configuration
+      CLAWDBOT_GATEWAY_PORT: 18789
+      CLAWDBOT_WEBCHAT_PORT: 18790
+      CLAWDBOT_BIND: "0.0.0.0"
+      # Data directories
+      CLAWDBOT_DATA_DIR: /root/.clawdbot
+      CLAWDBOT_WORKSPACE: /root/clawd
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18790/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
