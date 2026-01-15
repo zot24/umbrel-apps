@@ -3,7 +3,7 @@ id: zot24-clawdbot
 name: Clawdbot
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/icon.png
 category: ai
-version: "1.0.1"
+version: "1.0.2"
 tagline: Self-hosted AI assistant with Telegram integration
 description: >-
   Clawdbot is your personal AI assistant that connects Claude and other LLMs
@@ -40,8 +40,8 @@ description: >-
   The first time you message your bot, you'll receive a pairing code.
   Approve it through the Clawdbot dashboard to start conversations.
 releaseNotes: >-
-  Fix WebChat authentication - the web interface now properly connects
-  to the gateway without requiring manual token configuration.
+  Fix WebChat authentication - corrected localStorage key so the
+  web interface can properly authenticate with the gateway.
 developer: Clawdbot
 website: https://clawd.bot
 dependencies: []
