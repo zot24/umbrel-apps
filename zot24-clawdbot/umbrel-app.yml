@@ -1,7 +1,8 @@
 manifestVersion: 1.1
 id: zot24-clawdbot
-category: ai
 name: Clawdbot
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/icon.png
+category: ai
 version: "1.0.0"
 tagline: Self-hosted AI assistant with Telegram integration
 description: >-
@@ -48,9 +49,9 @@ repo: https://github.com/clawdbot/clawdbot
 support: https://github.com/clawdbot/clawdbot/issues
 port: 18790
 gallery:
-  - 1.jpg
-  - 2.jpg
-  - 3.jpg
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/1.jpg
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/2.jpg
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/3.jpg
 path: ""
 defaultUsername: ""
 defaultPassword: ""
