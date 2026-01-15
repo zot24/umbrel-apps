@@ -9,10 +9,7 @@ services:
       # PROXY_AUTH_ADD: "false"
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: clawdbot:local
+    image: ghcr.io/zot24/clawdbot-docker:latest@sha256:cdc79807140fb7f34a0dd1848f6fa2f617315ddcf204e391d855e92a1a94d006
     restart: on-failure
     stop_grace_period: 1m
     volumes:
