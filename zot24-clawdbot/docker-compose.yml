@@ -9,7 +9,7 @@ services:
       # PROXY_AUTH_ADD: "false"
 
   web:
-    image: ghcr.io/zot24/clawdbot-docker:latest@sha256:cdc79807140fb7f34a0dd1848f6fa2f617315ddcf204e391d855e92a1a94d006
+    image: ghcr.io/zot24/clawdbot-docker:latest@sha256:b07474ebc1d5d8a4efaabf5a0d631318d089d98272a1a5cad47387dd90872f3c
     restart: on-failure
     stop_grace_period: 1m
     volumes:
@@ -25,7 +25,6 @@ services:
       # Gateway configuration
       CLAWDBOT_GATEWAY_PORT: 18789
       CLAWDBOT_WEBCHAT_PORT: 18790
-      CLAWDBOT_BIND: "0.0.0.0"
       # Data directories
       CLAWDBOT_DATA_DIR: /root/.clawdbot
       CLAWDBOT_WORKSPACE: /root/clawd
