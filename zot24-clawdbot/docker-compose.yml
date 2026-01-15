@@ -7,7 +7,7 @@ services:
       APP_PORT: 18789
 
   web:
-    image: ghcr.io/zot24/clawdbot-docker:latest@sha256:3560e4d2a2a3142cf79daa9aec331883a1df701354b7920dcbc9bf64d8d46fdc
+    image: ghcr.io/zot24/clawdbot-docker:latest@sha256:8ed95f777c9e0cecabdd67a43c3c878604c29a1a3d287e990b4884001e6f04ea
     restart: on-failure
     stop_grace_period: 1m
     volumes:
