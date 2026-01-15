@@ -4,7 +4,7 @@ services:
   app_proxy:
     environment:
       APP_HOST: zot24-clawdbot_web_1
-      APP_PORT: 18790
+      APP_PORT: 18793
       # Disable auth for WebChat - authentication handled by Umbrel
       # PROXY_AUTH_ADD: "false"
 
@@ -29,7 +29,7 @@ services:
       CLAWDBOT_DATA_DIR: /root/.clawdbot
       CLAWDBOT_WORKSPACE: /root/clawd
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:18790/"]
+      test: ["CMD", "curl", "-f", "http://localhost:18793/"]
       interval: 30s
       timeout: 10s
       retries: 3
