@@ -47,7 +47,7 @@ website: https://clawd.bot
 dependencies: []
 repo: https://github.com/clawdbot/clawdbot
 support: https://github.com/clawdbot/clawdbot/issues
-port: 18793
+port: 18789
 gallery:
   - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/1.jpg
   - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/2.jpg

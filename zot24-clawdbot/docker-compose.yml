@@ -4,12 +4,10 @@ services:
   app_proxy:
     environment:
       APP_HOST: zot24-clawdbot_web_1
-      APP_PORT: 18793
-      # Disable auth for WebChat - authentication handled by Umbrel
-      # PROXY_AUTH_ADD: "false"
+      APP_PORT: 18789
 
   web:
-    image: ghcr.io/zot24/clawdbot-docker:latest@sha256:b07474ebc1d5d8a4efaabf5a0d631318d089d98272a1a5cad47387dd90872f3c
+    image: ghcr.io/zot24/clawdbot-docker:latest@sha256:1042dafac67b835313a307e2b943c3763e9792cb4f82a75f1ad22ac56b6e3a42
     restart: on-failure
     stop_grace_period: 1m
     volumes:
@@ -22,14 +20,13 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # Telegram Bot Token (get from @BotFather on Telegram)
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
-      # Gateway configuration
+      # Gateway configuration (WebChat UI served at /chat on gateway port)
       CLAWDBOT_GATEWAY_PORT: 18789
-      CLAWDBOT_WEBCHAT_PORT: 18790
       # Data directories
       CLAWDBOT_DATA_DIR: /root/.clawdbot
       CLAWDBOT_WORKSPACE: /root/clawd
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:18793/"]
+      test: ["CMD", "curl", "-f", "http://localhost:18789/"]
       interval: 30s
       timeout: 10s
       retries: 3
