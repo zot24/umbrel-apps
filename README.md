@@ -12,13 +12,13 @@ https://github.com/zot24/umbrel-apps
 
 ## Available Apps
 
-### Clawdbot
+### OpenClaw
 
 Self-hosted AI assistant with Telegram integration. Connect Claude to your messaging platforms.
 
-- **App ID**: `zot24-clawdbot`
+- **App ID**: `zot24-openclaw`
 - **Ports**: 18789 (Gateway), 18790 (WebChat UI)
-- **Docker Image**: [ghcr.io/zot24/clawdbot-docker](https://github.com/zot24/clawdbot-docker)
+- **Docker Image**: [ghcr.io/zot24/openclaw-docker](https://github.com/zot24/openclaw-docker)
 
 ## Architecture
 
@@ -32,10 +32,10 @@ Umbrel community app stores have a limitation: icons and gallery images placed i
 **The workaround**: Host assets in a separate repository and use full URLs in `umbrel-app.yml`:
 
 ```yaml
-icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/icon.png
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/icon.png
 gallery:
-  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/1.jpg
-  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/2.jpg
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/1.jpg
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/2.jpg
 ```
 
 This is documented in [Umbrel issue #1998](https://github.com/getumbrel/umbrel/issues/1998).
@@ -46,4 +46,4 @@ This is documented in [Umbrel issue #1998](https://github.com/getumbrel/umbrel/i
 |------------|---------|
 | [zot24/umbrel-apps](https://github.com/zot24/umbrel-apps) | This repo - app definitions |
 | [zot24/umbrel-apps-gallery](https://github.com/zot24/umbrel-apps-gallery) | Icons and gallery images |
-| [zot24/clawdbot-docker](https://github.com/zot24/clawdbot-docker) | Docker image builds |
+| [zot24/openclaw-docker](https://github.com/zot24/openclaw-docker) | Docker image builds |

@@ -1,12 +1,12 @@
 manifestVersion: 1.1
-id: zot24-clawdbot
-name: Clawdbot
-icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/icon.png
+id: zot24-openclaw
+name: OpenClaw
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/icon.png
 category: ai
-version: "1.0.3"
+version: "2026.1.30"
 tagline: Self-hosted AI assistant with Telegram integration
 description: >-
-  Clawdbot is your personal AI assistant that connects Claude and other LLMs
+  OpenClaw is your personal AI assistant that connects Claude and other LLMs
   to your favorite messaging platforms. Run your own AI-powered chatbot on
   Umbrel and chat with it directly through Telegram.
 
@@ -38,20 +38,19 @@ description: >-
 
 
   The first time you message your bot, you'll receive a pairing code.
-  Approve it through the Clawdbot dashboard to start conversations.
+  Approve it through the OpenClaw dashboard to start conversations.
 releaseNotes: >-
-  Fix WebChat authentication - corrected localStorage key so the
-  web interface can properly authenticate with the gateway.
-developer: Clawdbot
-website: https://clawd.bot
+  Renamed to OpenClaw. Version now matches docker image tag.
+developer: OpenClaw
+website: https://openclaw.ai
 dependencies: []
-repo: https://github.com/clawdbot/clawdbot
-support: https://github.com/clawdbot/clawdbot/issues
+repo: https://github.com/zot24/openclaw
+support: https://github.com/zot24/openclaw/issues
 port: 18789
 gallery:
-  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/1.jpg
-  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/2.jpg
-  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-clawdbot/3.jpg
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/1.jpg
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/2.jpg
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/3.jpg
 path: ""
 defaultUsername: ""
 defaultPassword: ""
