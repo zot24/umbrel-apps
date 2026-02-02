@@ -3,15 +3,15 @@ version: "3.7"
 services:
   app_proxy:
     environment:
-      APP_HOST: zot24-clawdbot_web_1
+      APP_HOST: zot24-openclaw_web_1
       APP_PORT: 18789
 
   web:
-    image: ghcr.io/zot24/openclaw-docker:v2026.1.30@sha256:4735c664db0458931dac73e6a06d9f29f1268833bfa19d210844ab50abe4c179
+    image: ghcr.io/zot24/openclaw-docker:v2026.1.30
     restart: on-failure
     stop_grace_period: 1m
     volumes:
-      - ${APP_DATA_DIR}/data:/root/.clawdbot
+      - ${APP_DATA_DIR}/data:/root/.openclaw
       - ${APP_DATA_DIR}/workspace:/root/clawd
     environment:
       # Anthropic API Key for Claude models
@@ -21,10 +21,10 @@ services:
       # Telegram Bot Token (get from @BotFather on Telegram)
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       # Gateway configuration (WebChat UI served at /chat on gateway port)
-      CLAWDBOT_GATEWAY_PORT: 18789
+      OPENCLAW_GATEWAY_PORT: 18789
       # Data directories
-      CLAWDBOT_DATA_DIR: /root/.clawdbot
-      CLAWDBOT_WORKSPACE: /root/clawd
+      OPENCLAW_DATA_DIR: /root/.openclaw
+      OPENCLAW_WORKSPACE: /root/clawd
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:18789/"]
       interval: 30s
