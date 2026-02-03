@@ -1,0 +1,93 @@
+name: Watch OpenClaw Docker Releases
+
+on:
+  schedule:
+    - cron: '30 0 * * *'  # Daily at 00:30 UTC (after openclaw-docker builds)
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    outputs:
+      new_release: ${{ steps.check.outputs.new_release }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: Get latest openclaw-docker release
+        id: fetch
+        run: |
+          # Get latest release tag from openclaw-docker
+          LATEST=$(gh release view -R zot24/openclaw-docker --json tagName -q .tagName 2>/dev/null || echo "")
+          if [ -z "$LATEST" ]; then
+            # Fallback: get latest tag if no releases
+            LATEST=$(gh api repos/zot24/openclaw-docker/tags --jq '.[0].name')
+          fi
+          echo "Latest openclaw-docker version: $LATEST"
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout umbrel-apps
+        uses: actions/checkout@v4
+
+      - name: Check current version
+        id: check
+        run: |
+          LATEST="${{ steps.fetch.outputs.version }}"
+          # Get current version from docker-compose.yml (has 'v' prefix)
+          CURRENT=$(grep -oP 'image: ghcr.io/zot24/openclaw-docker:\Kv[0-9.]+' zot24-openclaw/docker-compose.yml)
+          echo "Current version: $CURRENT"
+          echo "Latest version: $LATEST"
+
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "Already up to date"
+            echo "new_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "New version available: $LATEST"
+            echo "new_release=true" >> $GITHUB_OUTPUT
+            echo "version=$LATEST" >> $GITHUB_OUTPUT
+          fi
+
+  update-version:
+    needs: check-release
+    if: needs.check-release.outputs.new_release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout umbrel-apps
+        uses: actions/checkout@v4
+
+      - name: Set version variables
+        run: |
+          VERSION="${{ needs.check-release.outputs.version }}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          # Version without 'v' prefix for umbrel-app.yml
+          echo "VERSION_NO_V=${VERSION#v}" >> $GITHUB_ENV
+
+      - name: Update umbrel-app.yml
+        run: |
+          # Update version field (without 'v' prefix)
+          sed -i "s/^version: \".*\"/version: \"${{ env.VERSION_NO_V }}\"/" zot24-openclaw/umbrel-app.yml
+          # Update releaseNotes
+          sed -i "s/Updated to v.*/Updated to ${{ env.VERSION }}./" zot24-openclaw/umbrel-app.yml
+
+      - name: Update docker-compose.yml
+        run: |
+          # Update image tag (with 'v' prefix)
+          sed -i "s|image: ghcr.io/zot24/openclaw-docker:v[0-9.]*|image: ghcr.io/zot24/openclaw-docker:${{ env.VERSION }}|" zot24-openclaw/docker-compose.yml
+
+      - name: Verify changes
+        run: |
+          echo "=== umbrel-app.yml ==="
+          grep -E "^version:|releaseNotes:" zot24-openclaw/umbrel-app.yml
+          echo ""
+          echo "=== docker-compose.yml ==="
+          grep "image:" zot24-openclaw/docker-compose.yml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-openclaw/umbrel-app.yml zot24-openclaw/docker-compose.yml
+          git diff --cached --quiet || git commit -m "chore: update OpenClaw to ${{ env.VERSION }}"
+          git push
