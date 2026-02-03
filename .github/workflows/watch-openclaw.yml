@@ -12,19 +12,19 @@ jobs:
       new_release: ${{ steps.check.outputs.new_release }}
       version: ${{ steps.check.outputs.version }}
     steps:
-      - name: Get latest openclaw-docker release
+      - name: Get latest openclaw-docker version
         id: fetch
         run: |
-          # Get latest release tag from openclaw-docker
-          LATEST=$(gh release view -R zot24/openclaw-docker --json tagName -q .tagName 2>/dev/null || echo "")
+          # Get VERSION file from openclaw-docker repo (contains version like "v2026.2.1")
+          LATEST=$(curl -fsSL https://raw.githubusercontent.com/zot24/openclaw-docker/main/VERSION 2>/dev/null | tr -d '[:space:]')
+
           if [ -z "$LATEST" ]; then
-            # Fallback: get latest tag if no releases
-            LATEST=$(gh api repos/zot24/openclaw-docker/tags --jq '.[0].name')
+            echo "::error::Failed to fetch VERSION from openclaw-docker"
+            exit 1
           fi
+
           echo "Latest openclaw-docker version: $LATEST"
           echo "version=$LATEST" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout umbrel-apps
         uses: actions/checkout@v4
@@ -33,8 +33,15 @@ jobs:
         id: check
         run: |
           LATEST="${{ steps.fetch.outputs.version }}"
+
+          # Validate version format (must be vYYYY.M.D)
+          if ! echo "$LATEST" | grep -qE '^v[0-9]{4}\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version format: $LATEST"
+            exit 1
+          fi
+
           # Get current version from docker-compose.yml (has 'v' prefix)
-          CURRENT=$(grep -oP 'image: ghcr.io/zot24/openclaw-docker:\Kv[0-9.]+' zot24-openclaw/docker-compose.yml)
+          CURRENT=$(grep -oP 'image: ghcr.io/zot24/openclaw-docker:\Kv[0-9.]+' zot24-openclaw/docker-compose.yml || echo "")
           echo "Current version: $CURRENT"
           echo "Latest version: $LATEST"
 
@@ -60,6 +67,13 @@ jobs:
       - name: Set version variables
         run: |
           VERSION="${{ needs.check-release.outputs.version }}"
+
+          # Final validation before making changes
+          if [ -z "$VERSION" ] || ! echo "$VERSION" | grep -qE '^v[0-9]{4}\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid or empty version: $VERSION"
+            exit 1
+          fi
+
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           # Version without 'v' prefix for umbrel-app.yml
           echo "VERSION_NO_V=${VERSION#v}" >> $GITHUB_ENV
@@ -68,13 +82,13 @@ jobs:
         run: |
           # Update version field (without 'v' prefix)
           sed -i "s/^version: \".*\"/version: \"${{ env.VERSION_NO_V }}\"/" zot24-openclaw/umbrel-app.yml
-          # Update releaseNotes
-          sed -i "s/Updated to v.*/Updated to ${{ env.VERSION }}./" zot24-openclaw/umbrel-app.yml
+          # Update releaseNotes (handles multiline YAML)
+          sed -i "/^releaseNotes:/,/^[a-z]/s/Updated to v.*/Updated to ${{ env.VERSION }}./" zot24-openclaw/umbrel-app.yml
 
       - name: Update docker-compose.yml
         run: |
-          # Update image tag (with 'v' prefix)
-          sed -i "s|image: ghcr.io/zot24/openclaw-docker:v[0-9.]*|image: ghcr.io/zot24/openclaw-docker:${{ env.VERSION }}|" zot24-openclaw/docker-compose.yml
+          # Update image tag (with 'v' prefix) - handles empty or existing tags
+          sed -i "s|image: ghcr.io/zot24/openclaw-docker:.*|image: ghcr.io/zot24/openclaw-docker:${{ env.VERSION }}|" zot24-openclaw/docker-compose.yml
 
       - name: Verify changes
         run: |
