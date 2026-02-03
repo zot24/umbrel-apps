@@ -8,12 +8,15 @@ services:
 
   web:
     image: ghcr.io/zot24/openclaw-docker:v2026.2.1
+    user: "1000:1000"
     restart: on-failure
     stop_grace_period: 1m
     volumes:
-      - ${APP_DATA_DIR}/data:/root/.openclaw
-      - ${APP_DATA_DIR}/workspace:/root/clawd
+      - ${APP_DATA_DIR}/data:/home/openclaw/.openclaw
+      - ${APP_DATA_DIR}/workspace:/home/openclaw/clawd
     environment:
+      # Ensure HOME is set correctly (Umbrel may override)
+      HOME: /home/openclaw
       # Anthropic API Key for Claude models
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       # OpenAI API Key (optional, for embeddings/memory search)
@@ -23,8 +26,8 @@ services:
       # Gateway configuration (WebChat UI served at /chat on gateway port)
       OPENCLAW_GATEWAY_PORT: 18789
       # Data directories
-      OPENCLAW_DATA_DIR: /root/.openclaw
-      OPENCLAW_WORKSPACE: /root/clawd
+      OPENCLAW_DATA_DIR: /home/openclaw/.openclaw
+      OPENCLAW_WORKSPACE: /home/openclaw/clawd
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:18789/"]
       interval: 30s
