@@ -4,7 +4,7 @@ services:
   app_proxy:
     environment:
       APP_HOST: zot24-openclaw_web_1
-      APP_PORT: 18789
+      APP_PORT: 28639
 
   web:
     image: ghcr.io/zot24/openclaw-docker:v2026.2.1
@@ -25,12 +25,12 @@ services:
       # Telegram Bot Token (get from @BotFather on Telegram)
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       # Gateway configuration (WebChat UI served at /chat on gateway port)
-      OPENCLAW_GATEWAY_PORT: 18789
+      OPENCLAW_GATEWAY_PORT: 28639
       # Data directories
       OPENCLAW_DATA_DIR: /home/openclaw/.openclaw
       OPENCLAW_WORKSPACE: /home/openclaw/clawd
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:18789/"]
+      test: ["CMD", "curl", "-f", "http://localhost:28639/"]
       interval: 30s
       timeout: 10s
       retries: 3
