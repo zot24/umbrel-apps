@@ -46,7 +46,7 @@ website: https://openclaw.ai
 dependencies: []
 repo: https://github.com/zot24/openclaw
 support: https://github.com/zot24/openclaw/issues
-port: 18789
+port: 28639
 gallery:
   - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/1.jpg
   - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/2.jpg
