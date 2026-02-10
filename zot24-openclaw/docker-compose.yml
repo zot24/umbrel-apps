@@ -7,7 +7,7 @@ services:
       APP_PORT: 18789
 
   web:
-    image: ghcr.io/zot24/openclaw-docker:v2026.2.6
+    image: ghcr.io/zot24/openclaw-docker:v2026.2.9
     # Note: No user directive - container starts as root, entrypoint fixes
     # volume permissions then drops to openclaw user (UID 1000)
     restart: on-failure
