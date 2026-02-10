@@ -1,5 +1,3 @@
-version: "3.7"
-
 services:
   app_proxy:
     environment:
@@ -33,7 +31,8 @@ services:
       - ${APP_DATA_DIR}/data:/home/openclaw/.openclaw
       - ${APP_DATA_DIR}/workspace:/home/openclaw/clawd
     env_file:
-      - ${APP_DATA_DIR}/data/openclaw.env
+      - path: ${APP_DATA_DIR}/data/openclaw.env
+        required: false
     environment:
       # Ensure HOME is set correctly (Umbrel may override)
       HOME: /home/openclaw
