@@ -3,8 +3,23 @@ version: "3.7"
 services:
   app_proxy:
     environment:
-      APP_HOST: zot24-openclaw_web_1
-      APP_PORT: 28639
+      APP_HOST: zot24-openclaw_setup_1
+      APP_PORT: 8080
+
+  setup:
+    image: node:20-alpine
+    restart: on-failure
+    command: ["node", "/app/server.js"]
+    volumes:
+      - ./setup/server.js:/app/server.js:ro
+      - ./setup/wizard.html:/app/wizard.html:ro
+      - ${APP_DATA_DIR}/data:/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      UPSTREAM_HOST: zot24-openclaw_web_1
+      UPSTREAM_PORT: "28639"
+      CONFIG_DIR: /config
+      WEB_CONTAINER: zot24-openclaw_web_1
 
   web:
     image: ghcr.io/zot24/openclaw-docker:v2026.2.9
@@ -12,20 +27,20 @@ services:
     # volume permissions then drops to openclaw user (UID 1000)
     restart: on-failure
     stop_grace_period: 1m
+    depends_on:
+      - setup
     volumes:
       - ${APP_DATA_DIR}/data:/home/openclaw/.openclaw
       - ${APP_DATA_DIR}/workspace:/home/openclaw/clawd
+    env_file:
+      - ${APP_DATA_DIR}/data/openclaw.env
     environment:
       # Ensure HOME is set correctly (Umbrel may override)
       HOME: /home/openclaw
-      # Anthropic API Key for Claude models
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      # OpenAI API Key (optional, for embeddings/memory search)
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      # Telegram Bot Token (get from @BotFather on Telegram)
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       # Gateway configuration (WebChat UI served at /chat on gateway port)
       OPENCLAW_GATEWAY_PORT: 28639
+      # Re-generate config from env vars on restart
+      OPENCLAW_REGEN_CONFIG: "true"
       # Data directories
       OPENCLAW_DATA_DIR: /home/openclaw/.openclaw
       OPENCLAW_WORKSPACE: /home/openclaw/clawd

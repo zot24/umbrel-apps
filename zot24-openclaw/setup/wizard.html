@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenClaw Setup</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e6;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .container {
+    width: 100%;
+    max-width: 480px;
+  }
+  .logo {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .logo h1 {
+    font-size: 28px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #7c6aef, #4ecdc4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .logo p {
+    color: #888;
+    font-size: 14px;
+    margin-top: 6px;
+  }
+  .card {
+    background: #141420;
+    border: 1px solid #2a2a3a;
+    border-radius: 16px;
+    padding: 28px;
+  }
+  .field { margin-bottom: 20px; }
+  .field:last-child { margin-bottom: 0; }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #aaa;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  select, input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 12px 14px;
+    background: #1a1a2e;
+    border: 1px solid #2a2a3a;
+    border-radius: 10px;
+    color: #e0e0e6;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  select:focus, input:focus {
+    border-color: #7c6aef;
+  }
+  select { cursor: pointer; -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' fill='none' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px;
+  }
+  select option { background: #1a1a2e; color: #e0e0e6; }
+  .help-text {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+  }
+  .help-text a { color: #7c6aef; text-decoration: none; }
+  .help-text a:hover { text-decoration: underline; }
+  .btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #7c6aef, #5b4cc4);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    margin-top: 24px;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .optional-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 24px;
+    margin-bottom: 16px;
+    cursor: pointer;
+    color: #888;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    user-select: none;
+    border: none;
+    background: none;
+    padding: 0;
+  }
+  .optional-toggle:hover { color: #aaa; }
+  .optional-toggle .arrow {
+    transition: transform 0.2s;
+    font-size: 10px;
+  }
+  .optional-toggle .arrow.open { transform: rotate(90deg); }
+  .optional-section { display: none; }
+  .optional-section.open { display: block; }
+  .optional-section .field { margin-bottom: 16px; }
+
+  /* Loading overlay */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 10, 15, 0.95);
+    z-index: 100;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+  .loading-overlay.active { display: flex; }
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid #2a2a3a;
+    border-top-color: #7c6aef;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text {
+    font-size: 18px;
+    font-weight: 600;
+    color: #e0e0e6;
+  }
+  .loading-sub {
+    font-size: 13px;
+    color: #666;
+  }
+  .error-msg {
+    background: #2a1520;
+    border: 1px solid #5a2040;
+    color: #ff6b8a;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    margin-bottom: 16px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="logo">
+    <h1>OpenClaw Setup</h1>
+    <p>Configure your AI assistant</p>
+  </div>
+
+  <div class="card">
+    <div class="error-msg" id="error"></div>
+
+    <form id="setupForm" autocomplete="off">
+      <div class="field">
+        <label for="provider">AI Provider</label>
+        <select id="provider">
+          <option value="anthropic">Anthropic (Claude)</option>
+          <option value="openai">OpenAI</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="ollama">Local (Ollama)</option>
+        </select>
+      </div>
+
+      <div class="field" id="apiKeyField">
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-ant-..." />
+        <div class="help-text" id="apiKeyHelp">
+          Get your key at <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a>
+        </div>
+      </div>
+
+      <div class="field" id="baseUrlField" style="display:none;">
+        <label for="baseUrl">Base URL</label>
+        <input type="text" id="baseUrl" placeholder="http://host.docker.internal:11434" />
+        <div class="help-text">The Ollama API endpoint</div>
+      </div>
+
+      <div class="field">
+        <label for="model">Model</label>
+        <select id="model">
+          <option value="claude-sonnet-4-5-20250514">Claude Sonnet 4.5</option>
+          <option value="claude-opus-4-20250514">Claude Opus 4</option>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+        </select>
+        <input type="text" id="modelText" placeholder="e.g. meta-llama/llama-3-70b" style="display:none;" />
+      </div>
+
+      <button type="button" class="optional-toggle" id="optToggle" onclick="toggleOptional()">
+        <span class="arrow" id="optArrow">&#9654;</span>
+        Optional Integrations
+      </button>
+
+      <div class="optional-section" id="optSection">
+        <div class="field">
+          <label for="telegramToken">Telegram Bot Token</label>
+          <input type="text" id="telegramToken" placeholder="123456:ABC-DEF..." />
+          <div class="help-text">Create a bot via <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a></div>
+        </div>
+
+        <div class="field">
+          <label for="discordToken">Discord Bot Token</label>
+          <input type="text" id="discordToken" placeholder="MTIz..." />
+          <div class="help-text">Get from <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">discord.com/developers</a></div>
+        </div>
+
+        <div class="field" id="embeddingsKeyField">
+          <label for="embeddingsKey">OpenAI API Key (embeddings)</label>
+          <input type="password" id="embeddingsKey" placeholder="sk-..." />
+          <div class="help-text">Used for memory/embeddings if primary provider isn't OpenAI</div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary" id="submitBtn">Start OpenClaw</button>
+    </form>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Starting OpenClaw...</div>
+  <div class="loading-sub" id="loadingSub">Applying configuration and restarting</div>
+</div>
+
+<script>
+const providers = {
+  anthropic: {
+    placeholder: 'sk-ant-...',
+    helpUrl: 'https://console.anthropic.com/',
+    helpLabel: 'console.anthropic.com',
+    models: [
+      { value: 'claude-sonnet-4-5-20250514', label: 'Claude Sonnet 4.5' },
+      { value: 'claude-opus-4-20250514', label: 'Claude Opus 4' },
+      { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' }
+    ],
+    freeText: false,
+    needsKey: true
+  },
+  openai: {
+    placeholder: 'sk-...',
+    helpUrl: 'https://platform.openai.com/api-keys',
+    helpLabel: 'platform.openai.com',
+    models: [
+      { value: 'gpt-4o', label: 'GPT-4o' },
+      { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+      { value: 'o1', label: 'o1' },
+      { value: 'o3-mini', label: 'o3-mini' }
+    ],
+    freeText: false,
+    needsKey: true
+  },
+  openrouter: {
+    placeholder: 'sk-or-...',
+    helpUrl: 'https://openrouter.ai/keys',
+    helpLabel: 'openrouter.ai',
+    models: [],
+    freeText: true,
+    modelPlaceholder: 'e.g. anthropic/claude-sonnet-4-5',
+    needsKey: true
+  },
+  ollama: {
+    placeholder: '',
+    helpUrl: '',
+    helpLabel: '',
+    models: [],
+    freeText: true,
+    modelPlaceholder: 'e.g. llama3:70b',
+    needsKey: false
+  }
+};
+
+const $ = (id) => document.getElementById(id);
+
+function updateProvider() {
+  const p = providers[$('provider').value];
+  const modelSelect = $('model');
+  const modelText = $('modelText');
+  const apiKeyField = $('apiKeyField');
+  const baseUrlField = $('baseUrlField');
+  const embeddingsKeyField = $('embeddingsKeyField');
+
+  // API key
+  if (p.needsKey) {
+    apiKeyField.style.display = '';
+    $('apiKey').placeholder = p.placeholder;
+    $('apiKeyHelp').innerHTML = p.helpUrl
+      ? `Get your key at <a href="${p.helpUrl}" target="_blank" rel="noopener">${p.helpLabel}</a>`
+      : '';
+  } else {
+    apiKeyField.style.display = 'none';
+  }
+
+  // Base URL (Ollama only)
+  baseUrlField.style.display = $('provider').value === 'ollama' ? '' : 'none';
+
+  // Model
+  if (p.freeText) {
+    modelSelect.style.display = 'none';
+    modelText.style.display = '';
+    modelText.placeholder = p.modelPlaceholder || '';
+  } else {
+    modelSelect.style.display = '';
+    modelText.style.display = 'none';
+    modelSelect.innerHTML = '';
+    p.models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.value;
+      opt.textContent = m.label;
+      modelSelect.appendChild(opt);
+    });
+  }
+
+  // Hide embeddings key if OpenAI is primary
+  embeddingsKeyField.style.display = $('provider').value === 'openai' ? 'none' : '';
+}
+
+function toggleOptional() {
+  const section = $('optSection');
+  const arrow = $('optArrow');
+  section.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+function showError(msg) {
+  const el = $('error');
+  el.textContent = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
+
+function getFormData() {
+  const prov = $('provider').value;
+  const p = providers[prov];
+  const model = p.freeText ? $('modelText').value.trim() : $('model').value;
+  return {
+    provider: prov,
+    apiKey: $('apiKey').value.trim(),
+    model: model,
+    baseUrl: $('baseUrl').value.trim(),
+    telegramToken: $('telegramToken').value.trim(),
+    discordToken: $('discordToken').value.trim(),
+    embeddingsKey: $('embeddingsKey').value.trim()
+  };
+}
+
+async function pollHealth() {
+  const sub = $('loadingSub');
+  let attempts = 0;
+  const maxAttempts = 90; // 3 minutes
+  while (attempts < maxAttempts) {
+    attempts++;
+    sub.textContent = `Waiting for OpenClaw to start... (${attempts * 2}s)`;
+    await new Promise(r => setTimeout(r, 2000));
+    try {
+      const res = await fetch('/api/health');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ready) {
+          sub.textContent = 'Ready! Redirecting...';
+          await new Promise(r => setTimeout(r, 500));
+          window.location.href = '/';
+          return;
+        }
+      }
+    } catch (e) { /* keep polling */ }
+  }
+  sub.textContent = 'Timed out. Please refresh the page and try again.';
+}
+
+$('setupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showError('');
+
+  const data = getFormData();
+  const p = providers[data.provider];
+
+  if (p.needsKey && !data.apiKey) {
+    showError('API key is required for ' + $('provider').selectedOptions[0].text);
+    return;
+  }
+  if (!data.model) {
+    showError('Please select or enter a model');
+    return;
+  }
+
+  $('submitBtn').disabled = true;
+  try {
+    const res = await fetch('/api/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      showError(result.error || 'Setup failed');
+      $('submitBtn').disabled = false;
+      return;
+    }
+    $('loadingOverlay').classList.add('active');
+    pollHealth();
+  } catch (err) {
+    showError('Network error: ' + err.message);
+    $('submitBtn').disabled = false;
+  }
+});
+
+$('provider').addEventListener('change', updateProvider);
+
+// Load existing config if available
+(async function init() {
+  updateProvider();
+  try {
+    const res = await fetch('/api/setup');
+    if (res.ok) {
+      const cfg = await res.json();
+      if (cfg.provider) {
+        $('provider').value = cfg.provider;
+        updateProvider();
+        if (cfg.apiKey) $('apiKey').value = cfg.apiKey;
+        if (cfg.baseUrl) $('baseUrl').value = cfg.baseUrl;
+        if (cfg.model) {
+          const p = providers[cfg.provider];
+          if (p.freeText) {
+            $('modelText').value = cfg.model;
+          } else {
+            $('model').value = cfg.model;
+          }
+        }
+        if (cfg.telegramToken) $('telegramToken').value = cfg.telegramToken;
+        if (cfg.discordToken) $('discordToken').value = cfg.discordToken;
+        if (cfg.embeddingsKey) $('embeddingsKey').value = cfg.embeddingsKey;
+        // Open optional section if any optional fields are filled
+        if (cfg.telegramToken || cfg.discordToken || cfg.embeddingsKey) {
+          toggleOptional();
+        }
+      }
+    }
+  } catch (e) { /* first time, no config */ }
+})();
+</script>
+</body>
+</html>
