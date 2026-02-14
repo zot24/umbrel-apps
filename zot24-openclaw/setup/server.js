@@ -224,6 +224,39 @@ const server = http.createServer((req, res) => {
   }
 });
 
+// Handle WebSocket upgrade requests by proxying at the TCP socket level
+server.on('upgrade', (req, socket, head) => {
+  if (!isConfigured()) {
+    socket.destroy();
+    return;
+  }
+
+  const upstreamSocket = net.createConnection({ host: UPSTREAM_HOST, port: UPSTREAM_PORT }, () => {
+    // Reconstruct the raw HTTP upgrade request to send to upstream
+    const headerLines = [`${req.method} ${req.url} HTTP/${req.httpVersion}`];
+    for (let i = 0; i < req.rawHeaders.length; i += 2) {
+      headerLines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
+    }
+    upstreamSocket.write(headerLines.join('\r\n') + '\r\n\r\n');
+
+    if (head && head.length) {
+      upstreamSocket.write(head);
+    }
+
+    // Pipe bidirectionally — upstream 101 response flows back to client
+    upstreamSocket.pipe(socket);
+    socket.pipe(upstreamSocket);
+  });
+
+  upstreamSocket.on('error', () => {
+    socket.destroy();
+  });
+
+  socket.on('error', () => {
+    upstreamSocket.destroy();
+  });
+});
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Setup server listening on port ${PORT}`);
   console.log(`Configured: ${isConfigured()}`);
