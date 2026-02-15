@@ -17,7 +17,7 @@ services:
       WEB_CONTAINER: zot24-openclaw_web_1
 
   web:
-    image: ghcr.io/zot24/openclaw-docker:v2026.2.12
+    image: ghcr.io/zot24/openclaw-docker:v2026.2.13
     # Note: No user directive - container starts as root, entrypoint fixes
     # volume permissions then drops to openclaw user (UID 1000)
     restart: on-failure
