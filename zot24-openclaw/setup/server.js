@@ -10,6 +10,7 @@ const WEB_CONTAINER = process.env.WEB_CONTAINER || 'zot24-openclaw_web_1';
 const PORT = 8080;
 
 const ENV_FILE = path.join(CONFIG_DIR, 'openclaw.env');
+const JSON_CONFIG = path.join(CONFIG_DIR, 'openclaw.json');
 const SENTINEL = path.join(CONFIG_DIR, '.setup-complete');
 const WIZARD_PATH = '/app/wizard.html';
 
@@ -22,6 +23,37 @@ try {
 } catch (e) {
   console.error('Failed to bootstrap config:', e.message);
 }
+
+// Ensure openclaw.json has gateway.controlUi.allowInsecureAuth: true
+// Umbrel proxies HTTP internally, so the browser cannot use WebCrypto for
+// device identity.  Token-only auth is the correct fallback.
+function ensureGatewayConfig() {
+  let config = {};
+  try {
+    if (fs.existsSync(JSON_CONFIG)) {
+      config = JSON.parse(fs.readFileSync(JSON_CONFIG, 'utf8'));
+    }
+  } catch (e) {
+    console.error('Failed to read openclaw.json, creating fresh:', e.message);
+    config = {};
+  }
+
+  if (!config.gateway) config.gateway = {};
+  if (!config.gateway.controlUi) config.gateway.controlUi = {};
+
+  if (config.gateway.controlUi.allowInsecureAuth === true) return; // already set
+
+  config.gateway.controlUi.allowInsecureAuth = true;
+
+  try {
+    fs.writeFileSync(JSON_CONFIG, JSON.stringify(config, null, 2) + '\n');
+    console.log('Set gateway.controlUi.allowInsecureAuth = true in openclaw.json');
+  } catch (e) {
+    console.error('Failed to write openclaw.json:', e.message);
+  }
+}
+
+ensureGatewayConfig();
 
 function isConfigured() {
   return fs.existsSync(SENTINEL);
