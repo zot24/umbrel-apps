@@ -35,5 +35,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/zot24/openclaw-setup:v1.0.0
+            ghcr.io/zot24/openclaw-setup:v1.1.0
             ghcr.io/zot24/openclaw-setup:latest
