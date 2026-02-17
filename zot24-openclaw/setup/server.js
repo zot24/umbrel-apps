@@ -51,11 +51,18 @@ function readConfig() {
 }
 
 function readGatewayToken() {
-  if (!fs.existsSync(ENV_FILE)) return '';
-  const lines = fs.readFileSync(ENV_FILE, 'utf8').split('\n');
-  for (const line of lines) {
-    const match = line.match(/^OPENCLAW_GATEWAY_TOKEN=(.+)$/);
-    if (match) return match[1];
+  // First try openclaw.env (set by setup wizard)
+  if (fs.existsSync(ENV_FILE)) {
+    const lines = fs.readFileSync(ENV_FILE, 'utf8').split('\n');
+    for (const line of lines) {
+      const match = line.match(/^OPENCLAW_GATEWAY_TOKEN=(.+)$/);
+      if (match) return match[1];
+    }
+  }
+  // Fallback: read token persisted by OpenClaw itself
+  const tokenFile = path.join(CONFIG_DIR, '.gateway_token');
+  if (fs.existsSync(tokenFile)) {
+    return fs.readFileSync(tokenFile, 'utf8').trim();
   }
   return '';
 }
