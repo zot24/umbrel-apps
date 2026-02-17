@@ -1,4 +1,5 @@
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const net = require('net');
@@ -10,7 +11,7 @@ const WEB_CONTAINER = process.env.WEB_CONTAINER || 'zot24-openclaw_web_1';
 const PORT = 8080;
 
 const ENV_FILE = path.join(CONFIG_DIR, 'openclaw.env');
-const JSON_CONFIG = path.join(CONFIG_DIR, 'openclaw.json');
+const CONFIG_JSON = path.join(CONFIG_DIR, 'openclaw.json');
 const SENTINEL = path.join(CONFIG_DIR, '.setup-complete');
 const WIZARD_PATH = '/app/wizard.html';
 
@@ -23,37 +24,6 @@ try {
 } catch (e) {
   console.error('Failed to bootstrap config:', e.message);
 }
-
-// Ensure openclaw.json has gateway.controlUi.allowInsecureAuth: true
-// Umbrel proxies HTTP internally, so the browser cannot use WebCrypto for
-// device identity.  Token-only auth is the correct fallback.
-function ensureGatewayConfig() {
-  let config = {};
-  try {
-    if (fs.existsSync(JSON_CONFIG)) {
-      config = JSON.parse(fs.readFileSync(JSON_CONFIG, 'utf8'));
-    }
-  } catch (e) {
-    console.error('Failed to read openclaw.json, creating fresh:', e.message);
-    config = {};
-  }
-
-  if (!config.gateway) config.gateway = {};
-  if (!config.gateway.controlUi) config.gateway.controlUi = {};
-
-  if (config.gateway.controlUi.allowInsecureAuth === true) return; // already set
-
-  config.gateway.controlUi.allowInsecureAuth = true;
-
-  try {
-    fs.writeFileSync(JSON_CONFIG, JSON.stringify(config, null, 2) + '\n');
-    console.log('Set gateway.controlUi.allowInsecureAuth = true in openclaw.json');
-  } catch (e) {
-    console.error('Failed to write openclaw.json:', e.message);
-  }
-}
-
-ensureGatewayConfig();
 
 function isConfigured() {
   return fs.existsSync(SENTINEL);
@@ -80,7 +50,17 @@ function readConfig() {
   };
 }
 
-function buildEnvFile(data) {
+function readGatewayToken() {
+  if (!fs.existsSync(ENV_FILE)) return '';
+  const lines = fs.readFileSync(ENV_FILE, 'utf8').split('\n');
+  for (const line of lines) {
+    const match = line.match(/^OPENCLAW_GATEWAY_TOKEN=(.+)$/);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+function buildEnvFile(data, gatewayToken) {
   const lines = ['# OpenClaw configuration (managed by setup wizard)'];
   lines.push(`OPENCLAW_PROVIDER=${data.provider}`);
   lines.push(`OPENCLAW_MODEL=${data.model}`);
@@ -108,7 +88,54 @@ function buildEnvFile(data) {
   if (data.telegramToken) lines.push(`TELEGRAM_BOT_TOKEN=${data.telegramToken}`);
   if (data.discordToken) lines.push(`DISCORD_BOT_TOKEN=${data.discordToken}`);
 
+  lines.push(`OPENCLAW_GATEWAY_TOKEN=${gatewayToken}`);
+
   return lines.join('\n') + '\n';
+}
+
+function writeOpenclawConfig(data, gatewayToken) {
+  // Build the model primary string in provider/model format
+  const modelPrimary = `${data.provider}/${data.model}`;
+
+  const config = {
+    browser: {
+      headless: true,
+      noSandbox: true,
+      defaultProfile: 'openclaw'
+    },
+    agents: {
+      defaults: {
+        model: {
+          primary: modelPrimary
+        }
+      }
+    },
+    ...(data.provider === 'ollama' ? {
+      models: {
+        mode: 'merge',
+        providers: {
+          ollama: {
+            baseUrl: data.baseUrl || 'http://host.docker.internal:11434/v1',
+            apiKey: 'ollama-local',
+            api: 'openai-completions',
+            models: []
+          }
+        }
+      }
+    } : {}),
+    gateway: {
+      mode: 'local',
+      controlUi: {
+        allowInsecureAuth: true
+      },
+      auth: {
+        mode: 'token',
+        token: gatewayToken
+      }
+    }
+  };
+
+  fs.writeFileSync(CONFIG_JSON, JSON.stringify(config, null, 2));
 }
 
 function restartContainer(callback) {
@@ -136,12 +163,27 @@ function restartContainer(callback) {
 }
 
 function proxyRequest(req, res) {
+  const token = readGatewayToken();
+
+  // For the root path, redirect to include token if not present
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  if (token && url.pathname === '/' && !url.searchParams.has('token')) {
+    res.writeHead(302, { Location: `/?token=${token}` });
+    res.end();
+    return;
+  }
+
+  const headers = { ...req.headers };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const proxyReq = http.request({
     hostname: UPSTREAM_HOST,
     port: UPSTREAM_PORT,
     path: req.url,
     method: req.method,
-    headers: req.headers
+    headers: headers
   }, (proxyRes) => {
     res.writeHead(proxyRes.statusCode, proxyRes.headers);
     proxyRes.pipe(res, { end: true });
@@ -213,7 +255,9 @@ const server = http.createServer((req, res) => {
       }
 
       try {
-        fs.writeFileSync(ENV_FILE, buildEnvFile(data));
+        const gatewayToken = crypto.randomBytes(32).toString('hex');
+        fs.writeFileSync(ENV_FILE, buildEnvFile(data, gatewayToken));
+        writeOpenclawConfig(data, gatewayToken);
         fs.writeFileSync(SENTINEL, new Date().toISOString());
       } catch (e) {
         return sendJson(res, 500, { error: 'Failed to save configuration' });
@@ -256,36 +300,59 @@ const server = http.createServer((req, res) => {
   }
 });
 
-// Handle WebSocket upgrade requests by proxying at the TCP socket level
+// WebSocket upgrade proxy (critical for Control UI)
 server.on('upgrade', (req, socket, head) => {
   if (!isConfigured()) {
-    socket.destroy();
+    socket.end('HTTP/1.1 503 Service Unavailable\r\n\r\n');
     return;
   }
 
-  const upstreamSocket = net.createConnection({ host: UPSTREAM_HOST, port: UPSTREAM_PORT }, () => {
-    // Reconstruct the raw HTTP upgrade request to send to upstream
-    const headerLines = [`${req.method} ${req.url} HTTP/${req.httpVersion}`];
-    for (let i = 0; i < req.rawHeaders.length; i += 2) {
-      headerLines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
-    }
-    upstreamSocket.write(headerLines.join('\r\n') + '\r\n\r\n');
+  const token = readGatewayToken();
 
+  const proxySocket = net.connect(UPSTREAM_PORT, UPSTREAM_HOST, () => {
+    // Rebuild the upgrade request with auth header
+    let requestLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
+
+    const headers = { ...req.headers };
+    if (token) {
+      headers['authorization'] = `Bearer ${token}`;
+    }
+
+    let headerLines = '';
+    for (const [key, value] of Object.entries(headers)) {
+      if (Array.isArray(value)) {
+        value.forEach((v) => (headerLines += `${key}: ${v}\r\n`));
+      } else {
+        headerLines += `${key}: ${value}\r\n`;
+      }
+    }
+
+    proxySocket.write(requestLine + headerLines + '\r\n');
     if (head && head.length) {
-      upstreamSocket.write(head);
+      proxySocket.write(head);
     }
 
-    // Pipe bidirectionally — upstream 101 response flows back to client
-    upstreamSocket.pipe(socket);
-    socket.pipe(upstreamSocket);
+    // Pipe data between client and upstream
+    socket.pipe(proxySocket);
+    proxySocket.pipe(socket);
   });
 
-  upstreamSocket.on('error', () => {
-    socket.destroy();
+  proxySocket.on('error', (err) => {
+    console.error('WebSocket proxy error:', err.message);
+    socket.end();
   });
 
-  socket.on('error', () => {
-    upstreamSocket.destroy();
+  socket.on('error', (err) => {
+    console.error('Client socket error:', err.message);
+    proxySocket.end();
+  });
+
+  socket.on('close', () => {
+    proxySocket.end();
+  });
+
+  proxySocket.on('close', () => {
+    socket.end();
   });
 });
 
