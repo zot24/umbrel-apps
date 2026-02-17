@@ -5,7 +5,7 @@ services:
       APP_PORT: 8080
 
   setup:
-    image: ghcr.io/zot24/openclaw-setup:v1.0.0
+    image: ghcr.io/zot24/openclaw-setup:v1.1.0
     restart: on-failure
     volumes:
       - ${APP_DATA_DIR}/data:/config
@@ -35,8 +35,6 @@ services:
       HOME: /home/openclaw
       # Gateway configuration (WebChat UI served at /chat on gateway port)
       OPENCLAW_GATEWAY_PORT: 28639
-      # Re-generate config from env vars on restart
-      OPENCLAW_REGEN_CONFIG: "true"
       # Data directories
       OPENCLAW_DATA_DIR: /home/openclaw/.openclaw
       OPENCLAW_WORKSPACE: /home/openclaw/clawd
