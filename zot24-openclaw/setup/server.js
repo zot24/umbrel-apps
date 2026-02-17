@@ -125,6 +125,7 @@ function writeOpenclawConfig(data, gatewayToken) {
     } : {}),
     gateway: {
       mode: 'local',
+      host: '0.0.0.0',
       controlUi: {
         allowInsecureAuth: true
       },
