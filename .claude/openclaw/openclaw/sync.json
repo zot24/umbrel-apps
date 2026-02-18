@@ -1,0 +1,76 @@
+{
+  "name": "openclaw",
+  "version": "4.0.0",
+  "description": "OpenClaw AI assistant framework - complete documentation",
+  "cache_dir": ".cache",
+  "freshness_days": 14,
+  "base_url": "https://docs.openclaw.ai",
+  "sources": [
+    {
+      "url": "https://docs.openclaw.ai/start/getting-started",
+      "target": "skills/openclaw/docs/install.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/tools/agent-send",
+      "target": "skills/openclaw/docs/cli.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/concepts/agent",
+      "target": "skills/openclaw/docs/concepts.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/gateway",
+      "target": "skills/openclaw/docs/gateway.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/channels/whatsapp",
+      "target": "skills/openclaw/docs/channels.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/concepts/models",
+      "target": "skills/openclaw/docs/providers.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/tools/skills",
+      "target": "skills/openclaw/docs/tools.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/automation/webhook",
+      "target": "skills/openclaw/docs/automation.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/web/webchat",
+      "target": "skills/openclaw/docs/web.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/nodes",
+      "target": "skills/openclaw/docs/nodes.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://docs.openclaw.ai/platforms/macos",
+      "target": "skills/openclaw/docs/platforms.md",
+      "type": "extract-content",
+      "freshness_days": 14
+    }
+  ]
+}
