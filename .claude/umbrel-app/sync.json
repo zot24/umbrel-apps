@@ -1,0 +1,26 @@
+{
+  "name": "umbrel-app",
+  "version": "2.1.0",
+  "description": "Umbrel app development plugin with CLI reference and AI agent operations",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/getumbrel/umbrel-apps/master/README.md",
+      "target": "skills/umbrel-app/docs/readme-upstream.md",
+      "type": "raw",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://raw.githubusercontent.com/getumbrel/umbrel/master/README.md",
+      "target": "skills/umbrel-app/docs/umbrel-core.md",
+      "type": "raw",
+      "freshness_days": 14
+    },
+    {
+      "url": "https://raw.githubusercontent.com/getumbrel/umbrel-community-app-store/master/README.md",
+      "target": "skills/umbrel-app/docs/community-template.md",
+      "type": "raw",
+      "freshness_days": 14
+    }
+  ],
+  "cache_dir": ".cache"
+}
