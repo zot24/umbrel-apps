@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(clawdbot)",
+      "Bash(docker logs:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "umbrel-app@zot24-claude-code-plugins": true,
+    "clawdbot@zot24-claude-code-plugins": true
+  }
+}
