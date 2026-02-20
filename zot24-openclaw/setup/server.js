@@ -9,6 +9,7 @@ const UPSTREAM_PORT = parseInt(process.env.UPSTREAM_PORT || '28639', 10);
 const CONFIG_DIR = process.env.CONFIG_DIR || '/config';
 const WEB_CONTAINER = process.env.WEB_CONTAINER || 'zot24-openclaw_web_1';
 const PORT = 8080;
+const MAX_BODY_SIZE = 1024 * 1024; // 1MB limit for POST requests
 
 const ENV_FILE = path.join(CONFIG_DIR, 'openclaw.env');
 const CONFIG_JSON = path.join(CONFIG_DIR, 'openclaw.json');
@@ -19,7 +20,7 @@ const WIZARD_PATH = '/app/wizard.html';
 try {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   if (!fs.existsSync(ENV_FILE)) {
-    fs.writeFileSync(ENV_FILE, '# OpenClaw configuration\n');
+    fs.writeFileSync(ENV_FILE, '# OpenClaw configuration\n', { mode: 0o600 });
   }
 } catch (e) {
   console.error('Failed to bootstrap config:', e.message);
@@ -27,6 +28,11 @@ try {
 
 function isConfigured() {
   return fs.existsSync(SENTINEL);
+}
+
+function maskSecret(value) {
+  if (!value || value.length < 8) return value ? '****' : '';
+  return value.slice(0, 4) + '****' + value.slice(-4);
 }
 
 function readConfig() {
@@ -37,16 +43,18 @@ function readConfig() {
     const match = line.match(/^([A-Z_]+)=(.*)$/);
     if (match) cfg[match[1]] = match[2];
   }
-  // Map env vars back to form fields
+  // Map env vars back to form fields (API keys are masked for security)
   const provider = cfg.OPENCLAW_PROVIDER || 'anthropic';
+  const rawKey = cfg.ANTHROPIC_API_KEY || cfg.OPENAI_API_KEY || cfg.OPENROUTER_API_KEY || '';
+  const rawEmbeddings = provider !== 'openai' ? (cfg.OPENAI_API_KEY || '') : '';
   return {
     provider,
-    apiKey: cfg.ANTHROPIC_API_KEY || cfg.OPENAI_API_KEY || cfg.OPENROUTER_API_KEY || '',
+    apiKey: maskSecret(rawKey),
     model: cfg.OPENCLAW_MODEL || '',
     baseUrl: cfg.OLLAMA_BASE_URL || '',
-    telegramToken: cfg.TELEGRAM_BOT_TOKEN || '',
-    discordToken: cfg.DISCORD_BOT_TOKEN || '',
-    embeddingsKey: provider !== 'openai' ? (cfg.OPENAI_API_KEY || '') : ''
+    telegramToken: maskSecret(cfg.TELEGRAM_BOT_TOKEN || ''),
+    discordToken: maskSecret(cfg.DISCORD_BOT_TOKEN || ''),
+    embeddingsKey: maskSecret(rawEmbeddings)
   };
 }
 
@@ -125,8 +133,10 @@ function writeOpenclawConfig(data, gatewayToken) {
     } : {}),
     gateway: {
       mode: 'local',
-      bind: 'lan',
+      // bind is controlled via OPENCLAW_GATEWAY_HOST env var in docker-compose.yml
       controlUi: {
+        // Safe on umbrelOS: behind auth proxy and either on secure local
+        // network or e2e encrypted remotely via Tailscale
         allowInsecureAuth: true
       },
       auth: {
@@ -136,7 +146,7 @@ function writeOpenclawConfig(data, gatewayToken) {
     }
   };
 
-  fs.writeFileSync(CONFIG_JSON, JSON.stringify(config, null, 2));
+  fs.writeFileSync(CONFIG_JSON, JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
 function restartContainer(callback) {
@@ -217,7 +227,15 @@ function sendJson(res, statusCode, data) {
 
 function readBody(req, callback) {
   let body = '';
-  req.on('data', (chunk) => body += chunk);
+  let size = 0;
+  req.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > MAX_BODY_SIZE) {
+      req.destroy();
+      return callback(new Error('Request body too large'));
+    }
+    body += chunk;
+  });
   req.on('end', () => {
     try {
       callback(null, JSON.parse(body));
@@ -257,9 +275,9 @@ const server = http.createServer((req, res) => {
 
       try {
         const gatewayToken = crypto.randomBytes(32).toString('hex');
-        fs.writeFileSync(ENV_FILE, buildEnvFile(data, gatewayToken));
+        fs.writeFileSync(ENV_FILE, buildEnvFile(data, gatewayToken), { mode: 0o600 });
         writeOpenclawConfig(data, gatewayToken);
-        fs.writeFileSync(SENTINEL, new Date().toISOString());
+        fs.writeFileSync(SENTINEL, new Date().toISOString(), { mode: 0o600 });
       } catch (e) {
         return sendJson(res, 500, { error: 'Failed to save configuration' });
       }
