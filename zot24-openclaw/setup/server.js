@@ -183,12 +183,21 @@ function restartContainer(callback) {
   req.end(payload);
 }
 
+function rewriteTokenInUrl(urlStr, token) {
+  const parsed = new URL(urlStr, 'http://localhost');
+  if (token && parsed.searchParams.has('token')) {
+    parsed.searchParams.set('token', token);
+    return parsed.pathname + parsed.search;
+  }
+  return urlStr;
+}
+
 function proxyRequest(req, res) {
   const token = readGatewayToken();
 
-  // For the root path, redirect to include token if not present
+  // For the root path, redirect to include the current gateway token
   const url = new URL(req.url, `http://${req.headers.host}`);
-  if (token && url.pathname === '/' && !url.searchParams.has('token')) {
+  if (token && url.pathname === '/' && url.searchParams.get('token') !== token) {
     res.writeHead(302, { Location: `/?token=${token}` });
     res.end();
     return;
@@ -202,7 +211,7 @@ function proxyRequest(req, res) {
   const proxyReq = http.request({
     hostname: UPSTREAM_HOST,
     port: UPSTREAM_PORT,
-    path: req.url,
+    path: rewriteTokenInUrl(req.url, token),
     method: req.method,
     headers: headers
   }, (proxyRes) => {
@@ -339,8 +348,8 @@ server.on('upgrade', (req, socket, head) => {
   const token = readGatewayToken();
 
   const proxySocket = net.connect(UPSTREAM_PORT, UPSTREAM_HOST, () => {
-    // Rebuild the upgrade request with auth header
-    let requestLine = `${req.method} ${req.url} HTTP/1.1\r\n`;
+    // Rebuild the upgrade request with auth header and correct token
+    let requestLine = `${req.method} ${rewriteTokenInUrl(req.url, token)} HTTP/1.1\r\n`;
 
     const headers = { ...req.headers };
     if (token) {
