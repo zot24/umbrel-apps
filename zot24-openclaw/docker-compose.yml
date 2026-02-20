@@ -5,7 +5,7 @@ services:
       APP_PORT: 8080
 
   setup:
-    image: ghcr.io/zot24/openclaw-setup:v1.1.0@sha256:60f493209d01dd72a1dbc170f9375d469f9f06077d60dcfa1ef1a03ea5274c2a
+    image: ghcr.io/zot24/openclaw-setup:v1.1.1@sha256:df4821493bb7be397f6686bceb578c943fbf88601a0006d4d98d266c4c46d186
     restart: on-failure
     # Security hardening: minimize blast radius of Docker socket access
     read_only: true
