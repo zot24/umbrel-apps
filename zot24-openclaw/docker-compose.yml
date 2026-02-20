@@ -13,6 +13,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      # Needed to write config files on the shared volume owned by openclaw (UID 1000)
+      - DAC_OVERRIDE
+      - FOWNER
     tmpfs:
       - /tmp
     volumes:
