@@ -47,8 +47,6 @@ services:
       HOME: /home/openclaw
       # Gateway configuration (WebChat UI served at /chat on gateway port)
       OPENCLAW_GATEWAY_PORT: 28639
-      # Bind to all interfaces so other containers can reach the gateway
-      OPENCLAW_GATEWAY_HOST: "0.0.0.0"
       # Data directories
       OPENCLAW_DATA_DIR: /home/openclaw/.openclaw
       OPENCLAW_WORKSPACE: /home/openclaw/clawd
