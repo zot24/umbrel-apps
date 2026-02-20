@@ -13,10 +13,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Determine next version
+        id: version
+        run: |
+          # Extract current setup image version from docker-compose.yml
+          CURRENT=$(grep -oP 'ghcr.io/zot24/openclaw-setup:\Kv[0-9]+\.[0-9]+\.[0-9]+' zot24-openclaw/docker-compose.yml)
+          echo "Current version: $CURRENT"
+
+          # Bump patch version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT#v}"
+          NEXT="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "Next version: $NEXT"
+          echo "next=$NEXT" >> $GITHUB_OUTPUT
 
       - uses: docker/setup-qemu-action@v3
 
@@ -29,11 +42,26 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: zot24-openclaw/setup
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/zot24/openclaw-setup:v1.1.0
+            ghcr.io/zot24/openclaw-setup:${{ steps.version.outputs.next }}
             ghcr.io/zot24/openclaw-setup:latest
+
+      - name: Update docker-compose.yml with new image + digest
+        run: |
+          VERSION="${{ steps.version.outputs.next }}"
+          DIGEST="${{ steps.build.outputs.digest }}"
+          sed -i "s|image: ghcr.io/zot24/openclaw-setup:.*|image: ghcr.io/zot24/openclaw-setup:${VERSION}@${DIGEST}|" zot24-openclaw/docker-compose.yml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-openclaw/docker-compose.yml
+          git diff --cached --quiet || git commit -m "chore: update setup image to ${{ steps.version.outputs.next }}"
+          git push
