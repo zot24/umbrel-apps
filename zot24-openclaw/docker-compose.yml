@@ -5,8 +5,16 @@ services:
       APP_PORT: 8080
 
   setup:
-    image: ghcr.io/zot24/openclaw-setup:v1.1.0
+    image: ghcr.io/zot24/openclaw-setup:v1.1.0@sha256:60f493209d01dd72a1dbc170f9375d469f9f06077d60dcfa1ef1a03ea5274c2a
     restart: on-failure
+    # Security hardening: minimize blast radius of Docker socket access
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
     volumes:
       - ${APP_DATA_DIR}/data:/config
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -17,7 +25,7 @@ services:
       WEB_CONTAINER: zot24-openclaw_web_1
 
   web:
-    image: ghcr.io/zot24/openclaw-docker:v2026.2.19
+    image: ghcr.io/zot24/openclaw-docker:v2026.2.19@sha256:6c5cc75e9e241f204a9cf4421dabc14c6d2d5d4eb585699795ecb097d47c53ea
     # Note: No user directive - container starts as root, entrypoint fixes
     # volume permissions then drops to openclaw user (UID 1000)
     restart: on-failure
