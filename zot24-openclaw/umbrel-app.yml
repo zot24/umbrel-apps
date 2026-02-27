@@ -3,7 +3,7 @@ id: zot24-openclaw
 name: OpenClaw
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openclaw/icon.png
 category: ai
-version: "2026.2.24"
+version: "2026.2.26"
 tagline: Self-hosted AI assistant with Telegram integration
 description: >-
   OpenClaw is your personal AI assistant that connects Claude and other LLMs
@@ -40,7 +40,7 @@ description: >-
   The first time you message your bot, you'll receive a pairing code.
   Approve it through the OpenClaw dashboard to start conversations.
 releaseNotes: >-
-  Updated to v2026.2.24.
+  Updated to v2026.2.26.
 developer: OpenClaw
 website: https://openclaw.ai
 dependencies: []
