@@ -143,7 +143,7 @@ function writeOpenclawConfig(data) {
     } : {}),
     gateway: {
       mode: 'local',
-      // bind is controlled via OPENCLAW_GATEWAY_HOST env var in docker-compose.yml
+      bind: 'lan', // 0.0.0.0 — required so setup container can proxy to the gateway
       controlUi: {
         // Safe on umbrelOS: behind auth proxy and either on secure local
         // network or e2e encrypted remotely via Tailscale
