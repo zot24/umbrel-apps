@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Agent Setup</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0D0D0D;
+      --surface: #1A1A1A;
+      --surface-hover: #242424;
+      --border: #333;
+      --text: #F0EDE8;
+      --text-muted: #888;
+      --accent: #6C63FF;
+      --accent-hover: #5A52E0;
+      --success: #4CAF50;
+      --error: #E53935;
+      --warning: #FF9800;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 560px;
+      width: 100%;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #6C63FF, #B388FF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    .card h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .card .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .step-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.3s;
+    }
+
+    .step-dot.active {
+      background: var(--accent);
+    }
+
+    .step-dot.done {
+      background: var(--success);
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: var(--text-muted);
+    }
+
+    select, input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 14px;
+      margin-bottom: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--accent);
+    }
+
+    .field-group {
+      margin-bottom: 8px;
+    }
+
+    .field-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: -12px;
+      margin-bottom: 16px;
+    }
+
+    .field-hint a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .toggle-row:last-child {
+      border-bottom: none;
+    }
+
+    .toggle-row .toggle-label {
+      font-size: 14px;
+    }
+
+    .toggle-row .toggle-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle .slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: var(--text);
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle input:checked + .slider {
+      background: var(--accent);
+    }
+
+    .toggle input:checked + .slider::before {
+      transform: translateX(20px);
+    }
+
+    .platform-config {
+      display: none;
+      padding: 16px 0 0;
+    }
+
+    .platform-config.show {
+      display: block;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      width: 100%;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--surface-hover);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-test {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 6px 14px;
+      font-size: 13px;
+    }
+
+    .btn-test:hover {
+      background: rgba(108, 99, 255, 0.1);
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .btn-row .btn {
+      flex: 1;
+    }
+
+    .test-result {
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .test-result.success {
+      display: block;
+      background: rgba(76, 175, 80, 0.1);
+      border: 1px solid rgba(76, 175, 80, 0.3);
+      color: var(--success);
+    }
+
+    .test-result.error {
+      display: block;
+      background: rgba(229, 57, 53, 0.1);
+      border: 1px solid rgba(229, 57, 53, 0.3);
+      color: var(--error);
+    }
+
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(13, 13, 13, 0.9);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .loading-overlay.show {
+      display: flex;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .step { display: none; }
+    .step.active { display: block; }
+
+    .wa-qr-container {
+      text-align: center;
+      padding: 20px;
+    }
+
+    .wa-qr-container img {
+      max-width: 256px;
+      border-radius: 8px;
+    }
+
+    .wa-instructions {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 12px;
+      line-height: 1.6;
+    }
+
+    .wa-instructions ol {
+      text-align: left;
+      padding-left: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Hermes Agent</h1>
+      <p>Set up your personal AI assistant</p>
+    </div>
+
+    <div class="step-indicator">
+      <div class="step-dot active" id="dot-0"></div>
+      <div class="step-dot" id="dot-1"></div>
+      <div class="step-dot" id="dot-2"></div>
+    </div>
+
+    <!-- Step 1: LLM Provider -->
+    <div class="step active" id="step-0">
+      <div class="card">
+        <h2>LLM Provider</h2>
+        <p class="subtitle">Choose your AI model provider and enter your API key</p>
+
+        <div class="field-group">
+          <label for="provider">Provider</label>
+          <select id="provider" onchange="onProviderChange()">
+            <option value="openrouter">OpenRouter (200+ models)</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI (GPT)</option>
+            <option value="ollama">Ollama (Local)</option>
+          </select>
+        </div>
+
+        <div class="field-group" id="apiKeyGroup">
+          <label for="apiKey">API Key</label>
+          <input type="password" id="apiKey" placeholder="sk-or-...">
+          <p class="field-hint" id="apiKeyHint">
+            Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>
+          </p>
+        </div>
+
+        <div class="field-group" id="ollamaGroup" style="display:none">
+          <label for="ollamaUrl">Ollama URL</label>
+          <input type="text" id="ollamaUrl" placeholder="http://host.docker.internal:11434" value="http://host.docker.internal:11434">
+          <p class="field-hint">URL where your Ollama server is running</p>
+        </div>
+
+        <div class="field-group">
+          <label for="model">Model</label>
+          <select id="model">
+            <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
+            <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
+            <option value="openai/gpt-4o">GPT-4o</option>
+            <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
+            <option value="meta-llama/llama-4-maverick">Llama 4 Maverick</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary" onclick="goToStep(1)">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Messaging Platforms -->
+    <div class="step" id="step-1">
+      <div class="card">
+        <h2>Messaging Platforms</h2>
+        <p class="subtitle">Connect at least one platform to chat with your agent</p>
+
+        <!-- Telegram -->
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Telegram</div>
+            <div class="toggle-desc">Chat via Telegram bot</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="telegramEnabled" onchange="togglePlatform('telegram')">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="platform-config" id="telegramConfig">
+          <div class="field-group">
+            <label for="telegramToken">Bot Token</label>
+            <input type="password" id="telegramToken" placeholder="123456789:ABCdefGHIjklMNO...">
+            <p class="field-hint">
+              Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> on Telegram
+            </p>
+          </div>
+
+          <div class="field-group">
+            <label for="telegramChatId">Your Chat ID</label>
+            <input type="text" id="telegramChatId" placeholder="123456789">
+            <p class="field-hint">
+              Send /start to <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> to get your chat ID
+            </p>
+          </div>
+
+          <button class="btn btn-test" id="telegramTestBtn" onclick="testTelegram()">Send Test Message</button>
+          <div class="test-result" id="telegramTestResult"></div>
+        </div>
+
+        <!-- WhatsApp -->
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">WhatsApp</div>
+            <div class="toggle-desc">Chat via WhatsApp (requires QR scan)</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="whatsappEnabled" onchange="togglePlatform('whatsapp')">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="platform-config" id="whatsappConfig">
+          <div class="wa-instructions">
+            <p>WhatsApp requires scanning a QR code to pair your phone.</p>
+            <p style="margin-top:8px">After completing setup, the QR code will appear on the status page when the gateway starts.</p>
+          </div>
+          <div class="test-result success" style="display:block; margin-top:12px;">
+            WhatsApp will be configured after setup completes. You'll scan a QR code on the status page.
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="goToStep(0)">Back</button>
+          <button class="btn btn-primary" id="step1Next" onclick="goToStep(2)" disabled>Continue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Confirm -->
+    <div class="step" id="step-2">
+      <div class="card">
+        <h2>Confirm & Start</h2>
+        <p class="subtitle">Review your configuration and start the agent</p>
+
+        <div id="summary" style="font-size: 14px; line-height: 1.8; margin-bottom: 16px;"></div>
+
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="goToStep(1)">Back</button>
+          <button class="btn btn-primary" id="submitBtn" onclick="submitSetup()">Start Hermes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <p id="loadingText">Saving configuration...</p>
+  </div>
+
+  <script>
+    const state = {
+      telegramTested: false,
+      whatsappEnabled: false,
+    };
+
+    // ── Provider change ──
+    function onProviderChange() {
+      const provider = document.getElementById("provider").value;
+      const apiKeyGroup = document.getElementById("apiKeyGroup");
+      const ollamaGroup = document.getElementById("ollamaGroup");
+      const apiKeyInput = document.getElementById("apiKey");
+      const apiKeyHint = document.getElementById("apiKeyHint");
+      const modelSelect = document.getElementById("model");
+
+      ollamaGroup.style.display = provider === "ollama" ? "block" : "none";
+      apiKeyGroup.style.display = provider === "ollama" ? "none" : "block";
+
+      const models = {
+        openrouter: [
+          ["anthropic/claude-sonnet-4-20250514", "Claude Sonnet 4"],
+          ["anthropic/claude-opus-4-20250514", "Claude Opus 4"],
+          ["openai/gpt-4o", "GPT-4o"],
+          ["google/gemini-2.5-pro", "Gemini 2.5 Pro"],
+          ["meta-llama/llama-4-maverick", "Llama 4 Maverick"],
+        ],
+        anthropic: [
+          ["claude-sonnet-4-20250514", "Claude Sonnet 4"],
+          ["claude-opus-4-20250514", "Claude Opus 4"],
+          ["claude-haiku-4-5-20251001", "Claude Haiku 4.5"],
+        ],
+        openai: [
+          ["gpt-4o", "GPT-4o"],
+          ["gpt-4o-mini", "GPT-4o Mini"],
+          ["o3", "o3"],
+        ],
+        ollama: [
+          ["llama3.1:8b", "Llama 3.1 8B"],
+          ["mistral:7b", "Mistral 7B"],
+          ["qwen2.5:7b", "Qwen 2.5 7B"],
+        ],
+      };
+
+      const hints = {
+        openrouter: 'Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>',
+        anthropic: 'Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>',
+        openai: 'Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>',
+        ollama: '',
+      };
+
+      const placeholders = {
+        openrouter: "sk-or-...",
+        anthropic: "sk-ant-...",
+        openai: "sk-...",
+        ollama: "",
+      };
+
+      modelSelect.innerHTML = models[provider]
+        .map(([val, label]) => `<option value="${val}">${label}</option>`)
+        .join("");
+
+      apiKeyInput.placeholder = placeholders[provider];
+      apiKeyHint.innerHTML = hints[provider];
+    }
+
+    // ── Platform toggles ──
+    function togglePlatform(platform) {
+      const config = document.getElementById(`${platform}Config`);
+      const enabled = document.getElementById(`${platform}Enabled`).checked;
+      config.classList.toggle("show", enabled);
+
+      if (platform === "whatsapp") {
+        state.whatsappEnabled = enabled;
+      }
+
+      updateStep1Next();
+    }
+
+    function updateStep1Next() {
+      const telegramEnabled = document.getElementById("telegramEnabled").checked;
+      const whatsappEnabled = document.getElementById("whatsappEnabled").checked;
+
+      let canProceed = false;
+
+      // If telegram enabled, must be tested
+      if (telegramEnabled && state.telegramTested) canProceed = true;
+      // If only whatsapp, can proceed (QR pairing after setup)
+      if (whatsappEnabled && !telegramEnabled) canProceed = true;
+      // If both, telegram must be tested
+      if (telegramEnabled && whatsappEnabled && state.telegramTested) canProceed = true;
+
+      document.getElementById("step1Next").disabled = !canProceed;
+    }
+
+    // ── Test Telegram ──
+    async function testTelegram() {
+      const token = document.getElementById("telegramToken").value.trim();
+      const chatId = document.getElementById("telegramChatId").value.trim();
+      const resultEl = document.getElementById("telegramTestResult");
+      const btn = document.getElementById("telegramTestBtn");
+
+      if (!token || !chatId) {
+        resultEl.className = "test-result error";
+        resultEl.textContent = "Please enter both bot token and chat ID";
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+
+      try {
+        const resp = await fetch("/api/test-telegram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, chatId }),
+        });
+
+        const data = await resp.json();
+
+        if (data.success) {
+          resultEl.className = "test-result success";
+          resultEl.textContent = `Connected as @${data.botUsername}. Check your Telegram for the test message!`;
+          state.telegramTested = true;
+          updateStep1Next();
+        } else {
+          resultEl.className = "test-result error";
+          resultEl.textContent = data.error;
+        }
+      } catch (e) {
+        resultEl.className = "test-result error";
+        resultEl.textContent = `Connection error: ${e.message}`;
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Send Test Message";
+    }
+
+    // ── Step navigation ──
+    function goToStep(n) {
+      document.querySelectorAll(".step").forEach((el) => el.classList.remove("active"));
+      document.getElementById(`step-${n}`).classList.add("active");
+
+      document.querySelectorAll(".step-dot").forEach((el, i) => {
+        el.classList.remove("active", "done");
+        if (i < n) el.classList.add("done");
+        if (i === n) el.classList.add("active");
+      });
+
+      if (n === 2) buildSummary();
+    }
+
+    // ── Build summary ──
+    function buildSummary() {
+      const provider = document.getElementById("provider").value;
+      const model = document.getElementById("model").value;
+      const modelLabel = document.getElementById("model").selectedOptions[0].text;
+      const platforms = [];
+      if (document.getElementById("telegramEnabled").checked) platforms.push("Telegram");
+      if (document.getElementById("whatsappEnabled").checked) platforms.push("WhatsApp");
+
+      document.getElementById("summary").innerHTML = `
+        <div style="padding:12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+          <div style="margin-bottom:8px;"><span style="color:var(--text-muted)">Provider:</span> ${provider}</div>
+          <div style="margin-bottom:8px;"><span style="color:var(--text-muted)">Model:</span> ${modelLabel}</div>
+          <div><span style="color:var(--text-muted)">Platforms:</span> ${platforms.join(", ")}</div>
+        </div>
+      `;
+    }
+
+    // ── Submit setup ──
+    async function submitSetup() {
+      const overlay = document.getElementById("loadingOverlay");
+      const loadingText = document.getElementById("loadingText");
+      overlay.classList.add("show");
+      loadingText.textContent = "Saving configuration...";
+
+      const provider = document.getElementById("provider").value;
+      const config = {};
+
+      // LLM config
+      const apiKey = document.getElementById("apiKey").value.trim();
+      switch (provider) {
+        case "openrouter":
+          config.OPENROUTER_API_KEY = apiKey;
+          config.HERMES_PROVIDER = "openrouter";
+          break;
+        case "anthropic":
+          config.ANTHROPIC_API_KEY = apiKey;
+          config.HERMES_PROVIDER = "auto";
+          break;
+        case "openai":
+          config.OPENAI_API_KEY = apiKey;
+          config.HERMES_PROVIDER = "auto";
+          break;
+        case "ollama":
+          config.OLLAMA_BASE_URL = document.getElementById("ollamaUrl").value.trim();
+          config.HERMES_PROVIDER = "ollama";
+          break;
+      }
+
+      config.HERMES_MODEL = document.getElementById("model").value;
+
+      // Platform config
+      if (document.getElementById("telegramEnabled").checked) {
+        config.TELEGRAM_BOT_TOKEN = document.getElementById("telegramToken").value.trim();
+        config.TELEGRAM_HOME_CHAT_ID = document.getElementById("telegramChatId").value.trim();
+      }
+
+      if (document.getElementById("whatsappEnabled").checked) {
+        config.WHATSAPP_ENABLED = "true";
+      }
+
+      try {
+        const resp = await fetch("/api/setup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(config),
+        });
+
+        const data = await resp.json();
+
+        if (data.success) {
+          loadingText.textContent = "Starting gateway...";
+          // Wait a moment then redirect to status page
+          setTimeout(() => {
+            window.location.href = "/";
+          }, 5000);
+        } else {
+          overlay.classList.remove("show");
+          alert(`Setup failed: ${data.error}`);
+        }
+      } catch (e) {
+        overlay.classList.remove("show");
+        alert(`Setup failed: ${e.message}`);
+      }
+    }
+
+    // ── Check if reconfiguring ──
+    (async function checkExisting() {
+      try {
+        const resp = await fetch("/api/setup");
+        const data = await resp.json();
+        if (data.configured && data.config) {
+          // Pre-fill with existing masked values where possible
+          if (data.config.HERMES_MODEL) {
+            const modelSelect = document.getElementById("model");
+            for (const opt of modelSelect.options) {
+              if (opt.value === data.config.HERMES_MODEL) {
+                opt.selected = true;
+                break;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // First run, nothing to pre-fill
+      }
+    })();
+  </script>
+</body>
+</html>

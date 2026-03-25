@@ -1,8 +1,8 @@
-name: Watch OpenClaw Docker Releases
+name: Watch Hermes Agent Releases
 
 on:
   schedule:
-    - cron: '30 0 * * *'  # Daily at 00:30 UTC (after openclaw-docker builds)
+    - cron: '30 0 * * *'  # Daily at 00:30 UTC
   workflow_dispatch:  # Manual trigger
 
 jobs:
@@ -12,18 +12,20 @@ jobs:
       new_release: ${{ steps.check.outputs.new_release }}
       version: ${{ steps.check.outputs.version }}
     steps:
-      - name: Get latest openclaw-docker version
+      - name: Get latest hermes-agent version
         id: fetch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get VERSION file from openclaw-docker repo (contains version like "v2026.2.1")
-          LATEST=$(curl -fsSL https://raw.githubusercontent.com/zot24/openclaw-docker/main/VERSION 2>/dev/null | tr -d '[:space:]')
+          # Get latest release tag from NousResearch/hermes-agent
+          LATEST=$(gh release view -R NousResearch/hermes-agent --json tagName -q .tagName 2>/dev/null)
 
           if [ -z "$LATEST" ]; then
-            echo "::error::Failed to fetch VERSION from openclaw-docker"
+            echo "::error::Failed to fetch latest release from hermes-agent"
             exit 1
           fi
 
-          echo "Latest openclaw-docker version: $LATEST"
+          echo "Latest hermes-agent version: $LATEST"
           echo "version=$LATEST" >> $GITHUB_OUTPUT
 
       - name: Checkout umbrel-apps
@@ -40,8 +42,8 @@ jobs:
             exit 1
           fi
 
-          # Get current version from docker-compose.yml (has 'v' prefix)
-          CURRENT=$(grep -oP 'image: ghcr.io/zot24/openclaw-docker:\Kv[0-9.]+' zot24-openclaw/docker-compose.yml || echo "")
+          # Get current version from VERSION file
+          CURRENT=$(cat zot24-hermes/VERSION 2>/dev/null | tr -d '[:space:]')
           echo "Current version: $CURRENT"
           echo "Latest version: $LATEST"
 
@@ -78,30 +80,37 @@ jobs:
           # Version without 'v' prefix for umbrel-app.yml
           echo "VERSION_NO_V=${VERSION#v}" >> $GITHUB_ENV
 
+      - name: Update VERSION file
+        run: |
+          echo "${{ env.VERSION }}" > zot24-hermes/VERSION
+
       - name: Update umbrel-app.yml
         run: |
           # Update version field (without 'v' prefix)
-          sed -i "s/^version: \".*\"/version: \"${{ env.VERSION_NO_V }}\"/" zot24-openclaw/umbrel-app.yml
-          # Update releaseNotes (handles multiline YAML)
-          sed -i "/^releaseNotes:/,/^[a-z]/s/Updated to v.*/Updated to ${{ env.VERSION }}./" zot24-openclaw/umbrel-app.yml
+          sed -i "s/^version: \".*\"/version: \"${{ env.VERSION_NO_V }}\"/" zot24-hermes/umbrel-app.yml
+          # Update releaseNotes
+          sed -i "/^releaseNotes:/,/^[a-z]/s/Updated to v.*/Updated to ${{ env.VERSION }}./" zot24-hermes/umbrel-app.yml
 
       - name: Update docker-compose.yml
         run: |
-          # Update image tag (with 'v' prefix) - handles empty or existing tags
-          sed -i "s|image: ghcr.io/zot24/openclaw-docker:.*|image: ghcr.io/zot24/openclaw-docker:${{ env.VERSION }}|" zot24-openclaw/docker-compose.yml
+          # Update web image tag
+          sed -i "s|image: ghcr.io/zot24/hermes-docker:.*|image: ghcr.io/zot24/hermes-docker:${{ env.VERSION }}|" zot24-hermes/docker-compose.yml
 
       - name: Verify changes
         run: |
+          echo "=== VERSION ==="
+          cat zot24-hermes/VERSION
+          echo ""
           echo "=== umbrel-app.yml ==="
-          grep -E "^version:|releaseNotes:" zot24-openclaw/umbrel-app.yml
+          grep -E "^version:|releaseNotes:" zot24-hermes/umbrel-app.yml
           echo ""
           echo "=== docker-compose.yml ==="
-          grep "image:" zot24-openclaw/docker-compose.yml
+          grep "image:" zot24-hermes/docker-compose.yml
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add zot24-openclaw/umbrel-app.yml zot24-openclaw/docker-compose.yml
-          git diff --cached --quiet || git commit -m "chore: update OpenClaw to ${{ env.VERSION }}"
+          git add zot24-hermes/VERSION zot24-hermes/umbrel-app.yml zot24-hermes/docker-compose.yml
+          git diff --cached --quiet || git commit -m "chore: update Hermes Agent to ${{ env.VERSION }}"
           git push
