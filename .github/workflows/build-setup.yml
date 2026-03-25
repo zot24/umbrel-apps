@@ -4,9 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'zot24-openclaw/setup/server.js'
-      - 'zot24-openclaw/setup/wizard.html'
-      - 'zot24-openclaw/setup/Dockerfile'
+      - 'zot24-hermes/setup/server.js'
+      - 'zot24-hermes/setup/wizard.html'
+      - 'zot24-hermes/setup/status.html'
+      - 'zot24-hermes/setup/Dockerfile'
   workflow_dispatch:
 
 jobs:
@@ -22,7 +23,7 @@ jobs:
         id: version
         run: |
           # Extract current setup image version from docker-compose.yml
-          CURRENT=$(grep -oP 'ghcr.io/zot24/openclaw-setup:\Kv[0-9]+\.[0-9]+\.[0-9]+' zot24-openclaw/docker-compose.yml)
+          CURRENT=$(grep -oP 'ghcr.io/zot24/hermes-setup:\Kv[0-9]+\.[0-9]+\.[0-9]+' zot24-hermes/docker-compose.yml || echo "v0.0.0")
           echo "Current version: $CURRENT"
 
           # Bump patch version
@@ -45,23 +46,23 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: zot24-openclaw/setup
+          context: zot24-hermes/setup
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/zot24/openclaw-setup:${{ steps.version.outputs.next }}
-            ghcr.io/zot24/openclaw-setup:latest
+            ghcr.io/zot24/hermes-setup:${{ steps.version.outputs.next }}
+            ghcr.io/zot24/hermes-setup:latest
 
       - name: Update docker-compose.yml with new image + digest
         run: |
           VERSION="${{ steps.version.outputs.next }}"
           DIGEST="${{ steps.build.outputs.digest }}"
-          sed -i "s|image: ghcr.io/zot24/openclaw-setup:.*|image: ghcr.io/zot24/openclaw-setup:${VERSION}@${DIGEST}|" zot24-openclaw/docker-compose.yml
+          sed -i "s|image: ghcr.io/zot24/hermes-setup:.*|image: ghcr.io/zot24/hermes-setup:${VERSION}@${DIGEST}|" zot24-hermes/docker-compose.yml
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add zot24-openclaw/docker-compose.yml
+          git add zot24-hermes/docker-compose.yml
           git diff --cached --quiet || git commit -m "chore: update setup image to ${{ steps.version.outputs.next }}"
           git push

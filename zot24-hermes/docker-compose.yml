@@ -1,0 +1,54 @@
+services:
+  app_proxy:
+    environment:
+      APP_HOST: zot24-hermes_setup_1
+      APP_PORT: 8080
+
+  setup:
+    image: ghcr.io/zot24/hermes-setup:latest
+    restart: on-failure
+    # Security hardening: minimize blast radius of Docker socket access
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # Needed to write config files on the shared volume owned by hermes (UID 1000)
+      - DAC_OVERRIDE
+      - FOWNER
+    tmpfs:
+      - /tmp
+    volumes:
+      - ${APP_DATA_DIR}/data:/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONFIG_DIR: /config
+      WEB_CONTAINER: zot24-hermes_web_1
+
+  web:
+    image: ghcr.io/zot24/hermes-docker:latest
+    # Note: No user directive - container starts as root, entrypoint fixes
+    # volume permissions then drops to hermes user (UID 1000)
+    restart: on-failure
+    init: true
+    stop_grace_period: 1m
+    depends_on:
+      - setup
+    volumes:
+      - ${APP_DATA_DIR}/data:/home/hermes/.hermes
+      - ${APP_DATA_DIR}/data/linuxbrew:/home/linuxbrew
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    environment:
+      # Ensure HOME is set correctly (Umbrel may override)
+      HOME: /home/hermes
+      # Data directory
+      HERMES_HOME: /home/hermes/.hermes
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import json,sys; d=json.load(open('/home/hermes/.hermes/gateway_state.json')); sys.exit(0 if d.get('gateway_state')=='running' else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
