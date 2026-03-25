@@ -1,0 +1,53 @@
+manifestVersion: 1.1
+id: zot24-hermes
+name: Hermes Agent
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/icon.png
+category: ai
+version: "0.4.0"
+tagline: Self-improving AI agent with Telegram & WhatsApp
+description: >-
+  Hermes Agent by Nous Research is a self-improving AI assistant that connects
+  to your favorite messaging platforms. Run your own AI-powered chatbot on
+  Umbrel and chat with it through Telegram, WhatsApp, or other platforms.
+
+
+  Features:
+
+  - Multi-Platform: Connect to Telegram, WhatsApp, Discord, Slack, Signal, and more
+
+  - 200+ Models: OpenRouter, Anthropic Claude, OpenAI, or local Ollama
+
+  - Tool Use: Web browsing, file management, code execution
+
+  - Memory: Persistent memory across conversations
+
+  - Skills: Extensible with custom skills and plugins
+
+  - Privacy: All data stays on your Umbrel, no cloud required
+
+
+  Setup Instructions:
+
+  1. Get an API key from your preferred LLM provider
+
+  2. Create a Telegram bot via @BotFather and copy the token
+
+  3. Enter your credentials in the setup wizard
+
+  4. Start chatting with your bot!
+releaseNotes: >-
+  Initial release of Hermes Agent for Umbrel.
+developer: Nous Research
+website: https://github.com/NousResearch/hermes-agent
+dependencies: []
+repo: https://github.com/NousResearch/hermes-agent
+support: https://github.com/NousResearch/hermes-agent/issues
+port: 8080
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""

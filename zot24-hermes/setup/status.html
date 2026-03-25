@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Agent</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0D0D0D;
+      --surface: #1A1A1A;
+      --surface-hover: #242424;
+      --border: #333;
+      --text: #F0EDE8;
+      --text-muted: #888;
+      --accent: #6C63FF;
+      --accent-hover: #5A52E0;
+      --success: #4CAF50;
+      --error: #E53935;
+      --warning: #FF9800;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6C63FF, #B388FF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-top: 8px;
+    }
+
+    .status-badge.running {
+      background: rgba(76, 175, 80, 0.15);
+      color: var(--success);
+    }
+
+    .status-badge.stopped {
+      background: rgba(229, 57, 53, 0.15);
+      color: var(--error);
+    }
+
+    .status-badge.starting {
+      background: rgba(255, 152, 0, 0.15);
+      color: var(--warning);
+    }
+
+    .status-badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .status-badge.running .dot {
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 16px;
+    }
+
+    .platform-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .platform-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .platform-item .name {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .platform-item .status {
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .platform-item .status.connected {
+      color: var(--success);
+    }
+
+    .platform-item .status.disconnected {
+      color: var(--error);
+    }
+
+    .platform-item .status.pending {
+      color: var(--warning);
+    }
+
+    .config-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+
+    .config-row:last-child {
+      border-bottom: none;
+    }
+
+    .config-row .label {
+      color: var(--text-muted);
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex: 1;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      background: var(--surface-hover);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--border);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state p {
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    .wa-qr-section {
+      text-align: center;
+      padding: 16px;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      margin-top: 12px;
+    }
+
+    .wa-qr-section img {
+      max-width: 200px;
+      border-radius: 8px;
+      margin: 8px 0;
+    }
+
+    .wa-qr-section p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Hermes Agent</h1>
+      <div id="gatewayStatus">
+        <span class="status-badge starting">
+          <span class="dot"></span>
+          Loading...
+        </span>
+      </div>
+    </div>
+
+    <!-- Platforms -->
+    <div class="card">
+      <h3>Connected Platforms</h3>
+      <div class="platform-list" id="platformList">
+        <div class="empty-state">
+          <p>Loading platform status...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration -->
+    <div class="card">
+      <h3>Configuration</h3>
+      <div id="configInfo">
+        <div class="config-row">
+          <span class="label">Model</span>
+          <span id="configModel">Loading...</span>
+        </div>
+        <div class="config-row">
+          <span class="label">Provider</span>
+          <span id="configProvider">Loading...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
+      <button class="btn btn-primary" onclick="restartGateway()">Restart Gateway</button>
+    </div>
+  </div>
+
+  <script>
+    let pollInterval;
+
+    async function fetchStatus() {
+      try {
+        const resp = await fetch("/api/status");
+        const data = await resp.json();
+        updateUI(data);
+      } catch (e) {
+        console.error("Failed to fetch status:", e);
+      }
+    }
+
+    function updateUI(data) {
+      // Gateway status
+      const statusEl = document.getElementById("gatewayStatus");
+      const gwState = data.gateway?.gateway_state || "unknown";
+      let badgeClass, badgeText;
+
+      switch (gwState) {
+        case "running":
+          badgeClass = "running";
+          badgeText = "Running";
+          break;
+        case "starting":
+          badgeClass = "starting";
+          badgeText = "Starting...";
+          break;
+        default:
+          badgeClass = "stopped";
+          badgeText = gwState === "unknown" ? "Waiting for gateway..." : `Stopped (${gwState})`;
+      }
+
+      statusEl.innerHTML = `
+        <span class="status-badge ${badgeClass}">
+          <span class="dot"></span>
+          ${badgeText}
+        </span>
+      `;
+
+      // Platforms
+      const listEl = document.getElementById("platformList");
+      if (data.platforms && data.platforms.length > 0) {
+        listEl.innerHTML = data.platforms.map((p) => {
+          let statusClass = gwState === "running" ? "connected" : "disconnected";
+          let statusText = gwState === "running" ? "Connected" : "Waiting...";
+
+          // WhatsApp special handling
+          if (p.name === "WhatsApp" && !p.paired) {
+            statusClass = "pending";
+            statusText = "QR scan needed";
+          }
+
+          return `
+            <div class="platform-item">
+              <span class="name">${p.name}</span>
+              <span class="status ${statusClass}">
+                <span class="dot" style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+                ${statusText}
+              </span>
+            </div>
+          `;
+        }).join("");
+
+        // Check if WhatsApp needs QR
+        const wa = data.platforms.find((p) => p.name === "WhatsApp" && !p.paired);
+        if (wa) {
+          listEl.innerHTML += `
+            <div class="wa-qr-section">
+              <p>Open WhatsApp on your phone, go to Settings > Linked Devices, and scan the QR code that appears in the gateway logs.</p>
+              <p style="margin-top:8px; font-size:12px;">Check logs: <code>docker logs zot24-hermes_web_1</code></p>
+            </div>
+          `;
+        }
+      } else {
+        listEl.innerHTML = `
+          <div class="empty-state">
+            <p>No platforms configured</p>
+          </div>
+        `;
+      }
+
+      // Config
+      document.getElementById("configModel").textContent = data.model || "Not set";
+      document.getElementById("configProvider").textContent = data.provider || "auto";
+    }
+
+    async function restartGateway() {
+      const btn = event.target;
+      btn.disabled = true;
+      btn.textContent = "Restarting...";
+
+      try {
+        await fetch("/api/restart", { method: "POST" });
+        // Update status after a delay
+        setTimeout(fetchStatus, 3000);
+      } catch (e) {
+        alert("Failed to restart: " + e.message);
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Restart Gateway";
+    }
+
+    // Poll status every 5 seconds
+    fetchStatus();
+    pollInterval = setInterval(fetchStatus, 5000);
+  </script>
+</body>
+</html>
