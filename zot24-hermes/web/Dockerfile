@@ -50,6 +50,13 @@ RUN if [ -f scripts/whatsapp-bridge/bridge.js ]; then \
     sed -i "s|connectionState = 'connected';|connectionState = 'connected'; try { unlinkSync(path.join(path.dirname(SESSION_DIR), 'qr.txt')); } catch(e) {}|" \
     scripts/whatsapp-bridge/bridge.js; \
     fi
+# 4. In self-chat mode, drop ALL messages from others (not just fromMe filter).
+#    Without this, messages from contacts pass through to the gateway which
+#    sends pairing codes to them during initial sync.
+RUN if [ -f scripts/whatsapp-bridge/bridge.js ]; then \
+    sed -i "/Check allowlist for messages from others/i\\      // Self-chat mode: drop ALL messages from others — only process self-chat\n      if (WHATSAPP_MODE === 'self-chat' \&\& !msg.key.fromMe) continue;" \
+    scripts/whatsapp-bridge/bridge.js; \
+    fi
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM python:3.11-slim-bookworm
