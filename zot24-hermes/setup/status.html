@@ -466,22 +466,64 @@
       background: rgba(80,255,168,0.2);
       box-shadow: 0 0 12px var(--phosphor-glow);
     }
+    /* iOS-style slide-reveal relink */
+    .platform-item-wrap {
+      position: relative;
+      overflow: hidden;
+    }
+    .platform-item-wrap .platform-item {
+      position: relative;
+      z-index: 1;
+      transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    .platform-item-wrap:hover .platform-item {
+      transform: translateX(-72px);
+    }
     .btn-relink {
-      border: 1px solid var(--amber-dim);
-      background: transparent;
-      color: var(--amber);
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 72px;
+      border: none;
+      background: var(--amber-dim);
+      color: var(--bg);
       font-family: var(--body);
       font-size: 10px;
-      font-weight: 500;
+      font-weight: 600;
       letter-spacing: 1px;
       text-transform: uppercase;
-      padding: 4px 10px;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: background 0.15s;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .btn-relink::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.25) 2px,
+        rgba(0,0,0,0.25) 4px
+      );
+      pointer-events: none;
+      animation: relinkStatic 0.15s steps(2) infinite;
+    }
+    @keyframes relinkStatic {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(4px); }
+    }
+    .btn-relink::after {
+      content: 'RELINK';
+      position: relative;
+      z-index: 1;
+      text-shadow: 0 0 8px rgba(255,192,77,0.6);
     }
     .btn-relink:hover {
-      background: var(--amber-glow);
-      box-shadow: 0 0 10px var(--amber-glow);
+      background: var(--amber);
     }
 
     /* ── Confirm modal ── */
@@ -756,9 +798,9 @@
       listEl.innerHTML = data.platforms.map(p => {
         const pi = platformIcons[p.name] || { icon: "??", cls: "" };
         let sc, st;
-        let relink = '';
+        let hasRelink = false;
         if (p.name === "WhatsApp") {
-          if (p.paired) { sc = "connected"; st = "LINKED"; relink = '<button class="btn-relink" onclick="relinkWhatsApp()">RELINK</button>'; }
+          if (p.paired) { sc = "connected"; st = "LINKED"; hasRelink = true; }
           else if (p.hasQr) { sc = "pending"; st = "PAIR REQ"; }
           else { sc = "pending"; st = "WAITING"; }
         } else {
@@ -767,19 +809,20 @@
           else if (gwState === "running") { sc = "connected"; st = "ACTIVE"; }
           else { sc = "pending"; st = "SYNC..."; }
         }
-        return `<div class="platform-item">
+        const inner = `<div class="platform-item">
           <div class="platform-name">
             <div class="platform-icon">${pi.icon}</div>
             ${p.name}
           </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div class="platform-status ${sc}">
-              <span class="indicator"></span>
-              ${st}
-            </div>
-            ${relink}
+          <div class="platform-status ${sc}">
+            <span class="indicator"></span>
+            ${st}
           </div>
         </div>`;
+        if (hasRelink) {
+          return `<div class="platform-item-wrap">${inner}<button class="btn-relink" onclick="relinkWhatsApp()"></button></div>`;
+        }
+        return inner;
       }).join("");
 
       const wa = data.platforms.find(p => p.name === "WhatsApp" && !p.paired);
