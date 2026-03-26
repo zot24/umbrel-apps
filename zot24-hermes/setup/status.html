@@ -476,6 +476,11 @@
       z-index: 1;
       transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
+    /* Disable the generic hover shift inside the wrapper — prevents bounce */
+    .platform-item-wrap .platform-item:hover {
+      background: var(--surface-2);
+      border-left-color: transparent;
+    }
     .platform-item-wrap:hover .platform-item {
       transform: translateX(-72px);
     }
