@@ -476,7 +476,7 @@
       background: rgba(80,255,168,0.2);
       box-shadow: 0 0 12px var(--phosphor-glow);
     }
-    /* iOS-style slide-reveal relink */
+    /* iOS-style slide-reveal actions */
     .platform-item-wrap {
       position: relative;
       overflow: hidden;
@@ -486,60 +486,66 @@
       z-index: 1;
       transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
     }
-    /* Disable the generic hover shift inside the wrapper — prevents bounce */
     .platform-item-wrap .platform-item:hover {
       background: var(--surface-2);
       border-left-color: transparent;
     }
-    .platform-item-wrap:hover .platform-item {
-      transform: translateX(-72px);
-    }
-    .btn-relink {
+    /* Single action (disconnect only) */
+    .platform-item-wrap.single:hover .platform-item { transform: translateX(-72px); }
+    /* Double action (relink + disconnect) */
+    .platform-item-wrap.double:hover .platform-item { transform: translateX(-144px); }
+
+    .slide-actions {
       position: absolute;
-      right: 0;
-      top: 0;
-      bottom: 0;
+      right: 0; top: 0; bottom: 0;
+      display: flex;
+      z-index: 0;
+    }
+    .slide-btn {
       width: 72px;
       border: none;
-      background: var(--amber-dim);
-      color: var(--bg);
       font-family: var(--body);
       font-size: 10px;
       font-weight: 600;
       letter-spacing: 1px;
       text-transform: uppercase;
       cursor: pointer;
-      transition: background 0.15s;
-      z-index: 0;
+      transition: filter 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       overflow: hidden;
+      position: relative;
     }
-    .btn-relink::before {
+    .slide-btn:hover { filter: brightness(1.2); }
+
+    .slide-btn-relink {
+      background: var(--amber-dim);
+      color: var(--bg);
+    }
+    .slide-btn-relink::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(0,0,0,0.25) 2px,
-        rgba(0,0,0,0.25) 4px
-      );
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.25) 2px, rgba(0,0,0,0.25) 4px);
       pointer-events: none;
       animation: relinkStatic 0.15s steps(2) infinite;
     }
-    @keyframes relinkStatic {
-      0% { transform: translateY(0); }
-      100% { transform: translateY(4px); }
+    @keyframes relinkStatic { 0% { transform: translateY(0); } 100% { transform: translateY(4px); } }
+
+    .slide-btn-disconnect {
+      background: var(--red-dim);
+      color: var(--bg);
     }
-    .btn-relink::after {
-      content: 'RELINK';
-      position: relative;
-      z-index: 1;
-      text-shadow: 0 0 8px rgba(255,192,77,0.6);
+    .slide-btn-disconnect::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.3) 1px, rgba(0,0,0,0.3) 3px, transparent 3px, transparent 5px, rgba(0,0,0,0.15) 5px, rgba(0,0,0,0.15) 6px);
+      pointer-events: none;
+      animation: disconnectStatic 0.12s steps(3) infinite reverse;
     }
-    .btn-relink:hover {
-      background: var(--amber);
-    }
+    @keyframes disconnectStatic { 0% { transform: translateY(0); } 100% { transform: translateY(6px); } }
 
     /* ── Confirm modal ── */
     .modal-backdrop {
@@ -634,6 +640,77 @@
       transition: opacity 0.3s;
     }
     .boot-footer:hover { opacity: 0.85; }
+    /* Corner help hint */
+    .corner-help {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      z-index: 100;
+    }
+    .corner-help-btn {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--text-muted);
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--display);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .corner-help-btn:hover {
+      color: var(--phosphor);
+      border-color: var(--phosphor);
+      box-shadow: 0 0 14px var(--phosphor-glow);
+      background: rgba(80,255,168,0.05);
+    }
+    .corner-help-tip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      font-family: var(--body);
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      width: 280px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .corner-help-tip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      right: 10px;
+      border: 5px solid transparent;
+      border-top-color: var(--border);
+    }
+    .corner-help-tip code {
+      color: var(--phosphor);
+      background: rgba(80,255,168,0.08);
+      padding: 2px 6px;
+      font-family: var(--body);
+      font-size: 11px;
+    }
+    .corner-help-tip a {
+      color: var(--phosphor-dim);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(80,255,168,0.2);
+    }
+    .corner-help-tip a:hover { color: var(--phosphor); }
+    .corner-help.open .corner-help-tip { display: block; }
+    .corner-help.open .corner-help-btn {
+      opacity: 1;
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+      background: var(--phosphor-glow);
+    }
     .boot-footer .version {
       font-size: 10px;
       letter-spacing: 1.5px;
@@ -743,6 +820,15 @@
     </div>
   </div>
 
+  <!-- Corner help -->
+  <div class="corner-help" id="cornerHelp" onclick="this.classList.toggle('open')">
+    <div class="corner-help-tip">
+      Need deeper configuration? Send <code>/hermes-agent-setup</code> from any connected channel (Telegram, WhatsApp, etc.) to configure models, providers, tools, voice, gateway, and more.<br><br>
+      <a href="https://hermes-agent.nousresearch.com/docs/reference/skills-catalog" target="_blank" rel="noopener">View bundled skills catalog</a>
+    </div>
+    <div class="corner-help-btn">?</div>
+  </div>
+
   <!-- Confirm modal -->
   <div class="modal-backdrop" id="confirmModal">
     <div class="modal-box">
@@ -753,7 +839,7 @@
       <div class="modal-body" id="modalBody"></div>
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-danger" id="modalConfirmBtn" onclick="closeModal()">Confirm</button>
+        <button class="btn btn-danger" id="modalConfirmBtn">Confirm</button>
       </div>
     </div>
   </div>
@@ -813,9 +899,9 @@
       listEl.innerHTML = data.platforms.map(p => {
         const pi = platformIcons[p.name] || { icon: "??", cls: "" };
         let sc, st;
-        let hasRelink = false;
+        let slideType = 'single'; // all platforms get disconnect
         if (p.name === "WhatsApp") {
-          if (p.paired) { sc = "connected"; st = "LINKED"; hasRelink = true; }
+          if (p.paired) { sc = "connected"; st = "LINKED"; slideType = 'double'; }
           else if (p.hasQr) { sc = "pending"; st = "PAIR REQ"; }
           else { sc = "pending"; st = "WAITING"; }
         } else {
@@ -834,10 +920,13 @@
             ${st}
           </div>
         </div>`;
-        if (hasRelink) {
-          return `<div class="platform-item-wrap">${inner}<button class="btn-relink" onclick="relinkWhatsApp()"></button></div>`;
-        }
-        return inner;
+        const pkey = p.name.toLowerCase();
+        const relinkBtn = slideType === 'double' ? `<button class="slide-btn slide-btn-relink" onclick="relinkWhatsApp()">RELINK</button>` : '';
+        const disconnectBtn = `<button class="slide-btn slide-btn-disconnect" onclick="disconnectPlatform('${pkey}', '${p.name}')">REMOVE</button>`;
+        return `<div class="platform-item-wrap ${slideType}">
+          ${inner}
+          <div class="slide-actions">${relinkBtn}${disconnectBtn}</div>
+        </div>`;
       }).join("");
 
       const wa = data.platforms.find(p => p.name === "WhatsApp" && !p.paired);
@@ -933,6 +1022,27 @@
       } catch (e) {
         alert("Failed: " + e.message);
       }
+    }
+
+    function disconnectPlatform(key, name) {
+      showConfirm(
+        "Disconnect " + name,
+        "This will remove " + name + " from Hermes. You can reconnect it later from the setup wizard.",
+        "Disconnect",
+        async () => {
+          try {
+            const data = await (await fetch("/api/disconnect", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ platform: key }),
+            })).json();
+            if (data.success) {
+              lastQrImage = null;
+              setTimeout(fetchStatus, 3000);
+            }
+          } catch (e) {}
+        }
+      );
     }
 
     function relinkWhatsApp() {

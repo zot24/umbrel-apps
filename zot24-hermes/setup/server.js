@@ -468,6 +468,52 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: Disconnect a platform ──
+  if (req.method === "POST" && url.pathname === "/api/disconnect") {
+    try {
+      const data = await parseBody(req);
+      const { platform } = data;
+      if (!platform) {
+        sendJson(res, 400, { error: "Platform is required" });
+        return;
+      }
+
+      // Keys to remove per platform
+      const platformKeys = {
+        telegram: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID"],
+        whatsapp: ["WHATSAPP_ENABLED", "WHATSAPP_ALLOWED_USERS", "WHATSAPP_MODE"],
+      };
+
+      const keysToRemove = platformKeys[platform];
+      if (!keysToRemove) {
+        sendJson(res, 400, { error: `Unknown platform: ${platform}` });
+        return;
+      }
+
+      // Read current env, remove platform keys, write back
+      const config = readCurrentConfig();
+      for (const key of keysToRemove) {
+        delete config[key];
+      }
+      writeEnvFile(config);
+      writeConfigYaml(config);
+
+      // WhatsApp: also delete session and QR
+      if (platform === "whatsapp") {
+        const sessionDir = path.join(CONFIG_DIR, "whatsapp", "session");
+        const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
+        if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
+        if (fs.existsSync(qrFile)) fs.unlinkSync(qrFile);
+      }
+
+      const restarted = restartWebContainer();
+      sendJson(res, 200, { success: true, restarted });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
   // ── API: List pending pairing requests ──
   if (req.method === "GET" && url.pathname === "/api/pairing") {
     const pairingDir = path.join(CONFIG_DIR, "pairing");
