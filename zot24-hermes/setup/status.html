@@ -167,6 +167,16 @@
     }
     @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
 
+    /* Easter egg: editable title */
+    #heroText {
+      outline: none;
+      border: none;
+      cursor: text;
+    }
+    #heroText:focus { caret-color: var(--phosphor); }
+    /* Hide blinking cursor while editing (real caret takes over) */
+    #heroText:focus + .cursor { opacity: 0; animation: none; }
+
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -663,7 +673,7 @@
   <div class="container">
     <div class="header">
       <div class="header-sub">Nous Research</div>
-      <h1>HERMES<span class="cursor"></span></h1>
+      <h1 id="heroTitle"><span id="heroText">HERMES</span><span class="cursor"></span></h1>
       <div id="gatewayStatus">
         <span class="status-pill starting"><span class="dot"></span> INIT...</span>
       </div>
@@ -944,6 +954,35 @@
         }
       );
     }
+
+    // Easter egg: editable title, saved to cookie
+    (function() {
+      const el = document.getElementById("heroText");
+      const saved = document.cookie.match(/heroName=([^;]+)/);
+      if (saved) el.textContent = decodeURIComponent(saved[1]);
+
+      el.addEventListener("click", () => {
+        el.contentEditable = "true";
+        el.focus();
+        // Select all text on first click
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      });
+
+      el.addEventListener("blur", () => {
+        el.contentEditable = "false";
+        const name = el.textContent.trim() || "HERMES";
+        el.textContent = name;
+        document.cookie = "heroName=" + encodeURIComponent(name) + ";path=/;max-age=31536000";
+      });
+
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); el.blur(); }
+        if (e.key === "Escape") { el.textContent = "HERMES"; el.blur(); }
+      });
+    })();
 
     fetchStatus();
     setInterval(fetchStatus, 5000);
