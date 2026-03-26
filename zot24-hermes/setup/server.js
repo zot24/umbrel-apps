@@ -430,6 +430,39 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: Relink WhatsApp (delete session, restart to get new QR) ──
+  if (req.method === "POST" && url.pathname === "/api/whatsapp-relink") {
+    try {
+      const sessionDir = path.join(CONFIG_DIR, "whatsapp", "session");
+      const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
+
+      // Delete session credentials
+      if (fs.existsSync(sessionDir)) {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+        console.log("Deleted WhatsApp session for relinking");
+      }
+      // Delete stale QR file
+      if (fs.existsSync(qrFile)) {
+        fs.unlinkSync(qrFile);
+      }
+
+      // Restart the web container so bridge generates a new QR
+      const restarted = restartWebContainer();
+
+      sendJson(res, 200, {
+        success: true,
+        restarted,
+        message: restarted
+          ? "WhatsApp session cleared. A new QR code will appear shortly."
+          : "Session cleared. Please restart the app manually.",
+      });
+    } catch (e) {
+      console.error("WhatsApp relink error:", e.message);
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
   // ── API: List pending pairing requests ──
   if (req.method === "GET" && url.pathname === "/api/pairing") {
     const pairingDir = path.join(CONFIG_DIR, "pairing");

@@ -466,6 +466,106 @@
       background: rgba(80,255,168,0.2);
       box-shadow: 0 0 12px var(--phosphor-glow);
     }
+    .btn-relink {
+      border: 1px solid var(--amber-dim);
+      background: transparent;
+      color: var(--amber);
+      font-family: var(--body);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-relink:hover {
+      background: var(--amber-glow);
+      box-shadow: 0 0 10px var(--amber-glow);
+    }
+
+    /* ── Confirm modal ── */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(6,10,13,0.85);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      animation: modalFadeIn 0.2s ease-out;
+    }
+    .modal-backdrop.show { display: flex; }
+    @keyframes modalFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--amber-dim);
+      max-width: 380px;
+      width: 90%;
+      position: relative;
+      overflow: hidden;
+      animation: modalSlideIn 0.25s ease-out;
+    }
+    @keyframes modalSlideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .modal-box::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--amber-dim), transparent);
+      opacity: 0.6;
+    }
+    .modal-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,192,77,0.02);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .modal-header .modal-icon {
+      color: var(--amber);
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .modal-header .modal-title {
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--amber);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .modal-body {
+      padding: 18px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      padding: 0 18px 18px;
+    }
+    .modal-actions .btn {
+      flex: 1;
+      font-size: 12px;
+      padding: 9px 16px;
+    }
+    .modal-actions .btn-danger {
+      border-color: var(--amber-dim);
+      color: var(--amber);
+    }
+    .modal-actions .btn-danger:hover {
+      background: var(--amber-glow);
+      box-shadow: 0 0 12px var(--amber-glow);
+    }
+    .modal-actions .btn-danger::before { content: '>'; margin-right: 6px; color: var(--amber-dim); }
 
     .boot-footer {
       text-align: center;
@@ -586,8 +686,38 @@
     </div>
   </div>
 
+  <!-- Confirm modal -->
+  <div class="modal-backdrop" id="confirmModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span class="modal-icon">&#9888;</span>
+        <span class="modal-title" id="modalTitle">Confirm</span>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" id="modalConfirmBtn" onclick="closeModal()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let lastQrImage = null;
+    let modalCallback = null;
+
+    function showConfirm(title, message, confirmText, onConfirm) {
+      document.getElementById("modalTitle").textContent = title;
+      document.getElementById("modalBody").textContent = message;
+      document.getElementById("modalConfirmBtn").textContent = confirmText;
+      modalCallback = onConfirm;
+      document.getElementById("modalConfirmBtn").onclick = () => { closeModal(); if (modalCallback) modalCallback(); };
+      document.getElementById("confirmModal").classList.add("show");
+    }
+
+    function closeModal() {
+      document.getElementById("confirmModal").classList.remove("show");
+      modalCallback = null;
+    }
 
     const platformIcons = {
       "Telegram": { icon: "TG", cls: "telegram" },
@@ -626,8 +756,9 @@
       listEl.innerHTML = data.platforms.map(p => {
         const pi = platformIcons[p.name] || { icon: "??", cls: "" };
         let sc, st;
+        let relink = '';
         if (p.name === "WhatsApp") {
-          if (p.paired) { sc = "connected"; st = "LINKED"; }
+          if (p.paired) { sc = "connected"; st = "LINKED"; relink = '<button class="btn-relink" onclick="relinkWhatsApp()">RELINK</button>'; }
           else if (p.hasQr) { sc = "pending"; st = "PAIR REQ"; }
           else { sc = "pending"; st = "WAITING"; }
         } else {
@@ -641,9 +772,12 @@
             <div class="platform-icon">${pi.icon}</div>
             ${p.name}
           </div>
-          <div class="platform-status ${sc}">
-            <span class="indicator"></span>
-            ${st}
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div class="platform-status ${sc}">
+              <span class="indicator"></span>
+              ${st}
+            </div>
+            ${relink}
           </div>
         </div>`;
       }).join("");
@@ -741,6 +875,26 @@
       } catch (e) {
         alert("Failed: " + e.message);
       }
+    }
+
+    function relinkWhatsApp() {
+      showConfirm(
+        "Relink WhatsApp",
+        "This will disconnect WhatsApp and generate a new QR code. You will need to scan it again with your phone.",
+        "Relink",
+        async () => {
+          const btns = document.querySelectorAll(".btn-relink");
+          btns.forEach(b => { b.disabled = true; b.textContent = "RELINKING..."; });
+          try {
+            const data = await (await fetch("/api/whatsapp-relink", { method: "POST" })).json();
+            if (data.success) {
+              lastQrImage = null;
+              setTimeout(fetchStatus, 3000);
+            }
+          } catch (e) {}
+          setTimeout(() => btns.forEach(b => { b.disabled = false; b.textContent = "RELINK"; }), 5000);
+        }
+      );
     }
 
     fetchStatus();

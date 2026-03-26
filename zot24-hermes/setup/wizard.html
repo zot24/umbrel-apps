@@ -138,7 +138,7 @@
       background: var(--surface);
       border: 1px solid var(--border);
       margin-bottom: 12px;
-      position: relative; overflow: hidden;
+      position: relative;
       backdrop-filter: blur(4px);
     }
     .panel::before {
@@ -313,6 +313,141 @@
     .summary-block .lbl { color: var(--text-muted); }
     .summary-block .val { color: var(--phosphor-dim); }
 
+    .test-ok {
+      display: none;
+      position: relative;
+      cursor: default;
+      font-family: var(--display);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--amber);
+      width: 22px;
+      height: 22px;
+      border: 1px solid var(--amber-dim);
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      text-shadow: 0 0 6px var(--amber-glow);
+    }
+    .test-ok.show { display: inline-flex; }
+    .test-ok::after {
+      content: '!';
+    }
+    .test-ok .test-tip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 10px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface);
+      border: 1px solid var(--amber-dim);
+      padding: 8px 12px;
+      font-family: var(--body);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--amber);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      z-index: 10000;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .test-ok .test-tip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: var(--amber-dim);
+    }
+    .test-ok:hover .test-tip { display: block; }
+
+    /* ── ACCESS DENIED effect ── */
+    .red-flash {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 30, 20, 0.12);
+      z-index: 10001;
+      pointer-events: none;
+      opacity: 0;
+      animation: redFlash 0.6s ease-out forwards;
+    }
+    @keyframes redFlash {
+      0% { opacity: 0; }
+      15% { opacity: 1; }
+      30% { opacity: 0.3; }
+      45% { opacity: 0.8; }
+      60% { opacity: 0.15; }
+      100% { opacity: 0; }
+    }
+
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-6px, 3px); }
+      20% { transform: translate(5px, -4px); }
+      30% { transform: translate(-4px, 2px); }
+      40% { transform: translate(6px, -2px); }
+      50% { transform: translate(-3px, 4px); }
+      60% { transform: translate(4px, -3px); }
+      70% { transform: translate(-5px, 1px); }
+      80% { transform: translate(3px, -2px); }
+      90% { transform: translate(-2px, 3px); }
+    }
+
+    .shake { animation: screenShake 0.5s ease-in-out; }
+
+    .error-block {
+      border: 1px solid #ff3030;
+      background: rgba(255, 30, 20, 0.06);
+      padding: 16px;
+      margin-bottom: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .error-block::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #ff3030, transparent);
+    }
+    .error-block .error-header {
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 700;
+      color: #ff4040;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      text-shadow: 0 0 10px rgba(255,64,64,0.3);
+      animation: errorPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes errorPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .error-block .error-msg {
+      font-size: 13px;
+      color: #ff6060;
+      line-height: 1.5;
+    }
+    .error-block .error-ascii {
+      font-family: var(--body);
+      font-size: 10px;
+      color: #ff3030;
+      opacity: 0.4;
+      margin-top: 8px;
+      letter-spacing: 1px;
+    }
+    .panel.error-state {
+      border-color: rgba(255, 48, 48, 0.4);
+      box-shadow: 0 0 20px rgba(255, 30, 20, 0.05), inset 0 0 30px rgba(255, 30, 20, 0.02);
+    }
+    .panel.error-state::before {
+      background: linear-gradient(90deg, transparent 10%, #ff3030 50%, transparent 90%) !important;
+      opacity: 0.5 !important;
+    }
+
     .boot-footer {
       text-align: center;
       padding: 20px 0 4px;
@@ -450,7 +585,10 @@
               <input type="text" id="telegramChatId" placeholder="123456789">
               <p class="field-hint">Send /start to <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> to get your chat ID</p>
             </div>
-            <button class="btn btn-test" id="telegramTestBtn" onclick="testTelegram()">Test Connection</button>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <button class="btn btn-test" id="telegramTestBtn" onclick="testTelegram()">Test Connection</button>
+              <span class="test-ok" id="telegramTestOk"><span class="test-tip">Test message sent. Check your Telegram.</span></span>
+            </div>
             <div class="test-result" id="telegramTestResult"></div>
           </div>
           <div class="toggle-row">
@@ -621,33 +759,75 @@
       document.getElementById("apiKeyHint").innerHTML = hints[provider];
     }
 
+    function triggerAccessDenied(msg) {
+      const errEl = document.getElementById("step0Error");
+      const panel = errEl.closest(".panel");
+      const container = document.querySelector(".container");
+
+      // Red flash overlay
+      const flash = document.createElement("div");
+      flash.className = "red-flash";
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 700);
+
+      // Screen shake
+      container.classList.add("shake");
+      setTimeout(() => container.classList.remove("shake"), 500);
+
+      // Panel goes into error state
+      panel.classList.add("error-state");
+
+      // Show the error block
+      errEl.style.display = "block";
+      errEl.className = "error-block";
+      errEl.innerHTML = `
+        <div class="error-header">Access Denied</div>
+        <div class="error-msg">${msg}</div>
+        <div class="error-ascii">========================================</div>
+      `;
+
+      // Glitch the cursor briefly
+      const cursor = document.querySelector(".cursor");
+      if (cursor) {
+        cursor.style.background = "#ff4040";
+        cursor.style.boxShadow = "0 0 8px rgba(255,64,64,0.5)";
+        setTimeout(() => {
+          cursor.style.background = "";
+          cursor.style.boxShadow = "";
+        }, 3000);
+      }
+    }
+
+    function clearAccessDenied() {
+      const errEl = document.getElementById("step0Error");
+      const panel = errEl.closest(".panel");
+      errEl.style.display = "none";
+      errEl.className = "test-result";
+      if (panel) panel.classList.remove("error-state");
+    }
+
     function validateStep0() {
       const provider = document.getElementById("provider").value;
-      const errEl = document.getElementById("step0Error");
 
       if (provider === "ollama") {
         const url = document.getElementById("ollamaUrl").value.trim();
         if (!url) {
-          errEl.className = "test-result error";
-          errEl.textContent = "Enter your Ollama server URL";
+          triggerAccessDenied("Ollama endpoint URL is required. Provide the URL where your Ollama server is running.");
           return;
         }
       } else {
         const key = document.getElementById("apiKey").value.trim();
         if (!key) {
-          errEl.className = "test-result error";
-          errEl.textContent = "API key is required to continue";
+          triggerAccessDenied("Authentication credentials missing. API key is required to establish connection with the inference provider.");
           return;
         }
         if (key.length < 10) {
-          errEl.className = "test-result error";
-          errEl.textContent = "That doesn't look like a valid API key";
+          triggerAccessDenied("Invalid credential format detected. The provided key does not match expected authentication pattern.");
           return;
         }
       }
 
-      errEl.className = "test-result";
-      errEl.style.display = "none";
+      clearAccessDenied();
       goToStep(1);
     }
 
@@ -668,12 +848,15 @@
       const token = document.getElementById("telegramToken").value.trim();
       const chatId = document.getElementById("telegramChatId").value.trim();
       const resultEl = document.getElementById("telegramTestResult");
+      const okEl = document.getElementById("telegramTestOk");
       const btn = document.getElementById("telegramTestBtn");
-      if (!token || !chatId) { resultEl.className = "test-result error"; resultEl.textContent = "Enter both bot token and chat ID"; return; }
+      if (!token || !chatId) { resultEl.className = "test-result error"; resultEl.textContent = "Enter both bot token and chat ID"; okEl.classList.remove("show"); return; }
       btn.disabled = true; btn.textContent = "TESTING...";
+      resultEl.className = "test-result"; resultEl.style.display = "none";
+      okEl.classList.remove("show");
       try {
         const data = await (await fetch("/api/test-telegram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, chatId }) })).json();
-        if (data.success) { resultEl.className = "test-result success"; resultEl.textContent = `Connected as @${data.botUsername}. Check Telegram for the test message.`; state.telegramTested = true; updateStep1Next(); }
+        if (data.success) { okEl.classList.add("show"); state.telegramTested = true; updateStep1Next(); }
         else { resultEl.className = "test-result error"; resultEl.textContent = data.error; }
       } catch (e) { resultEl.className = "test-result error"; resultEl.textContent = `Connection error: ${e.message}`; }
       btn.disabled = false; btn.textContent = "TEST CONNECTION";
