@@ -1,32 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-HERMES_HOME="${HERMES_HOME:-/home/hermes/.hermes}"
+HERMES_HOME="${HERMES_HOME:-/data/.hermes}"
 SKELETON_DIR="/home-skeleton"
-HERMES_USER="hermes"
-HERMES_UID=1000
 
-# ── Phase 1: Run as root — fix permissions, then re-exec as hermes ───────────
-if [ "$(id -u)" = "0" ]; then
-    echo "=== Hermes Agent Entrypoint (root phase) ==="
-
-    # Ensure home directory exists
-    mkdir -p /home/hermes
-    chown "$HERMES_UID:$HERMES_UID" /home/hermes
-
-    # Ensure HERMES_HOME exists and is owned by hermes
-    mkdir -p "$HERMES_HOME"
-    chown -R "$HERMES_UID:$HERMES_UID" "$HERMES_HOME"
-
-    # Fix linuxbrew volume ownership
-    chown -R "$HERMES_UID:$HERMES_UID" /home/linuxbrew 2>/dev/null || true
-
-    echo "Permissions fixed, re-executing as $HERMES_USER..."
-    exec su -s /bin/bash "$HERMES_USER" -- "$0" "$@"
-fi
-
-# ── Phase 2: Run as hermes user ──────────────────────────────────────────────
-echo "=== Hermes Agent Entrypoint (user phase) ==="
+echo "=== Hermes Agent Entrypoint ==="
 echo "HERMES_HOME: $HERMES_HOME"
 
 # ── Initialize home directory from skeleton (first run) ──────────────────────

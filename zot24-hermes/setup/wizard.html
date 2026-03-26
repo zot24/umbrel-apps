@@ -3,756 +3,737 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hermes Agent Setup</title>
+  <title>HERMES // SETUP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg: #0D0D0D;
-      --surface: #1A1A1A;
-      --surface-hover: #242424;
-      --border: #333;
-      --text: #F0EDE8;
-      --text-muted: #888;
-      --accent: #6C63FF;
-      --accent-hover: #5A52E0;
-      --success: #4CAF50;
-      --error: #E53935;
-      --warning: #FF9800;
-      --radius: 12px;
+      --phosphor: #50ffa8;
+      --phosphor-dim: #28b870;
+      --phosphor-glow: rgba(80, 255, 168, 0.1);
+      --amber: #ffc04d;
+      --amber-dim: #b8862e;
+      --amber-glow: rgba(255, 192, 77, 0.08);
+      --red: #ff6060;
+      --red-glow: rgba(255, 96, 96, 0.08);
+      --bg: #060a0d;
+      --surface: #0b1016;
+      --surface-2: #10161c;
+      --border: #1a2530;
+      --text: #d4e0d8;
+      --text-muted: #7a8e82;
+      --body: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      --display: 'Oxanium', 'Segoe UI', sans-serif;
+    }
+
+    /* ── Background layers ── */
+    .bg-grid {
+      position: fixed; inset: 0;
+      background:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 60px 60px;
+      opacity: 0.18; z-index: 0;
+    }
+    .bg-nodes {
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(circle 1.5px at 60px 60px, rgba(80,255,168,0.2) 0%, transparent 100%),
+        radial-gradient(circle 1.5px at 120px 120px, rgba(80,255,168,0.15) 0%, transparent 100%),
+        radial-gradient(circle 1.5px at 180px 60px, rgba(255,192,77,0.12) 0%, transparent 100%),
+        radial-gradient(circle 1.5px at 60px 180px, rgba(80,255,168,0.1) 0%, transparent 100%);
+      background-size: 180px 180px; z-index: 0;
+    }
+    .bg-glow {
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 300px 300px at 15% 85%, rgba(80,255,168,0.04) 0%, transparent 70%),
+        radial-gradient(ellipse 400px 250px at 85% 15%, rgba(255,192,77,0.03) 0%, transparent 70%),
+        radial-gradient(ellipse 200px 200px at 50% 50%, rgba(80,255,168,0.02) 0%, transparent 70%);
+      z-index: 0;
+    }
+    .bg-grain {
+      position: fixed; inset: 0; opacity: 0.35; z-index: 1; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    }
+    .bg-scan {
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px);
+      pointer-events: none; z-index: 9998;
+    }
+    .bg-vignette {
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
+      pointer-events: none; z-index: 9999;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--body);
+      font-size: 14px;
+      line-height: 1.65;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 24px 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     .container {
-      max-width: 560px;
-      width: 100%;
+      max-width: 520px; width: 100%;
+      position: relative; z-index: 10;
+      animation: bootUp 0.5s ease-out;
+    }
+    @keyframes bootUp {
+      0% { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+      60% { filter: blur(0); }
+      100% { opacity: 1; transform: translateY(0); }
     }
 
-    .header {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-
-    .header h1 {
-      font-size: 28px;
-      font-weight: 700;
-      margin-bottom: 8px;
-      background: linear-gradient(135deg, #6C63FF, #B388FF);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .header p {
+    /* ── Header ── */
+    .header { text-align: center; margin-bottom: 24px; }
+    .header-sub {
+      font-family: var(--body);
+      font-size: 11px; font-weight: 400;
       color: var(--text-muted);
-      font-size: 14px;
+      letter-spacing: 3px; text-transform: uppercase;
+      margin-bottom: 8px;
     }
+    .header h1 {
+      font-family: var(--display);
+      font-size: 32px; font-weight: 700;
+      letter-spacing: 10px;
+      color: var(--phosphor);
+      text-shadow: 0 0 10px rgba(80,255,168,0.3), 0 0 30px rgba(80,255,168,0.1), 0 0 60px rgba(80,255,168,0.05);
+      text-transform: uppercase;
+    }
+    .header p { color: var(--text-muted); font-size: 13px; margin-top: 10px; }
+    .cursor {
+      display: inline-block; width: 3px; height: 0.8em;
+      background: var(--phosphor); margin-left: 4px;
+      vertical-align: baseline; box-shadow: 0 0 8px var(--phosphor-glow);
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
 
-    .card {
+    /* ── Step indicator ── */
+    .step-indicator {
+      display: flex; justify-content: center; align-items: center;
+      gap: 6px; margin-bottom: 20px;
+    }
+    .step-seg {
+      width: 52px; height: 3px;
+      background: var(--border); transition: all 0.3s;
+    }
+    .step-seg.active { background: var(--phosphor-dim); box-shadow: 0 0 8px var(--phosphor-glow); }
+    .step-seg.done { background: var(--phosphor); }
+
+    /* ── Panel ── */
+    .panel {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 24px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
+      position: relative; overflow: hidden;
+      backdrop-filter: blur(4px);
     }
-
-    .card h2 {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 4px;
+    .panel::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 10%, var(--phosphor-dim) 50%, transparent 90%);
+      opacity: 0.35;
     }
-
-    .card .subtitle {
-      color: var(--text-muted);
-      font-size: 13px;
-      margin-bottom: 16px;
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(80,255,168,0.015);
     }
-
-    .step-indicator {
-      display: flex;
-      justify-content: center;
-      gap: 8px;
-      margin-bottom: 24px;
+    .panel-title {
+      font-family: var(--display);
+      font-size: 12px; font-weight: 600;
+      color: var(--phosphor-dim);
+      letter-spacing: 2px; text-transform: uppercase;
     }
-
-    .step-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--border);
-      transition: background 0.3s;
+    .panel-tag {
+      font-family: var(--body);
+      font-size: 10px; font-weight: 400;
+      color: var(--text-muted); letter-spacing: 1px;
     }
+    .panel-body { padding: 18px; }
 
-    .step-dot.active {
-      background: var(--accent);
-    }
-
-    .step-dot.done {
-      background: var(--success);
-    }
-
+    /* ── Form elements ── */
     label {
       display: block;
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 6px;
-      color: var(--text-muted);
+      font-size: 12px; font-weight: 500;
+      letter-spacing: 1px; text-transform: uppercase;
+      margin-bottom: 7px; color: var(--text-muted);
     }
 
     select, input[type="text"], input[type="password"] {
       width: 100%;
-      padding: 10px 12px;
+      padding: 11px 14px;
       background: var(--bg);
       border: 1px solid var(--border);
-      border-radius: 8px;
       color: var(--text);
+      font-family: var(--body);
       font-size: 14px;
       margin-bottom: 16px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      -webkit-appearance: none;
     }
-
     select:focus, input:focus {
-      border-color: var(--accent);
+      border-color: var(--phosphor-dim);
+      box-shadow: 0 0 12px var(--phosphor-glow);
     }
-
-    .field-group {
-      margin-bottom: 8px;
-    }
-
+    select { cursor: pointer; }
+    .field-group { margin-bottom: 4px; }
     .field-hint {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: -12px;
-      margin-bottom: 16px;
+      font-size: 12px; color: var(--text-muted);
+      margin-top: -12px; margin-bottom: 16px;
     }
-
     .field-hint a {
-      color: var(--accent);
-      text-decoration: none;
+      color: var(--phosphor-dim); text-decoration: none;
+      border-bottom: 1px solid rgba(80,255,168,0.2);
     }
+    .field-hint a:hover { color: var(--phosphor); }
 
+    /* ── Toggle ── */
     .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 0; border-bottom: 1px solid var(--border);
     }
+    .toggle-row:last-of-type { border-bottom: none; }
+    .toggle-label { font-size: 14px; font-weight: 500; }
+    .toggle-desc { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
 
-    .toggle-row:last-child {
-      border-bottom: none;
-    }
-
-    .toggle-row .toggle-label {
-      font-size: 14px;
-    }
-
-    .toggle-row .toggle-desc {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .toggle {
-      position: relative;
-      width: 44px;
-      height: 24px;
-      flex-shrink: 0;
-    }
-
-    .toggle input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
+    .toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
     .toggle .slider {
-      position: absolute;
-      inset: 0;
-      background: var(--border);
-      border-radius: 12px;
-      cursor: pointer;
-      transition: background 0.2s;
+      position: absolute; inset: 0;
+      background: var(--border); cursor: pointer; transition: background 0.2s;
     }
-
     .toggle .slider::before {
-      content: "";
-      position: absolute;
-      width: 18px;
-      height: 18px;
-      left: 3px;
-      top: 3px;
-      background: var(--text);
-      border-radius: 50%;
-      transition: transform 0.2s;
+      content: ""; position: absolute;
+      width: 18px; height: 18px; left: 3px; top: 3px;
+      background: var(--text-muted);
+      transition: transform 0.2s, background 0.2s;
     }
-
-    .toggle input:checked + .slider {
-      background: var(--accent);
-    }
-
+    .toggle input:checked + .slider { background: var(--phosphor-dim); }
     .toggle input:checked + .slider::before {
-      transform: translateX(20px);
+      transform: translateX(20px); background: var(--phosphor);
     }
 
-    .platform-config {
-      display: none;
-      padding: 16px 0 0;
-    }
+    .platform-config { display: none; padding: 16px 0 0; }
+    .platform-config.show { display: block; }
 
-    .platform-config.show {
-      display: block;
-    }
-
+    /* ── Buttons ── */
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-      gap: 8px;
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-      width: 100%;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      background: var(--accent-hover);
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .btn-secondary {
-      background: var(--surface-hover);
-      color: var(--text);
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 11px 20px;
       border: 1px solid var(--border);
+      background: var(--surface);
+      font-family: var(--body);
+      font-size: 13px; font-weight: 500;
+      letter-spacing: 0.5px;
+      cursor: pointer; transition: all 0.15s;
+      gap: 8px; color: var(--text);
     }
-
+    .btn:active { transform: translateY(1px); }
+    .btn-primary {
+      border-color: var(--phosphor-dim); color: var(--phosphor); width: 100%;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--phosphor-glow);
+      box-shadow: 0 0 16px var(--phosphor-glow);
+    }
+    .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-primary::before { content: '>'; margin-right: 4px; opacity: 0.5; }
+    .btn-secondary { color: var(--text-muted); }
+    .btn-secondary:hover { border-color: var(--text-muted); background: rgba(255,255,255,0.02); }
     .btn-test {
-      background: transparent;
-      color: var(--accent);
-      border: 1px solid var(--accent);
-      padding: 6px 14px;
-      font-size: 13px;
+      background: transparent; color: var(--amber);
+      border-color: var(--amber-dim);
+      padding: 9px 18px; font-size: 12px;
+      letter-spacing: 1px; text-transform: uppercase;
     }
+    .btn-test:hover { background: var(--amber-glow); }
+    .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+    .btn-row .btn { flex: 1; }
 
-    .btn-test:hover {
-      background: rgba(108, 99, 255, 0.1);
-    }
-
-    .btn-row {
-      display: flex;
-      gap: 12px;
-      margin-top: 16px;
-    }
-
-    .btn-row .btn {
-      flex: 1;
-    }
-
+    /* ── Test result ── */
     .test-result {
-      font-size: 13px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      margin-top: 8px;
-      display: none;
+      font-size: 13px; padding: 10px 14px;
+      margin-top: 10px; display: none;
+      border-left: 2px solid; background: var(--surface-2);
     }
+    .test-result.success { display: block; border-left-color: var(--phosphor-dim); color: var(--phosphor); }
+    .test-result.error { display: block; border-left-color: var(--red); color: var(--red); }
 
-    .test-result.success {
-      display: block;
-      background: rgba(76, 175, 80, 0.1);
-      border: 1px solid rgba(76, 175, 80, 0.3);
-      color: var(--success);
-    }
-
-    .test-result.error {
-      display: block;
-      background: rgba(229, 57, 53, 0.1);
-      border: 1px solid rgba(229, 57, 53, 0.3);
-      color: var(--error);
-    }
-
+    /* ── Loading overlay ── */
     .loading-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(13, 13, 13, 0.9);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 16px;
+      display: none; position: fixed; inset: 0;
+      background: rgba(6,10,13,0.94); z-index: 10000;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px;
     }
-
-    .loading-overlay.show {
-      display: flex;
+    .loading-overlay.show { display: flex; }
+    .loading-overlay p {
+      font-family: var(--display);
+      font-size: 14px; font-weight: 600;
+      color: var(--amber);
+      letter-spacing: 3px; text-transform: uppercase;
     }
 
     .spinner {
-      width: 40px;
-      height: 40px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
+      width: 32px; height: 32px;
+      border: 2px solid var(--border);
+      border-top-color: var(--phosphor);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .step { display: none; }
     .step.active { display: block; }
 
-    .wa-qr-container {
+    .wa-instructions { font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+
+    .summary-block {
+      padding: 14px 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 14px; line-height: 2;
+    }
+    .summary-block .lbl { color: var(--text-muted); }
+    .summary-block .val { color: var(--phosphor-dim); }
+
+    .boot-footer {
       text-align: center;
-      padding: 20px;
-    }
-
-    .wa-qr-container img {
-      max-width: 256px;
-      border-radius: 8px;
-    }
-
-    .wa-instructions {
-      font-size: 13px;
+      padding: 20px 0 4px;
+      font-size: 11px;
       color: var(--text-muted);
-      margin-top: 12px;
-      line-height: 1.6;
+      letter-spacing: 0.5px;
+      opacity: 0.5;
+      transition: opacity 0.3s;
     }
-
-    .wa-instructions ol {
-      text-align: left;
-      padding-left: 20px;
+    .boot-footer:hover { opacity: 0.85; }
+    .boot-footer .version {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      margin-bottom: 8px;
+    }
+    .boot-footer .credits {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      font-size: 11px;
+    }
+    .boot-footer .credits a {
+      color: var(--text-muted);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color 0.2s;
+    }
+    .boot-footer .credits a:hover { color: var(--phosphor-dim); }
+    .boot-footer .sep {
+      color: var(--border);
+      font-size: 8px;
     }
   </style>
 </head>
 <body>
+  <div class="bg-grid"></div>
+  <div class="bg-nodes"></div>
+  <div class="bg-glow"></div>
+  <div class="bg-grain"></div>
+  <div class="bg-scan"></div>
+  <div class="bg-vignette"></div>
+
   <div class="container">
     <div class="header">
-      <h1>Hermes Agent</h1>
-      <p>Set up your personal AI assistant</p>
+      <div class="header-sub">Nous Research</div>
+      <h1>HERMES<span class="cursor"></span></h1>
+      <p>Configure your AI agent</p>
     </div>
 
     <div class="step-indicator">
-      <div class="step-dot active" id="dot-0"></div>
-      <div class="step-dot" id="dot-1"></div>
-      <div class="step-dot" id="dot-2"></div>
+      <span id="dot-0" class="step-seg active"></span>
+      <span id="dot-1" class="step-seg"></span>
+      <span id="dot-2" class="step-seg"></span>
     </div>
 
-    <!-- Step 1: LLM Provider -->
     <div class="step active" id="step-0">
-      <div class="card">
-        <h2>LLM Provider</h2>
-        <p class="subtitle">Choose your AI model provider and enter your API key</p>
-
-        <div class="field-group">
-          <label for="provider">Provider</label>
-          <select id="provider" onchange="onProviderChange()">
-            <option value="openrouter">OpenRouter (200+ models)</option>
-            <option value="anthropic">Anthropic (Claude)</option>
-            <option value="openai">OpenAI (GPT)</option>
-            <option value="ollama">Ollama (Local)</option>
-          </select>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Model</span>
+          <span class="panel-tag">STEP 1/3</span>
         </div>
-
-        <div class="field-group" id="apiKeyGroup">
-          <label for="apiKey">API Key</label>
-          <input type="password" id="apiKey" placeholder="sk-or-...">
-          <p class="field-hint" id="apiKeyHint">
-            Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>
-          </p>
+        <div class="panel-body">
+          <div class="field-group">
+            <label for="provider">Provider</label>
+            <select id="provider" onchange="onProviderChange()">
+              <option value="openrouter">OpenRouter (200+ models)</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="zai">Z.AI / GLM</option>
+              <option value="kimi-coding">Kimi / Moonshot</option>
+              <option value="minimax">MiniMax</option>
+              <option value="minimax-cn">MiniMax (China)</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="alibaba">Alibaba Cloud (DashScope)</option>
+              <option value="opencode-zen">OpenCode Zen</option>
+              <option value="opencode-go">OpenCode Go</option>
+              <option value="ollama">Ollama (Local / Self-hosted)</option>
+            </select>
+          </div>
+          <div class="field-group" id="apiKeyGroup">
+            <label for="apiKey">API Key</label>
+            <input type="password" id="apiKey" placeholder="sk-or-...">
+            <p class="field-hint" id="apiKeyHint">
+              Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>
+            </p>
+          </div>
+          <div class="field-group" id="ollamaGroup" style="display:none">
+            <label for="ollamaUrl">Ollama URL</label>
+            <input type="text" id="ollamaUrl" placeholder="http://host.docker.internal:11434" value="http://host.docker.internal:11434">
+            <p class="field-hint">URL where your Ollama server is running</p>
+          </div>
+          <div class="field-group">
+            <label for="model">Model</label>
+            <select id="model">
+              <option value="anthropic/claude-opus-4.6">Claude Opus 4.6 (recommended)</option>
+              <option value="anthropic/claude-sonnet-4.5">Claude Sonnet 4.5</option>
+              <option value="openai/gpt-5.4">GPT-5.4</option>
+              <option value="google/gemini-3-pro-preview">Gemini 3 Pro</option>
+              <option value="google/gemini-3-flash-preview">Gemini 3 Flash</option>
+            </select>
+          </div>
+          <div class="test-result" id="step0Error" style="margin-bottom:12px;"></div>
+          <button class="btn btn-primary" onclick="validateStep0()">Continue</button>
         </div>
-
-        <div class="field-group" id="ollamaGroup" style="display:none">
-          <label for="ollamaUrl">Ollama URL</label>
-          <input type="text" id="ollamaUrl" placeholder="http://host.docker.internal:11434" value="http://host.docker.internal:11434">
-          <p class="field-hint">URL where your Ollama server is running</p>
-        </div>
-
-        <div class="field-group">
-          <label for="model">Model</label>
-          <select id="model">
-            <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4</option>
-            <option value="anthropic/claude-opus-4-20250514">Claude Opus 4</option>
-            <option value="openai/gpt-4o">GPT-4o</option>
-            <option value="google/gemini-2.5-pro">Gemini 2.5 Pro</option>
-            <option value="meta-llama/llama-4-maverick">Llama 4 Maverick</option>
-          </select>
-        </div>
-
-        <button class="btn btn-primary" onclick="goToStep(1)">Continue</button>
       </div>
     </div>
 
-    <!-- Step 2: Messaging Platforms -->
     <div class="step" id="step-1">
-      <div class="card">
-        <h2>Messaging Platforms</h2>
-        <p class="subtitle">Connect at least one platform to chat with your agent</p>
-
-        <!-- Telegram -->
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">Telegram</div>
-            <div class="toggle-desc">Chat via Telegram bot</div>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="telegramEnabled" onchange="togglePlatform('telegram')">
-            <span class="slider"></span>
-          </label>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Channels</span>
+          <span class="panel-tag">STEP 2/3</span>
         </div>
-
-        <div class="platform-config" id="telegramConfig">
-          <div class="field-group">
-            <label for="telegramToken">Bot Token</label>
-            <input type="password" id="telegramToken" placeholder="123456789:ABCdefGHIjklMNO...">
-            <p class="field-hint">
-              Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> on Telegram
-            </p>
+        <div class="panel-body">
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Telegram</div>
+              <div class="toggle-desc">Chat via Telegram bot</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="telegramEnabled" onchange="togglePlatform('telegram')">
+              <span class="slider"></span>
+            </label>
           </div>
-
-          <div class="field-group">
-            <label for="telegramChatId">Your Chat ID</label>
-            <input type="text" id="telegramChatId" placeholder="123456789">
-            <p class="field-hint">
-              Send /start to <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> to get your chat ID
-            </p>
+          <div class="platform-config" id="telegramConfig">
+            <div class="field-group">
+              <label for="telegramToken">Bot Token</label>
+              <input type="password" id="telegramToken" placeholder="123456789:ABCdefGHIjklMNO...">
+              <p class="field-hint">Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> on Telegram</p>
+            </div>
+            <div class="field-group">
+              <label for="telegramChatId">Your Chat ID</label>
+              <input type="text" id="telegramChatId" placeholder="123456789">
+              <p class="field-hint">Send /start to <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> to get your chat ID</p>
+            </div>
+            <button class="btn btn-test" id="telegramTestBtn" onclick="testTelegram()">Test Connection</button>
+            <div class="test-result" id="telegramTestResult"></div>
           </div>
-
-          <button class="btn btn-test" id="telegramTestBtn" onclick="testTelegram()">Send Test Message</button>
-          <div class="test-result" id="telegramTestResult"></div>
-        </div>
-
-        <!-- WhatsApp -->
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label">WhatsApp</div>
-            <div class="toggle-desc">Chat via WhatsApp (requires QR scan)</div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">WhatsApp</div>
+              <div class="toggle-desc">Chat via WhatsApp (requires QR scan)</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="whatsappEnabled" onchange="togglePlatform('whatsapp')">
+              <span class="slider"></span>
+            </label>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="whatsappEnabled" onchange="togglePlatform('whatsapp')">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="platform-config" id="whatsappConfig">
-          <div class="wa-instructions">
-            <p>WhatsApp requires scanning a QR code to pair your phone.</p>
-            <p style="margin-top:8px">After completing setup, the QR code will appear on the status page when the gateway starts.</p>
+          <div class="platform-config" id="whatsappConfig">
+            <div class="wa-instructions">
+              <p>WhatsApp requires scanning a QR code to pair your phone.</p>
+              <p style="margin-top:8px">The QR code will appear on the status page after setup.</p>
+            </div>
+            <div class="test-result success" style="display:block; margin-top:12px;">
+              WhatsApp will be configured after setup. You'll scan a QR code on the status page.
+            </div>
           </div>
-          <div class="test-result success" style="display:block; margin-top:12px;">
-            WhatsApp will be configured after setup completes. You'll scan a QR code on the status page.
+          <div class="btn-row">
+            <button class="btn btn-secondary" onclick="goToStep(0)">Back</button>
+            <button class="btn btn-primary" id="step1Next" onclick="goToStep(2)" disabled>Continue</button>
           </div>
-        </div>
-
-        <div class="btn-row">
-          <button class="btn btn-secondary" onclick="goToStep(0)">Back</button>
-          <button class="btn btn-primary" id="step1Next" onclick="goToStep(2)" disabled>Continue</button>
         </div>
       </div>
     </div>
 
-    <!-- Step 3: Confirm -->
     <div class="step" id="step-2">
-      <div class="card">
-        <h2>Confirm & Start</h2>
-        <p class="subtitle">Review your configuration and start the agent</p>
-
-        <div id="summary" style="font-size: 14px; line-height: 1.8; margin-bottom: 16px;"></div>
-
-        <div class="btn-row">
-          <button class="btn btn-secondary" onclick="goToStep(1)">Back</button>
-          <button class="btn btn-primary" id="submitBtn" onclick="submitSetup()">Start Hermes</button>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Confirm</span>
+          <span class="panel-tag">STEP 3/3</span>
         </div>
+        <div class="panel-body">
+          <div id="summary" style="margin-bottom: 16px;"></div>
+          <div class="btn-row">
+            <button class="btn btn-secondary" onclick="goToStep(1)">Back</button>
+            <button class="btn btn-primary" id="submitBtn" onclick="submitSetup()">Launch Hermes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="boot-footer">
+      <div class="version">HERMES AGENT v0.4.0 // UMBREL NODE</div>
+      <div class="credits">
+        <span>powered by</span>
+        <a href="https://github.com/zot24" target="_blank" rel="noopener">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          zot24
+        </a>
+        <span class="sep">/</span>
+        <a href="https://x.com/zot24" target="_blank" rel="noopener">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          zot24
+        </a>
       </div>
     </div>
   </div>
 
-  <!-- Loading overlay -->
   <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
-    <p id="loadingText">Saving configuration...</p>
+    <p id="loadingText">Initializing...</p>
   </div>
 
   <script>
-    const state = {
-      telegramTested: false,
-      whatsappEnabled: false,
-    };
+    const state = { telegramTested: false, whatsappEnabled: false };
 
-    // ── Provider change ──
     function onProviderChange() {
       const provider = document.getElementById("provider").value;
-      const apiKeyGroup = document.getElementById("apiKeyGroup");
-      const ollamaGroup = document.getElementById("ollamaGroup");
+      document.getElementById("ollamaGroup").style.display = provider === "ollama" ? "block" : "none";
+      document.getElementById("apiKeyGroup").style.display = provider === "ollama" ? "none" : "block";
       const apiKeyInput = document.getElementById("apiKey");
-      const apiKeyHint = document.getElementById("apiKeyHint");
       const modelSelect = document.getElementById("model");
 
-      ollamaGroup.style.display = provider === "ollama" ? "block" : "none";
-      apiKeyGroup.style.display = provider === "ollama" ? "none" : "block";
-
+      // Models sourced from hermes-agent/hermes_cli/models.py
       const models = {
         openrouter: [
-          ["anthropic/claude-sonnet-4-20250514", "Claude Sonnet 4"],
-          ["anthropic/claude-opus-4-20250514", "Claude Opus 4"],
-          ["openai/gpt-4o", "GPT-4o"],
-          ["google/gemini-2.5-pro", "Gemini 2.5 Pro"],
-          ["meta-llama/llama-4-maverick", "Llama 4 Maverick"],
+          ["anthropic/claude-opus-4.6","Claude Opus 4.6 (recommended)"],
+          ["anthropic/claude-sonnet-4.5","Claude Sonnet 4.5"],
+          ["anthropic/claude-haiku-4.5","Claude Haiku 4.5"],
+          ["openai/gpt-5.4","GPT-5.4"],
+          ["openai/gpt-5.4-mini","GPT-5.4 Mini"],
+          ["google/gemini-3-pro-preview","Gemini 3 Pro"],
+          ["google/gemini-3-flash-preview","Gemini 3 Flash"],
+          ["z-ai/glm-5","GLM-5"],
+          ["moonshotai/kimi-k2.5","Kimi K2.5"],
+          ["minimax/minimax-m2.7","MiniMax M2.7"],
+          ["qwen/qwen3.5-plus-02-15","Qwen 3.5 Plus"],
+          ["x-ai/grok-4.20-beta","Grok 4.20"],
+          ["nvidia/nemotron-3-super-120b-a12b:free","Nemotron 3 Super (free)"],
         ],
         anthropic: [
-          ["claude-sonnet-4-20250514", "Claude Sonnet 4"],
-          ["claude-opus-4-20250514", "Claude Opus 4"],
-          ["claude-haiku-4-5-20251001", "Claude Haiku 4.5"],
+          ["claude-opus-4-6","Claude Opus 4.6"],
+          ["claude-sonnet-4-6","Claude Sonnet 4.6"],
+          ["claude-opus-4-5-20251101","Claude Opus 4.5"],
+          ["claude-sonnet-4-5-20250929","Claude Sonnet 4.5"],
+          ["claude-opus-4-20250514","Claude Opus 4"],
+          ["claude-sonnet-4-20250514","Claude Sonnet 4"],
+          ["claude-haiku-4-5-20251001","Claude Haiku 4.5"],
         ],
-        openai: [
-          ["gpt-4o", "GPT-4o"],
-          ["gpt-4o-mini", "GPT-4o Mini"],
-          ["o3", "o3"],
+        zai: [
+          ["glm-5","GLM-5"],["glm-4.7","GLM-4.7"],
+          ["glm-4.5","GLM-4.5"],["glm-4.5-flash","GLM-4.5 Flash"],
+        ],
+        "kimi-coding": [
+          ["kimi-for-coding","Kimi for Coding"],["kimi-k2.5","Kimi K2.5"],
+          ["kimi-k2-thinking","Kimi K2 Thinking"],["kimi-k2-thinking-turbo","Kimi K2 Thinking Turbo"],
+          ["kimi-k2-turbo-preview","Kimi K2 Turbo"],
+        ],
+        minimax: [
+          ["MiniMax-M2.7","MiniMax M2.7"],["MiniMax-M2.7-highspeed","MiniMax M2.7 Highspeed"],
+          ["MiniMax-M2.5","MiniMax M2.5"],["MiniMax-M2.5-highspeed","MiniMax M2.5 Highspeed"],
+          ["MiniMax-M2.1","MiniMax M2.1"],
+        ],
+        "minimax-cn": [
+          ["MiniMax-M2.7","MiniMax M2.7"],["MiniMax-M2.7-highspeed","MiniMax M2.7 Highspeed"],
+          ["MiniMax-M2.5","MiniMax M2.5"],["MiniMax-M2.1","MiniMax M2.1"],
+        ],
+        deepseek: [
+          ["deepseek-chat","DeepSeek Chat"],["deepseek-reasoner","DeepSeek Reasoner"],
+        ],
+        alibaba: [
+          ["qwen3.5-plus","Qwen 3.5 Plus"],["qwen3-max","Qwen 3 Max"],
+          ["qwen3-coder-plus","Qwen 3 Coder Plus"],["qwen3-coder-next","Qwen 3 Coder Next"],
+          ["qwen-plus-latest","Qwen Plus Latest"],["qwen3.5-flash","Qwen 3.5 Flash"],
+        ],
+        "opencode-zen": [
+          ["claude-opus-4-6","Claude Opus 4.6"],["claude-sonnet-4-6","Claude Sonnet 4.6"],
+          ["gpt-5.4","GPT-5.4"],["gpt-5.3-codex","GPT-5.3 Codex"],
+          ["gemini-3.1-pro","Gemini 3.1 Pro"],["gemini-3-flash","Gemini 3 Flash"],
+          ["minimax-m2.7","MiniMax M2.7"],["glm-5","GLM-5"],
+          ["kimi-k2.5","Kimi K2.5"],["qwen3-coder","Qwen 3 Coder"],
+        ],
+        "opencode-go": [
+          ["glm-5","GLM-5"],["kimi-k2.5","Kimi K2.5"],["minimax-m2.5","MiniMax M2.5"],
         ],
         ollama: [
-          ["llama3.1:8b", "Llama 3.1 8B"],
-          ["mistral:7b", "Mistral 7B"],
-          ["qwen2.5:7b", "Qwen 2.5 7B"],
+          ["llama3.1:8b","Llama 3.1 8B"],["qwen2.5:7b","Qwen 2.5 7B"],
+          ["mistral:7b","Mistral 7B"],["deepseek-r1:7b","DeepSeek R1 7B"],
+          ["gemma2:9b","Gemma 2 9B"],
         ],
       };
-
       const hints = {
         openrouter: 'Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>',
         anthropic: 'Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>',
-        openai: 'Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>',
+        zai: 'Get your key at <a href="https://open.bigmodel.cn" target="_blank" rel="noopener">open.bigmodel.cn</a>',
+        "kimi-coding": 'Get your key at <a href="https://platform.moonshot.cn" target="_blank" rel="noopener">platform.moonshot.cn</a>',
+        minimax: 'Get your key at <a href="https://www.minimax.io" target="_blank" rel="noopener">minimax.io</a>',
+        "minimax-cn": 'Get your key at <a href="https://www.minimax.io" target="_blank" rel="noopener">minimax.io</a> (China endpoint)',
+        deepseek: 'Get your key at <a href="https://platform.deepseek.com" target="_blank" rel="noopener">platform.deepseek.com</a>',
+        alibaba: 'Get your key at <a href="https://modelstudio.console.alibabacloud.com" target="_blank" rel="noopener">modelstudio.console.alibabacloud.com</a>',
+        "opencode-zen": 'Get your key at <a href="https://opencode.ai/auth" target="_blank" rel="noopener">opencode.ai</a> (pay-as-you-go)',
+        "opencode-go": 'Get your key at <a href="https://opencode.ai/auth" target="_blank" rel="noopener">opencode.ai</a> ($10/mo subscription)',
         ollama: '',
       };
-
       const placeholders = {
-        openrouter: "sk-or-...",
-        anthropic: "sk-ant-...",
-        openai: "sk-...",
-        ollama: "",
+        openrouter: "sk-or-...", anthropic: "sk-ant-...",
+        zai: "", "kimi-coding": "", minimax: "", "minimax-cn": "",
+        deepseek: "sk-...", alibaba: "sk-...",
+        "opencode-zen": "", "opencode-go": "", ollama: "",
       };
 
-      modelSelect.innerHTML = models[provider]
-        .map(([val, label]) => `<option value="${val}">${label}</option>`)
-        .join("");
-
+      modelSelect.innerHTML = models[provider].map(([v,l]) => `<option value="${v}">${l}</option>`).join("");
       apiKeyInput.placeholder = placeholders[provider];
-      apiKeyHint.innerHTML = hints[provider];
+      document.getElementById("apiKeyHint").innerHTML = hints[provider];
     }
 
-    // ── Platform toggles ──
-    function togglePlatform(platform) {
-      const config = document.getElementById(`${platform}Config`);
-      const enabled = document.getElementById(`${platform}Enabled`).checked;
-      config.classList.toggle("show", enabled);
+    function validateStep0() {
+      const provider = document.getElementById("provider").value;
+      const errEl = document.getElementById("step0Error");
 
-      if (platform === "whatsapp") {
-        state.whatsappEnabled = enabled;
+      if (provider === "ollama") {
+        const url = document.getElementById("ollamaUrl").value.trim();
+        if (!url) {
+          errEl.className = "test-result error";
+          errEl.textContent = "Enter your Ollama server URL";
+          return;
+        }
+      } else {
+        const key = document.getElementById("apiKey").value.trim();
+        if (!key) {
+          errEl.className = "test-result error";
+          errEl.textContent = "API key is required to continue";
+          return;
+        }
+        if (key.length < 10) {
+          errEl.className = "test-result error";
+          errEl.textContent = "That doesn't look like a valid API key";
+          return;
+        }
       }
 
+      errEl.className = "test-result";
+      errEl.style.display = "none";
+      goToStep(1);
+    }
+
+    function togglePlatform(platform) {
+      document.getElementById(`${platform}Config`).classList.toggle("show", document.getElementById(`${platform}Enabled`).checked);
+      if (platform === "whatsapp") state.whatsappEnabled = document.getElementById("whatsappEnabled").checked;
       updateStep1Next();
     }
 
     function updateStep1Next() {
-      const telegramEnabled = document.getElementById("telegramEnabled").checked;
-      const whatsappEnabled = document.getElementById("whatsappEnabled").checked;
-
-      let canProceed = false;
-
-      // If telegram enabled, must be tested
-      if (telegramEnabled && state.telegramTested) canProceed = true;
-      // If only whatsapp, can proceed (QR pairing after setup)
-      if (whatsappEnabled && !telegramEnabled) canProceed = true;
-      // If both, telegram must be tested
-      if (telegramEnabled && whatsappEnabled && state.telegramTested) canProceed = true;
-
-      document.getElementById("step1Next").disabled = !canProceed;
+      const tg = document.getElementById("telegramEnabled").checked;
+      const wa = document.getElementById("whatsappEnabled").checked;
+      let ok = (tg && state.telegramTested) || (wa && !tg) || (tg && wa && state.telegramTested);
+      document.getElementById("step1Next").disabled = !ok;
     }
 
-    // ── Test Telegram ──
     async function testTelegram() {
       const token = document.getElementById("telegramToken").value.trim();
       const chatId = document.getElementById("telegramChatId").value.trim();
       const resultEl = document.getElementById("telegramTestResult");
       const btn = document.getElementById("telegramTestBtn");
-
-      if (!token || !chatId) {
-        resultEl.className = "test-result error";
-        resultEl.textContent = "Please enter both bot token and chat ID";
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = "Sending...";
-
+      if (!token || !chatId) { resultEl.className = "test-result error"; resultEl.textContent = "Enter both bot token and chat ID"; return; }
+      btn.disabled = true; btn.textContent = "TESTING...";
       try {
-        const resp = await fetch("/api/test-telegram", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, chatId }),
-        });
-
-        const data = await resp.json();
-
-        if (data.success) {
-          resultEl.className = "test-result success";
-          resultEl.textContent = `Connected as @${data.botUsername}. Check your Telegram for the test message!`;
-          state.telegramTested = true;
-          updateStep1Next();
-        } else {
-          resultEl.className = "test-result error";
-          resultEl.textContent = data.error;
-        }
-      } catch (e) {
-        resultEl.className = "test-result error";
-        resultEl.textContent = `Connection error: ${e.message}`;
-      }
-
-      btn.disabled = false;
-      btn.textContent = "Send Test Message";
+        const data = await (await fetch("/api/test-telegram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, chatId }) })).json();
+        if (data.success) { resultEl.className = "test-result success"; resultEl.textContent = `Connected as @${data.botUsername}. Check Telegram for the test message.`; state.telegramTested = true; updateStep1Next(); }
+        else { resultEl.className = "test-result error"; resultEl.textContent = data.error; }
+      } catch (e) { resultEl.className = "test-result error"; resultEl.textContent = `Connection error: ${e.message}`; }
+      btn.disabled = false; btn.textContent = "TEST CONNECTION";
     }
 
-    // ── Step navigation ──
     function goToStep(n) {
-      document.querySelectorAll(".step").forEach((el) => el.classList.remove("active"));
+      document.querySelectorAll(".step").forEach(el => el.classList.remove("active"));
       document.getElementById(`step-${n}`).classList.add("active");
-
-      document.querySelectorAll(".step-dot").forEach((el, i) => {
-        el.classList.remove("active", "done");
-        if (i < n) el.classList.add("done");
-        if (i === n) el.classList.add("active");
-      });
-
+      document.querySelectorAll(".step-seg").forEach((el, i) => { el.classList.remove("active","done"); if (i < n) el.classList.add("done"); if (i === n) el.classList.add("active"); });
       if (n === 2) buildSummary();
     }
 
-    // ── Build summary ──
     function buildSummary() {
       const provider = document.getElementById("provider").value;
-      const model = document.getElementById("model").value;
       const modelLabel = document.getElementById("model").selectedOptions[0].text;
       const platforms = [];
       if (document.getElementById("telegramEnabled").checked) platforms.push("Telegram");
       if (document.getElementById("whatsappEnabled").checked) platforms.push("WhatsApp");
-
-      document.getElementById("summary").innerHTML = `
-        <div style="padding:12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
-          <div style="margin-bottom:8px;"><span style="color:var(--text-muted)">Provider:</span> ${provider}</div>
-          <div style="margin-bottom:8px;"><span style="color:var(--text-muted)">Model:</span> ${modelLabel}</div>
-          <div><span style="color:var(--text-muted)">Platforms:</span> ${platforms.join(", ")}</div>
-        </div>
-      `;
+      document.getElementById("summary").innerHTML = `<div class="summary-block"><div><span class="lbl">PROVIDER: </span><span class="val">${provider}</span></div><div><span class="lbl">MODEL: </span><span class="val">${modelLabel}</span></div><div><span class="lbl">CHANNELS: </span><span class="val">${platforms.join(", ")}</span></div></div>`;
     }
 
-    // ── Submit setup ──
     async function submitSetup() {
       const overlay = document.getElementById("loadingOverlay");
       const loadingText = document.getElementById("loadingText");
-      overlay.classList.add("show");
-      loadingText.textContent = "Saving configuration...";
-
+      overlay.classList.add("show"); loadingText.textContent = "SAVING CONFIG...";
       const provider = document.getElementById("provider").value;
       const config = {};
-
-      // LLM config
       const apiKey = document.getElementById("apiKey").value.trim();
-      switch (provider) {
-        case "openrouter":
-          config.OPENROUTER_API_KEY = apiKey;
-          config.HERMES_PROVIDER = "openrouter";
-          break;
-        case "anthropic":
-          config.ANTHROPIC_API_KEY = apiKey;
-          config.HERMES_PROVIDER = "auto";
-          break;
-        case "openai":
-          config.OPENAI_API_KEY = apiKey;
-          config.HERMES_PROVIDER = "auto";
-          break;
-        case "ollama":
-          config.OLLAMA_BASE_URL = document.getElementById("ollamaUrl").value.trim();
-          config.HERMES_PROVIDER = "ollama";
-          break;
+      // Maps provider ID to [env var name, hermes provider value]
+      const providerKeyMap = {
+        "openrouter": ["OPENROUTER_API_KEY", "openrouter"],
+        "anthropic": ["ANTHROPIC_API_KEY", "auto"],
+        "zai": ["GLM_API_KEY", "zai"],
+        "kimi-coding": ["KIMI_API_KEY", "kimi-coding"],
+        "minimax": ["MINIMAX_API_KEY", "minimax"],
+        "minimax-cn": ["MINIMAX_CN_API_KEY", "minimax-cn"],
+        "deepseek": ["DEEPSEEK_API_KEY", "deepseek"],
+        "alibaba": ["DASHSCOPE_API_KEY", "alibaba"],
+        "opencode-zen": ["OPENCODE_ZEN_API_KEY", "opencode-zen"],
+        "opencode-go": ["OPENCODE_GO_API_KEY", "opencode-go"],
+      };
+      if (provider === "ollama") {
+        config.OLLAMA_BASE_URL = document.getElementById("ollamaUrl").value.trim();
+        config.HERMES_PROVIDER = "ollama";
+      } else {
+        const [keyName, prov] = providerKeyMap[provider];
+        config[keyName] = apiKey;
+        config.HERMES_PROVIDER = prov;
       }
-
       config.HERMES_MODEL = document.getElementById("model").value;
-
-      // Platform config
-      if (document.getElementById("telegramEnabled").checked) {
-        config.TELEGRAM_BOT_TOKEN = document.getElementById("telegramToken").value.trim();
-        config.TELEGRAM_HOME_CHAT_ID = document.getElementById("telegramChatId").value.trim();
-      }
-
-      if (document.getElementById("whatsappEnabled").checked) {
-        config.WHATSAPP_ENABLED = "true";
-      }
-
+      if (document.getElementById("telegramEnabled").checked) { config.TELEGRAM_BOT_TOKEN = document.getElementById("telegramToken").value.trim(); config.TELEGRAM_HOME_CHAT_ID = document.getElementById("telegramChatId").value.trim(); }
+      if (document.getElementById("whatsappEnabled").checked) config.WHATSAPP_ENABLED = "true";
       try {
-        const resp = await fetch("/api/setup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(config),
-        });
-
-        const data = await resp.json();
-
-        if (data.success) {
-          loadingText.textContent = "Starting gateway...";
-          // Wait a moment then redirect to status page
-          setTimeout(() => {
-            window.location.href = "/";
-          }, 5000);
-        } else {
-          overlay.classList.remove("show");
-          alert(`Setup failed: ${data.error}`);
-        }
-      } catch (e) {
-        overlay.classList.remove("show");
-        alert(`Setup failed: ${e.message}`);
-      }
+        const data = await (await fetch("/api/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) })).json();
+        if (data.success) { loadingText.textContent = "STARTING GATEWAY..."; setTimeout(() => { window.location.href = "/"; }, 5000); }
+        else { overlay.classList.remove("show"); alert(`Setup failed: ${data.error}`); }
+      } catch (e) { overlay.classList.remove("show"); alert(`Setup failed: ${e.message}`); }
     }
 
-    // ── Check if reconfiguring ──
-    (async function checkExisting() {
-      try {
-        const resp = await fetch("/api/setup");
-        const data = await resp.json();
-        if (data.configured && data.config) {
-          // Pre-fill with existing masked values where possible
-          if (data.config.HERMES_MODEL) {
-            const modelSelect = document.getElementById("model");
-            for (const opt of modelSelect.options) {
-              if (opt.value === data.config.HERMES_MODEL) {
-                opt.selected = true;
-                break;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        // First run, nothing to pre-fill
-      }
-    })();
+    (async function() { try { const data = await (await fetch("/api/setup")).json(); if (data.configured && data.config?.HERMES_MODEL) { const sel = document.getElementById("model"); for (const opt of sel.options) { if (opt.value === data.config.HERMES_MODEL) { opt.selected = true; break; } } } } catch(e) {} })();
   </script>
 </body>
 </html>

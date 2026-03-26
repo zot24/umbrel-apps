@@ -3,356 +3,523 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hermes Agent</title>
+  <title>HERMES // GATEWAY</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg: #0A0A0B;
-      --surface: #151518;
-      --surface-2: #1C1C21;
-      --border: #2A2A30;
-      --border-light: #38383F;
-      --text: #EDEDEF;
-      --text-muted: #8E8E93;
-      --text-dim: #636366;
-      --accent: #7C6CFF;
-      --accent-glow: rgba(124, 108, 255, 0.15);
-      --accent-hover: #6B5CE0;
-      --success: #34C759;
-      --success-bg: rgba(52, 199, 89, 0.1);
-      --error: #FF453A;
-      --error-bg: rgba(255, 69, 58, 0.1);
-      --warning: #FF9F0A;
-      --warning-bg: rgba(255, 159, 10, 0.1);
-      --radius: 16px;
-      --radius-sm: 10px;
+      --phosphor: #50ffa8;
+      --phosphor-dim: #28b870;
+      --phosphor-glow: rgba(80, 255, 168, 0.1);
+      --amber: #ffc04d;
+      --amber-dim: #b8862e;
+      --amber-glow: rgba(255, 192, 77, 0.08);
+      --red: #ff6060;
+      --red-dim: #b84040;
+      --red-glow: rgba(255, 96, 96, 0.08);
+      --bg: #060a0d;
+      --surface: #0b1016;
+      --surface-2: #10161c;
+      --border: #1a2530;
+      --text: #d4e0d8;
+      --text-muted: #7a8e82;
+      --body: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      --display: 'Oxanium', 'Segoe UI', sans-serif;
+    }
+
+    /* ── Layered background ── */
+
+    /* Layer 1: Circuit grid */
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 60px 60px;
+      opacity: 0.18;
+      z-index: 0;
+    }
+
+    /* Layer 2: Glowing nodes at grid intersections */
+    .bg-nodes {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle 1.5px at 60px 60px, rgba(80,255,168,0.2) 0%, transparent 100%),
+        radial-gradient(circle 1.5px at 120px 120px, rgba(80,255,168,0.15) 0%, transparent 100%),
+        radial-gradient(circle 1.5px at 180px 60px, rgba(255,192,77,0.12) 0%, transparent 100%),
+        radial-gradient(circle 1.5px at 60px 180px, rgba(80,255,168,0.1) 0%, transparent 100%);
+      background-size: 180px 180px;
+      z-index: 0;
+    }
+
+    /* Layer 3: Ambient glow orbs */
+    .bg-glow {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 300px 300px at 15% 85%, rgba(80,255,168,0.04) 0%, transparent 70%),
+        radial-gradient(ellipse 400px 250px at 85% 15%, rgba(255,192,77,0.03) 0%, transparent 70%),
+        radial-gradient(ellipse 200px 200px at 50% 50%, rgba(80,255,168,0.02) 0%, transparent 70%);
+      z-index: 0;
+    }
+
+    /* Layer 4: Film grain via SVG noise */
+    .bg-grain {
+      position: fixed;
+      inset: 0;
+      opacity: 0.35;
+      z-index: 1;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    }
+
+    /* Layer 5: Scanlines */
+    .bg-scan {
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px);
+      pointer-events: none;
+      z-index: 9998;
+    }
+
+    /* Layer 6: Vignette */
+    .bg-vignette {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
+      pointer-events: none;
+      z-index: 9999;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      font-family: var(--body);
+      font-size: 14px;
+      line-height: 1.65;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       display: flex;
       align-items: flex-start;
       justify-content: center;
-      padding: 40px 20px;
+      padding: 32px 16px;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
-    .container { max-width: 480px; width: 100%; }
+    .container {
+      max-width: 520px;
+      width: 100%;
+      position: relative;
+      z-index: 10;
+      animation: bootUp 0.6s ease-out;
+    }
+
+    @keyframes bootUp {
+      0% { opacity: 0; transform: translateY(8px); filter: blur(2px); }
+      60% { filter: blur(0); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
 
     /* ── Header ── */
     .header {
       text-align: center;
-      margin-bottom: 36px;
-      padding-top: 8px;
+      margin-bottom: 28px;
+      padding: 16px 0;
     }
 
-    .header-icon {
-      width: 56px;
-      height: 56px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #7C6CFF 0%, #A78BFA 50%, #C4B5FD 100%);
-      margin: 0 auto 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      box-shadow: 0 4px 24px rgba(124, 108, 255, 0.25);
+    .header-sub {
+      font-family: var(--body);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--text-muted);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
     }
 
     .header h1 {
-      font-size: 24px;
-      font-weight: 600;
-      letter-spacing: -0.3px;
-      margin-bottom: 8px;
+      font-family: var(--display);
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 10px;
+      color: var(--phosphor);
+      text-shadow:
+        0 0 10px rgba(80,255,168,0.3),
+        0 0 30px rgba(80,255,168,0.1),
+        0 0 60px rgba(80,255,168,0.05);
+      text-transform: uppercase;
+      margin-bottom: 14px;
     }
+
+    .cursor {
+      display: inline-block;
+      width: 3px;
+      height: 0.8em;
+      background: var(--phosphor);
+      margin-left: 4px;
+      vertical-align: baseline;
+      box-shadow: 0 0 8px var(--phosphor-glow);
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
 
     .status-pill {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 5px 14px;
-      border-radius: 20px;
-      font-size: 13px;
+      gap: 8px;
+      padding: 6px 18px;
+      border: 1px solid;
+      font-family: var(--body);
+      font-size: 12px;
       font-weight: 500;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
     }
-    .status-pill.running { background: var(--success-bg); color: var(--success); }
-    .status-pill.stopped { background: var(--error-bg); color: var(--error); }
-    .status-pill.starting { background: var(--warning-bg); color: var(--warning); }
+    .status-pill.running {
+      border-color: var(--phosphor-dim);
+      color: var(--phosphor);
+      background: var(--phosphor-glow);
+      box-shadow: 0 0 16px var(--phosphor-glow), inset 0 0 16px var(--phosphor-glow);
+    }
+    .status-pill.stopped {
+      border-color: var(--red-dim);
+      color: var(--red);
+      background: var(--red-glow);
+    }
+    .status-pill.starting {
+      border-color: var(--amber-dim);
+      color: var(--amber);
+      background: var(--amber-glow);
+      animation: statusBlink 1.5s ease-in-out infinite;
+    }
+    @keyframes statusBlink { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
 
     .status-pill .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: currentColor;
-      flex-shrink: 0;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+      box-shadow: 0 0 8px currentColor;
     }
-    .status-pill.running .dot {
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
+    .status-pill.running .dot { animation: dotPulse 2s ease-in-out infinite; }
+    @keyframes dotPulse {
+      0%,100% { opacity:1; box-shadow: 0 0 8px currentColor; }
+      50% { opacity:0.3; box-shadow: 0 0 2px currentColor; }
     }
 
-    /* ── Cards ── */
-    .card {
+    /* ── Panel ── */
+    .panel {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(4px);
+    }
+    .panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 10%, var(--phosphor-dim) 50%, transparent 90%);
+      opacity: 0.35;
     }
 
-    .card-header {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 14px;
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(80,255,168,0.015);
     }
+    .panel-title {
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--phosphor-dim);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .panel-indicator {
+      font-family: var(--body);
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+    .panel-body { padding: 14px 18px; }
 
     /* ── Platform list ── */
-    .platform-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+    .platform-list { display: flex; flex-direction: column; gap: 3px; }
 
     .platform-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 14px;
+      padding: 11px 14px;
       background: var(--surface-2);
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      transition: border-color 0.2s;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
     }
-
+    .platform-item:hover {
+      background: rgba(80,255,168,0.025);
+      border-left-color: var(--phosphor-dim);
+    }
     .platform-name {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 14px;
-      font-weight: 500;
+      display: flex; align-items: center; gap: 12px;
+      font-size: 14px; font-weight: 500;
     }
-
     .platform-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
+      width: 30px; height: 30px;
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--display);
+      font-size: 11px; font-weight: 600;
       flex-shrink: 0;
+      background: var(--surface);
+      color: var(--text-muted);
+      letter-spacing: 1px;
     }
-    .platform-icon.telegram { background: rgba(0, 136, 204, 0.15); }
-    .platform-icon.whatsapp { background: rgba(37, 211, 102, 0.15); }
-    .platform-icon.discord { background: rgba(88, 101, 242, 0.15); }
-    .platform-icon.slack { background: rgba(74, 21, 75, 0.15); }
-
     .platform-status {
-      font-size: 12px;
-      font-weight: 500;
-      display: flex;
-      align-items: center;
-      gap: 5px;
+      font-size: 11px; font-weight: 500;
+      letter-spacing: 1px; text-transform: uppercase;
+      display: flex; align-items: center; gap: 7px;
     }
     .platform-status .indicator {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: currentColor;
+      width: 5px; height: 5px; border-radius: 50%;
+      background: currentColor; box-shadow: 0 0 6px currentColor;
     }
-    .platform-status.connected { color: var(--success); }
-    .platform-status.disconnected { color: var(--error); }
-    .platform-status.pending { color: var(--warning); }
+    .platform-status.connected { color: var(--phosphor); }
+    .platform-status.disconnected { color: var(--red); }
+    .platform-status.pending { color: var(--amber); }
 
     /* ── QR Section ── */
     .qr-card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       overflow: hidden;
+      position: relative;
     }
-
+    .qr-card::before {
+      content: '';
+      display: block; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--amber-dim), transparent);
+      opacity: 0.5;
+    }
     .qr-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 32px 24px;
+      display: flex; flex-direction: column;
+      align-items: center; padding: 30px 24px;
     }
-
     .qr-title {
-      font-size: 16px;
-      font-weight: 600;
+      font-family: var(--display);
+      font-size: 14px; font-weight: 600;
+      letter-spacing: 4px; text-transform: uppercase;
+      color: var(--amber);
+      text-shadow: 0 0 16px var(--amber-glow);
       margin-bottom: 4px;
     }
-
     .qr-subtitle {
-      font-size: 13px;
-      color: var(--text-muted);
+      font-size: 13px; color: var(--text-muted);
       margin-bottom: 24px;
     }
-
     .qr-frame {
-      background: #FFFFFF;
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 4px 32px rgba(0, 0, 0, 0.3);
+      position: relative;
+      background: #fff; padding: 14px;
       margin-bottom: 24px;
+      box-shadow: 0 0 40px rgba(255,192,77,0.06), 0 0 80px rgba(255,192,77,0.03);
     }
-
-    .qr-frame img {
-      display: block;
-      width: 240px;
-      height: 240px;
-      border-radius: 4px;
+    .qr-frame::before, .qr-frame::after {
+      content: ''; position: absolute;
+      width: 18px; height: 18px;
+      border-color: var(--amber-dim); border-style: solid;
     }
+    .qr-frame::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+    .qr-frame::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+    .qr-frame img { display: block; width: 220px; height: 220px; }
 
     .qr-steps {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      width: 100%;
-      max-width: 300px;
+      display: flex; flex-direction: column;
+      gap: 8px; width: 100%; max-width: 320px;
     }
-
     .qr-step {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-      color: var(--text-muted);
+      display: flex; align-items: center;
+      gap: 12px; font-size: 13px;
+      color: var(--text-muted); padding: 3px 0;
     }
-
     .qr-step-num {
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: var(--surface-2);
-      border: 1px solid var(--border-light);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text);
-      flex-shrink: 0;
+      font-family: var(--display);
+      font-size: 11px; font-weight: 600;
+      color: var(--amber-dim); min-width: 24px;
     }
 
     /* ── Config rows ── */
     .config-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
+      display: flex; justify-content: space-between;
+      align-items: center; padding: 9px 0;
     }
-    .config-row + .config-row {
-      border-top: 1px solid var(--border);
+    .config-row + .config-row { border-top: 1px solid var(--border); }
+    .config-label {
+      font-size: 12px; color: var(--text-muted);
+      letter-spacing: 0.5px; text-transform: uppercase;
     }
-    .config-label { font-size: 13px; color: var(--text-muted); }
-    .config-value { font-size: 13px; font-weight: 500; }
+    .config-value {
+      font-size: 13px; font-weight: 500; color: var(--phosphor-dim);
+    }
 
     /* ── Actions ── */
-    .actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 4px;
-    }
+    .actions { display: flex; gap: 8px; margin-top: 6px; }
 
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 11px 20px;
-      border: none;
-      border-radius: var(--radius-sm);
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      flex: 1;
-    }
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-    }
-    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
-    .btn-primary:active { transform: translateY(0); }
-    .btn-secondary {
-      background: var(--surface-2);
-      color: var(--text);
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 11px 18px;
       border: 1px solid var(--border);
+      background: var(--surface);
+      font-family: var(--body);
+      font-size: 12px; font-weight: 500;
+      letter-spacing: 1px; text-transform: uppercase;
+      cursor: pointer; transition: all 0.15s;
+      flex: 1; color: var(--text);
     }
-    .btn-secondary:hover { background: var(--border); border-color: var(--border-light); }
+    .btn::before { content: '>'; margin-right: 6px; color: var(--text-muted); transition: color 0.15s; }
+    .btn:active { transform: translateY(1px); }
+
+    .btn-primary { border-color: var(--phosphor-dim); color: var(--phosphor); }
+    .btn-primary:hover {
+      background: var(--phosphor-glow);
+      box-shadow: 0 0 20px var(--phosphor-glow);
+    }
+    .btn-primary:hover::before { color: var(--phosphor); }
+
+    .btn-secondary:hover {
+      border-color: var(--text-muted);
+      background: rgba(212,224,216,0.025);
+    }
 
     /* ── Spinner ── */
     .spinner {
-      width: 32px;
-      height: 32px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
+      width: 28px; height: 28px;
+      border: 2px solid var(--border);
+      border-top-color: var(--amber);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin: 16px auto;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Empty state ── */
     .empty-state {
+      text-align: center; padding: 20px;
+      color: var(--text-muted); font-size: 13px;
+      letter-spacing: 1px;
+    }
+
+    .boot-footer {
       text-align: center;
-      padding: 24px;
-      color: var(--text-dim);
-      font-size: 13px;
+      padding: 20px 0 4px;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      opacity: 0.5;
+      transition: opacity 0.3s;
+    }
+    .boot-footer:hover { opacity: 0.85; }
+    .boot-footer .version {
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      margin-bottom: 8px;
+    }
+    .boot-footer .credits {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      font-size: 11px;
+    }
+    .boot-footer .credits a {
+      color: var(--text-muted);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: color 0.2s;
+    }
+    .boot-footer .credits a:hover { color: var(--phosphor-dim); }
+    .boot-footer .sep {
+      color: var(--border);
+      font-size: 8px;
     }
   </style>
 </head>
 <body>
+  <!-- Background layers -->
+  <div class="bg-grid"></div>
+  <div class="bg-nodes"></div>
+  <div class="bg-glow"></div>
+  <div class="bg-grain"></div>
+  <div class="bg-scan"></div>
+  <div class="bg-vignette"></div>
+
   <div class="container">
     <div class="header">
-      <div class="header-icon">&#9877;</div>
-      <h1>Hermes Agent</h1>
+      <div class="header-sub">Nous Research</div>
+      <h1>HERMES<span class="cursor"></span></h1>
       <div id="gatewayStatus">
-        <span class="status-pill starting"><span class="dot"></span> Loading...</span>
+        <span class="status-pill starting"><span class="dot"></span> INIT...</span>
       </div>
     </div>
 
-    <!-- Platforms -->
-    <div class="card">
-      <div class="card-header">Platforms</div>
-      <div class="platform-list" id="platformList">
-        <div class="empty-state">Loading...</div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Channels</span>
+        <span class="panel-indicator">SYS.GATEWAY</span>
+      </div>
+      <div class="panel-body">
+        <div class="platform-list" id="platformList">
+          <div class="empty-state">LOADING...</div>
+        </div>
       </div>
     </div>
 
-    <!-- WhatsApp QR (shown when needed) -->
     <div class="qr-card" id="waQrSection" style="display:none;"></div>
 
-    <!-- Config -->
-    <div class="card">
-      <div class="card-header">Configuration</div>
-      <div class="config-row">
-        <span class="config-label">Model</span>
-        <span class="config-value" id="configModel">...</span>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Config</span>
+        <span class="panel-indicator">SYS.MODEL</span>
       </div>
-      <div class="config-row">
-        <span class="config-label">Provider</span>
-        <span class="config-value" id="configProvider">...</span>
+      <div class="panel-body">
+        <div class="config-row">
+          <span class="config-label">Model</span>
+          <span class="config-value" id="configModel">...</span>
+        </div>
+        <div class="config-row">
+          <span class="config-label">Provider</span>
+          <span class="config-value" id="configProvider">...</span>
+        </div>
       </div>
     </div>
 
-    <!-- Actions -->
     <div class="actions">
       <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
-      <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart Gateway</button>
+      <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart</button>
+    </div>
+
+    <div class="boot-footer">
+      <div class="version">HERMES AGENT v0.4.0 // UMBREL NODE</div>
+      <div class="credits">
+        <span>powered by</span>
+        <a href="https://github.com/zot24" target="_blank" rel="noopener">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          zot24
+        </a>
+        <span class="sep">/</span>
+        <a href="https://x.com/zot24" target="_blank" rel="noopener">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          zot24
+        </a>
+      </div>
     </div>
   </div>
 
@@ -360,10 +527,10 @@
     let lastQrImage = null;
 
     const platformIcons = {
-      "Telegram": { icon: "\u{1F4E8}", cls: "telegram" },
-      "WhatsApp": { icon: "\u{1F4AC}", cls: "whatsapp" },
-      "Discord":  { icon: "\u{1F3AE}", cls: "discord" },
-      "Slack":    { icon: "\u{1F4BC}", cls: "slack" },
+      "Telegram": { icon: "TG", cls: "telegram" },
+      "WhatsApp": { icon: "WA", cls: "whatsapp" },
+      "Discord":  { icon: "DC", cls: "discord" },
+      "Slack":    { icon: "SL", cls: "slack" },
     };
 
     async function fetchStatus() {
@@ -380,38 +547,35 @@
       const statusEl = document.getElementById("gatewayStatus");
 
       let cls, txt;
-      if (gwState === "running") { cls = "running"; txt = "Running"; }
-      else if (gwState === "starting") { cls = "starting"; txt = "Starting..."; }
-      else { cls = "stopped"; txt = gwState === "unknown" ? "Waiting..." : "Stopped"; }
+      if (gwState === "running") { cls = "running"; txt = "ONLINE"; }
+      else if (gwState === "starting") { cls = "starting"; txt = "INIT..."; }
+      else { cls = "stopped"; txt = gwState === "unknown" ? "STANDBY" : "OFFLINE"; }
 
       statusEl.innerHTML = `<span class="status-pill ${cls}"><span class="dot"></span> ${txt}</span>`;
 
-      // Platforms
       const listEl = document.getElementById("platformList");
       if (!data.platforms?.length) {
-        listEl.innerHTML = '<div class="empty-state">No platforms configured</div>';
+        listEl.innerHTML = '<div class="empty-state">NO CHANNELS CONFIGURED</div>';
         document.getElementById("waQrSection").style.display = "none";
         return;
       }
 
       listEl.innerHTML = data.platforms.map(p => {
-        const pi = platformIcons[p.name] || { icon: "\u{1F310}", cls: "" };
+        const pi = platformIcons[p.name] || { icon: "??", cls: "" };
         let sc, st;
-
         if (p.name === "WhatsApp") {
-          if (p.paired) { sc = "connected"; st = "Connected"; }
-          else if (p.hasQr) { sc = "pending"; st = "Scan QR below"; }
-          else { sc = "pending"; st = "Waiting for QR..."; }
+          if (p.paired) { sc = "connected"; st = "LINKED"; }
+          else if (p.hasQr) { sc = "pending"; st = "PAIR REQ"; }
+          else { sc = "pending"; st = "WAITING"; }
         } else {
           const pg = data.gateway?.platforms?.[p.name.toLowerCase()];
-          if (pg?.error_message) { sc = "disconnected"; st = "Error"; }
-          else if (gwState === "running") { sc = "connected"; st = "Connected"; }
-          else { sc = "pending"; st = "Connecting..."; }
+          if (pg?.error_message) { sc = "disconnected"; st = "ERROR"; }
+          else if (gwState === "running") { sc = "connected"; st = "ACTIVE"; }
+          else { sc = "pending"; st = "SYNC..."; }
         }
-
         return `<div class="platform-item">
           <div class="platform-name">
-            <div class="platform-icon ${pi.cls}">${pi.icon}</div>
+            <div class="platform-icon">${pi.icon}</div>
             ${p.name}
           </div>
           <div class="platform-status ${sc}">
@@ -421,15 +585,13 @@
         </div>`;
       }).join("");
 
-      // WhatsApp QR
       const wa = data.platforms.find(p => p.name === "WhatsApp" && !p.paired);
       if (wa) { fetchWhatsAppQR(); } else {
         document.getElementById("waQrSection").style.display = "none";
         lastQrImage = null;
       }
 
-      // Config
-      document.getElementById("configModel").textContent = data.model || "Not set";
+      document.getElementById("configModel").textContent = data.model || "N/A";
       document.getElementById("configProvider").textContent = data.provider || "auto";
     }
 
@@ -437,59 +599,39 @@
       const section = document.getElementById("waQrSection");
       try {
         const data = await (await fetch("/api/whatsapp-qr")).json();
-
-        if (data.status === "paired") {
-          section.style.display = "none";
-          lastQrImage = null;
-          return;
-        }
-
+        if (data.status === "paired") { section.style.display = "none"; lastQrImage = null; return; }
         section.style.display = "block";
-
         if (data.qrImage && data.qrImage !== lastQrImage) {
           lastQrImage = data.qrImage;
           section.innerHTML = `
             <div class="qr-content">
-              <div class="qr-title">Link WhatsApp</div>
-              <div class="qr-subtitle">Scan this QR code to connect</div>
+              <div class="qr-title">Device Pairing</div>
+              <div class="qr-subtitle">Scan to link WhatsApp</div>
               <div class="qr-frame">
                 <img src="${data.qrImage}" alt="WhatsApp QR Code">
               </div>
               <div class="qr-steps">
-                <div class="qr-step">
-                  <span class="qr-step-num">1</span>
-                  Open WhatsApp on your phone
-                </div>
-                <div class="qr-step">
-                  <span class="qr-step-num">2</span>
-                  Tap Settings &gt; Linked Devices
-                </div>
-                <div class="qr-step">
-                  <span class="qr-step-num">3</span>
-                  Tap "Link a Device" and scan
-                </div>
+                <div class="qr-step"><span class="qr-step-num">[01]</span> Open WhatsApp on your device</div>
+                <div class="qr-step"><span class="qr-step-num">[02]</span> Settings > Linked Devices</div>
+                <div class="qr-step"><span class="qr-step-num">[03]</span> Tap "Link a Device" and scan</div>
               </div>
-            </div>
-          `;
+            </div>`;
         } else if (!data.qrImage && !lastQrImage) {
           section.innerHTML = `
             <div class="qr-content">
               <div class="spinner"></div>
-              <div class="qr-subtitle">${data.message || "Generating QR code..."}</div>
-            </div>
-          `;
+              <div class="qr-subtitle">${data.message || "GENERATING QR MATRIX..."}</div>
+            </div>`;
         }
-      } catch (e) {
-        console.error("QR fetch failed:", e);
-      }
+      } catch (e) { console.error("QR fetch failed:", e); }
     }
 
     async function restartGateway() {
       const btn = document.getElementById("restartBtn");
-      btn.disabled = true; btn.textContent = "Restarting...";
+      btn.disabled = true; btn.textContent = "RESTARTING...";
       try { await fetch("/api/restart", { method: "POST" }); } catch(e) { alert("Failed: " + e.message); }
       setTimeout(fetchStatus, 3000);
-      setTimeout(() => { btn.disabled = false; btn.textContent = "Restart Gateway"; }, 5000);
+      setTimeout(() => { btn.disabled = false; btn.textContent = "RESTART"; }, 5000);
     }
 
     fetchStatus();

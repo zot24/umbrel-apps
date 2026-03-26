@@ -35,9 +35,6 @@ RUN npm ci --omit=dev 2>/dev/null || true
 RUN if [ -d scripts/whatsapp-bridge ]; then cd scripts/whatsapp-bridge && npm ci --omit=dev; fi
 
 # Patch WhatsApp bridge to write QR data to a file for the setup server to serve.
-# bridge.js already imports writeFileSync + existsSync from 'fs' and 'path'.
-# SESSION_DIR is ~/.hermes/whatsapp/session — we write qr.txt one level up.
-# On QR: write the raw QR string. On connect: delete it.
 # 1. Add unlinkSync to the fs import
 RUN if [ -f scripts/whatsapp-bridge/bridge.js ]; then \
     sed -i 's|readdirSync } from .fs.|readdirSync, unlinkSync } from "fs";|' \
@@ -64,29 +61,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Create hermes user
-RUN useradd -m -u 1000 -s /bin/bash hermes \
-    && echo "hermes ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+# Create non-root user (UID 1000, matching Umbrel volume ownership)
+RUN groupadd -g 1000 hermes && useradd -m -u 1000 -g hermes -s /bin/bash hermes
 
-# Copy hermes from builder (built at /app with venv at /app/venv)
+# Set home to /data (mounted volume) — same pattern as openclaw-umbrel
+ENV HOME=/data
+WORKDIR /data
+RUN mkdir -p /data && chown hermes:hermes /data
+
+# Copy hermes from builder
 COPY --from=builder /app /app
-RUN chown -R hermes:hermes /app
+RUN chown -R hermes:hermes /app /data
 
-# Set up home directory
-ENV HOME=/home/hermes
-WORKDIR /home/hermes
-
-# Switch to hermes user for brew install
+# Switch to non-root user
+RUN echo "hermes ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER hermes
 
 # Install Homebrew (persistent package manager for the agent)
-RUN /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # ── Security shims ────────────────────────────────────────────────────────────
 # Shim systemctl for Docker — no systemd in container.
-# Hermes agent may call systemctl to manage the gateway service.
-# This intercepts those calls and uses pkill instead.
-RUN printf '#!/bin/bash\n# Skip flags (e.g. --user) to find the actual subcommand\ncmd=""\nfor arg in "$@"; do\n  case "$arg" in\n    -*) ;;\n    *) cmd="$arg"; break ;;\n  esac\ndone\ncase "$cmd" in\n  restart|stop) pkill -f "hermes.*gateway" 2>/dev/null || true ;;\n  start) echo "hermes-gateway is managed by the container" ;;\n  *) exit 0 ;;\nesac\n' | sudo tee /usr/local/bin/systemctl \
+RUN printf '#!/bin/bash\ncmd=""\nfor arg in "$@"; do\n  case "$arg" in\n    -*) ;;\n    *) cmd="$arg"; break ;;\n  esac\ndone\ncase "$cmd" in\n  restart|stop) pkill -f "hermes.*gateway" 2>/dev/null || true ;;\n  start) echo "hermes-gateway is managed by the container" ;;\n  *) exit 0 ;;\nesac\n' | sudo tee /usr/local/bin/systemctl \
     && sudo chmod +x /usr/local/bin/systemctl
 
 # Replace apt/apt-get with script telling the agent to use brew
@@ -99,20 +95,17 @@ RUN printf '#!/bin/bash\necho "Error: apt is not available. Please use brew inst
 COPY --chown=hermes:hermes entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Move home to skeleton for first-run init
-RUN sudo mv /home/hermes /home-skeleton \
+# Move home contents to skeleton for first-run init
+RUN sudo mv /data /home-skeleton \
     && sudo mv /home/linuxbrew /home-skeleton/linuxbrew
 
 # Set up PATH
 ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/app/venv/bin:${PATH}"
 ENV VIRTUAL_ENV=/app/venv
-ENV HERMES_HOME=/home/hermes/.hermes
-
-# Switch back to root for entrypoint (it will drop to hermes user after fixing permissions)
-USER root
+ENV HERMES_HOME=/data/.hermes
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=120s \
-    CMD python3 -c "import json,sys,os; p=os.path.join(os.getenv('HERMES_HOME','/home/hermes/.hermes'),'gateway_state.json'); d=json.load(open(p)); sys.exit(0 if d.get('gateway_state')=='running' else 1)" || exit 1
+    CMD python3 -c "import json,sys,os; p=os.path.join(os.getenv('HERMES_HOME','/data/.hermes'),'gateway_state.json'); d=json.load(open(p)); sys.exit(0 if d.get('gateway_state')=='running' else 1)" || exit 1
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gateway"]
