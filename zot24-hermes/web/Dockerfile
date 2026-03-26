@@ -28,7 +28,7 @@ WORKDIR /app
 RUN uv venv /app/venv --python 3.11
 ENV VIRTUAL_ENV=/app/venv
 ENV PATH="/app/venv/bin:${PATH}"
-RUN uv pip install -e ".[telegram,discord,slack,matrix,mcp,cron,pty]"
+RUN uv pip install -e ".[messaging,mcp,cron,pty]"
 
 # Install Node.js dependencies (agent-browser, WhatsApp bridge)
 RUN npm ci --omit=dev 2>/dev/null || true

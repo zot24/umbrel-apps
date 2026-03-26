@@ -267,7 +267,7 @@ async function handleRequest(req, res) {
         "OPENCODE_ZEN_API_KEY", "OPENCODE_GO_API_KEY",
         "OLLAMA_BASE_URL", "HERMES_MODEL", "HERMES_PROVIDER",
         "TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID",
-        "WHATSAPP_ENABLED", "WHATSAPP_ALLOWED_USERS",
+        "WHATSAPP_ENABLED", "WHATSAPP_ALLOWED_USERS", "WHATSAPP_MODE",
         "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN",
       ];
 
@@ -275,6 +275,11 @@ async function handleRequest(req, res) {
         if (data[key]) {
           envConfig[key] = data[key];
         }
+      }
+
+      // WhatsApp: default to self-chat mode (only your own messages trigger the bot)
+      if (envConfig.WHATSAPP_ENABLED === "true" && !envConfig.WHATSAPP_MODE) {
+        envConfig.WHATSAPP_MODE = "self-chat";
       }
 
       // Set HERMES_REGEN_CONFIG to force config regeneration
