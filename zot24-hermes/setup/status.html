@@ -8,357 +8,424 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg: #0D0D0D;
-      --surface: #1A1A1A;
-      --surface-hover: #242424;
-      --border: #333;
-      --text: #F0EDE8;
-      --text-muted: #888;
-      --accent: #6C63FF;
-      --accent-hover: #5A52E0;
-      --success: #4CAF50;
-      --error: #E53935;
-      --warning: #FF9800;
-      --radius: 12px;
+      --bg: #0A0A0B;
+      --surface: #151518;
+      --surface-2: #1C1C21;
+      --border: #2A2A30;
+      --border-light: #38383F;
+      --text: #EDEDEF;
+      --text-muted: #8E8E93;
+      --text-dim: #636366;
+      --accent: #7C6CFF;
+      --accent-glow: rgba(124, 108, 255, 0.15);
+      --accent-hover: #6B5CE0;
+      --success: #34C759;
+      --success-bg: rgba(52, 199, 89, 0.1);
+      --error: #FF453A;
+      --error-bg: rgba(255, 69, 58, 0.1);
+      --warning: #FF9F0A;
+      --warning-bg: rgba(255, 159, 10, 0.1);
+      --radius: 16px;
+      --radius-sm: 10px;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      padding: 24px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 20px;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .container {
-      max-width: 600px;
-      margin: 0 auto;
-    }
+    .container { max-width: 480px; width: 100%; }
 
+    /* ── Header ── */
     .header {
       text-align: center;
-      margin-bottom: 32px;
+      margin-bottom: 36px;
+      padding-top: 8px;
+    }
+
+    .header-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #7C6CFF 0%, #A78BFA 50%, #C4B5FD 100%);
+      margin: 0 auto 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      box-shadow: 0 4px 24px rgba(124, 108, 255, 0.25);
     }
 
     .header h1 {
-      font-size: 28px;
-      font-weight: 700;
-      background: linear-gradient(135deg, #6C63FF, #B388FF);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      margin-bottom: 8px;
     }
 
-    .status-badge {
+    .status-pill {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 12px;
-      border-radius: 16px;
+      padding: 5px 14px;
+      border-radius: 20px;
       font-size: 13px;
       font-weight: 500;
-      margin-top: 8px;
     }
+    .status-pill.running { background: var(--success-bg); color: var(--success); }
+    .status-pill.stopped { background: var(--error-bg); color: var(--error); }
+    .status-pill.starting { background: var(--warning-bg); color: var(--warning); }
 
-    .status-badge.running {
-      background: rgba(76, 175, 80, 0.15);
-      color: var(--success);
-    }
-
-    .status-badge.stopped {
-      background: rgba(229, 57, 53, 0.15);
-      color: var(--error);
-    }
-
-    .status-badge.starting {
-      background: rgba(255, 152, 0, 0.15);
-      color: var(--warning);
-    }
-
-    .status-badge .dot {
-      width: 8px;
-      height: 8px;
+    .status-pill .dot {
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background: currentColor;
+      flex-shrink: 0;
     }
-
-    .status-badge.running .dot {
-      animation: pulse 2s infinite;
+    .status-pill.running .dot {
+      animation: pulse 2s ease-in-out infinite;
     }
-
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
     }
 
+    /* ── Cards ── */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 20px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
-    .card h3 {
-      font-size: 14px;
+    .card-header {
+      font-size: 11px;
       font-weight: 600;
-      color: var(--text-muted);
+      color: var(--text-dim);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 16px;
+      letter-spacing: 0.8px;
+      margin-bottom: 14px;
     }
 
+    /* ── Platform list ── */
     .platform-list {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 8px;
     }
 
     .platform-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px;
-      background: var(--bg);
-      border-radius: 8px;
+      padding: 12px 14px;
+      background: var(--surface-2);
+      border-radius: var(--radius-sm);
       border: 1px solid var(--border);
+      transition: border-color 0.2s;
     }
 
-    .platform-item .name {
+    .platform-name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       font-size: 14px;
       font-weight: 500;
     }
 
-    .platform-item .status {
-      font-size: 13px;
+    .platform-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
     }
+    .platform-icon.telegram { background: rgba(0, 136, 204, 0.15); }
+    .platform-icon.whatsapp { background: rgba(37, 211, 102, 0.15); }
+    .platform-icon.discord { background: rgba(88, 101, 242, 0.15); }
+    .platform-icon.slack { background: rgba(74, 21, 75, 0.15); }
 
-    .platform-item .status.connected {
-      color: var(--success);
-    }
-
-    .platform-item .status.disconnected {
-      color: var(--error);
-    }
-
-    .platform-item .status.pending {
-      color: var(--warning);
-    }
-
-    .config-row {
+    .platform-status {
+      font-size: 12px;
+      font-weight: 500;
       display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 14px;
+      align-items: center;
+      gap: 5px;
+    }
+    .platform-status .indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .platform-status.connected { color: var(--success); }
+    .platform-status.disconnected { color: var(--error); }
+    .platform-status.pending { color: var(--warning); }
+
+    /* ── QR Section ── */
+    .qr-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      overflow: hidden;
     }
 
-    .config-row:last-child {
-      border-bottom: none;
+    .qr-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 24px;
     }
 
-    .config-row .label {
+    .qr-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .qr-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+
+    .qr-frame {
+      background: #FFFFFF;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 4px 32px rgba(0, 0, 0, 0.3);
+      margin-bottom: 24px;
+    }
+
+    .qr-frame img {
+      display: block;
+      width: 240px;
+      height: 240px;
+      border-radius: 4px;
+    }
+
+    .qr-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .qr-step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
       color: var(--text-muted);
     }
 
+    .qr-step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      border: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+
+    /* ── Config rows ── */
+    .config-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+    }
+    .config-row + .config-row {
+      border-top: 1px solid var(--border);
+    }
+    .config-label { font-size: 13px; color: var(--text-muted); }
+    .config-value { font-size: 13px; font-weight: 500; }
+
+    /* ── Actions ── */
     .actions {
       display: flex;
-      gap: 12px;
-      margin-top: 8px;
+      gap: 10px;
+      margin-top: 4px;
     }
 
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 10px 20px;
+      padding: 11px 20px;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--radius-sm);
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s ease;
       flex: 1;
-      gap: 6px;
     }
-
     .btn-primary {
       background: var(--accent);
       color: white;
     }
-
-    .btn-primary:hover {
-      background: var(--accent-hover);
-    }
-
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
     .btn-secondary {
-      background: var(--surface-hover);
+      background: var(--surface-2);
       color: var(--text);
       border: 1px solid var(--border);
     }
+    .btn-secondary:hover { background: var(--border); border-color: var(--border-light); }
 
-    .btn-secondary:hover {
-      background: var(--border);
+    /* ── Spinner ── */
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 16px auto;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Empty state ── */
     .empty-state {
       text-align: center;
-      padding: 40px 20px;
-      color: var(--text-muted);
-    }
-
-    .empty-state p {
-      margin-top: 8px;
-      font-size: 14px;
-    }
-
-    .wa-qr-section {
-      text-align: center;
-      padding: 16px;
-      background: var(--bg);
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      margin-top: 12px;
-    }
-
-    .wa-qr-section img {
-      max-width: 200px;
-      border-radius: 8px;
-      margin: 8px 0;
-    }
-
-    .wa-qr-section p {
+      padding: 24px;
+      color: var(--text-dim);
       font-size: 13px;
-      color: var(--text-muted);
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
+      <div class="header-icon">&#9877;</div>
       <h1>Hermes Agent</h1>
       <div id="gatewayStatus">
-        <span class="status-badge starting">
-          <span class="dot"></span>
-          Loading...
-        </span>
+        <span class="status-pill starting"><span class="dot"></span> Loading...</span>
       </div>
     </div>
 
     <!-- Platforms -->
     <div class="card">
-      <h3>Connected Platforms</h3>
+      <div class="card-header">Platforms</div>
       <div class="platform-list" id="platformList">
-        <div class="empty-state">
-          <p>Loading platform status...</p>
-        </div>
+        <div class="empty-state">Loading...</div>
       </div>
     </div>
 
-    <!-- Configuration -->
+    <!-- WhatsApp QR (shown when needed) -->
+    <div class="qr-card" id="waQrSection" style="display:none;"></div>
+
+    <!-- Config -->
     <div class="card">
-      <h3>Configuration</h3>
-      <div id="configInfo">
-        <div class="config-row">
-          <span class="label">Model</span>
-          <span id="configModel">Loading...</span>
-        </div>
-        <div class="config-row">
-          <span class="label">Provider</span>
-          <span id="configProvider">Loading...</span>
-        </div>
+      <div class="card-header">Configuration</div>
+      <div class="config-row">
+        <span class="config-label">Model</span>
+        <span class="config-value" id="configModel">...</span>
+      </div>
+      <div class="config-row">
+        <span class="config-label">Provider</span>
+        <span class="config-value" id="configProvider">...</span>
       </div>
     </div>
 
     <!-- Actions -->
     <div class="actions">
       <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
-      <button class="btn btn-primary" onclick="restartGateway()">Restart Gateway</button>
+      <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart Gateway</button>
     </div>
   </div>
 
   <script>
-    let pollInterval;
+    let lastQrImage = null;
+
+    const platformIcons = {
+      "Telegram": { icon: "\u{1F4E8}", cls: "telegram" },
+      "WhatsApp": { icon: "\u{1F4AC}", cls: "whatsapp" },
+      "Discord":  { icon: "\u{1F3AE}", cls: "discord" },
+      "Slack":    { icon: "\u{1F4BC}", cls: "slack" },
+    };
 
     async function fetchStatus() {
       try {
-        const resp = await fetch("/api/status");
-        const data = await resp.json();
+        const data = await (await fetch("/api/status")).json();
         updateUI(data);
       } catch (e) {
-        console.error("Failed to fetch status:", e);
+        console.error("Status fetch failed:", e);
       }
     }
 
     function updateUI(data) {
-      // Gateway status
-      const statusEl = document.getElementById("gatewayStatus");
       const gwState = data.gateway?.gateway_state || "unknown";
-      let badgeClass, badgeText;
+      const statusEl = document.getElementById("gatewayStatus");
 
-      switch (gwState) {
-        case "running":
-          badgeClass = "running";
-          badgeText = "Running";
-          break;
-        case "starting":
-          badgeClass = "starting";
-          badgeText = "Starting...";
-          break;
-        default:
-          badgeClass = "stopped";
-          badgeText = gwState === "unknown" ? "Waiting for gateway..." : `Stopped (${gwState})`;
-      }
+      let cls, txt;
+      if (gwState === "running") { cls = "running"; txt = "Running"; }
+      else if (gwState === "starting") { cls = "starting"; txt = "Starting..."; }
+      else { cls = "stopped"; txt = gwState === "unknown" ? "Waiting..." : "Stopped"; }
 
-      statusEl.innerHTML = `
-        <span class="status-badge ${badgeClass}">
-          <span class="dot"></span>
-          ${badgeText}
-        </span>
-      `;
+      statusEl.innerHTML = `<span class="status-pill ${cls}"><span class="dot"></span> ${txt}</span>`;
 
       // Platforms
       const listEl = document.getElementById("platformList");
-      if (data.platforms && data.platforms.length > 0) {
-        listEl.innerHTML = data.platforms.map((p) => {
-          let statusClass = gwState === "running" ? "connected" : "disconnected";
-          let statusText = gwState === "running" ? "Connected" : "Waiting...";
+      if (!data.platforms?.length) {
+        listEl.innerHTML = '<div class="empty-state">No platforms configured</div>';
+        document.getElementById("waQrSection").style.display = "none";
+        return;
+      }
 
-          // WhatsApp special handling
-          if (p.name === "WhatsApp" && !p.paired) {
-            statusClass = "pending";
-            statusText = "QR scan needed";
-          }
+      listEl.innerHTML = data.platforms.map(p => {
+        const pi = platformIcons[p.name] || { icon: "\u{1F310}", cls: "" };
+        let sc, st;
 
-          return `
-            <div class="platform-item">
-              <span class="name">${p.name}</span>
-              <span class="status ${statusClass}">
-                <span class="dot" style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
-                ${statusText}
-              </span>
-            </div>
-          `;
-        }).join("");
-
-        // Check if WhatsApp needs QR
-        const wa = data.platforms.find((p) => p.name === "WhatsApp" && !p.paired);
-        if (wa) {
-          listEl.innerHTML += `
-            <div class="wa-qr-section">
-              <p>Open WhatsApp on your phone, go to Settings > Linked Devices, and scan the QR code that appears in the gateway logs.</p>
-              <p style="margin-top:8px; font-size:12px;">Check logs: <code>docker logs zot24-hermes_web_1</code></p>
-            </div>
-          `;
+        if (p.name === "WhatsApp") {
+          if (p.paired) { sc = "connected"; st = "Connected"; }
+          else if (p.hasQr) { sc = "pending"; st = "Scan QR below"; }
+          else { sc = "pending"; st = "Waiting for QR..."; }
+        } else {
+          const pg = data.gateway?.platforms?.[p.name.toLowerCase()];
+          if (pg?.error_message) { sc = "disconnected"; st = "Error"; }
+          else if (gwState === "running") { sc = "connected"; st = "Connected"; }
+          else { sc = "pending"; st = "Connecting..."; }
         }
-      } else {
-        listEl.innerHTML = `
-          <div class="empty-state">
-            <p>No platforms configured</p>
+
+        return `<div class="platform-item">
+          <div class="platform-name">
+            <div class="platform-icon ${pi.cls}">${pi.icon}</div>
+            ${p.name}
           </div>
-        `;
+          <div class="platform-status ${sc}">
+            <span class="indicator"></span>
+            ${st}
+          </div>
+        </div>`;
+      }).join("");
+
+      // WhatsApp QR
+      const wa = data.platforms.find(p => p.name === "WhatsApp" && !p.paired);
+      if (wa) { fetchWhatsAppQR(); } else {
+        document.getElementById("waQrSection").style.display = "none";
+        lastQrImage = null;
       }
 
       // Config
@@ -366,26 +433,67 @@
       document.getElementById("configProvider").textContent = data.provider || "auto";
     }
 
-    async function restartGateway() {
-      const btn = event.target;
-      btn.disabled = true;
-      btn.textContent = "Restarting...";
-
+    async function fetchWhatsAppQR() {
+      const section = document.getElementById("waQrSection");
       try {
-        await fetch("/api/restart", { method: "POST" });
-        // Update status after a delay
-        setTimeout(fetchStatus, 3000);
-      } catch (e) {
-        alert("Failed to restart: " + e.message);
-      }
+        const data = await (await fetch("/api/whatsapp-qr")).json();
 
-      btn.disabled = false;
-      btn.textContent = "Restart Gateway";
+        if (data.status === "paired") {
+          section.style.display = "none";
+          lastQrImage = null;
+          return;
+        }
+
+        section.style.display = "block";
+
+        if (data.qrImage && data.qrImage !== lastQrImage) {
+          lastQrImage = data.qrImage;
+          section.innerHTML = `
+            <div class="qr-content">
+              <div class="qr-title">Link WhatsApp</div>
+              <div class="qr-subtitle">Scan this QR code to connect</div>
+              <div class="qr-frame">
+                <img src="${data.qrImage}" alt="WhatsApp QR Code">
+              </div>
+              <div class="qr-steps">
+                <div class="qr-step">
+                  <span class="qr-step-num">1</span>
+                  Open WhatsApp on your phone
+                </div>
+                <div class="qr-step">
+                  <span class="qr-step-num">2</span>
+                  Tap Settings &gt; Linked Devices
+                </div>
+                <div class="qr-step">
+                  <span class="qr-step-num">3</span>
+                  Tap "Link a Device" and scan
+                </div>
+              </div>
+            </div>
+          `;
+        } else if (!data.qrImage && !lastQrImage) {
+          section.innerHTML = `
+            <div class="qr-content">
+              <div class="spinner"></div>
+              <div class="qr-subtitle">${data.message || "Generating QR code..."}</div>
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error("QR fetch failed:", e);
+      }
     }
 
-    // Poll status every 5 seconds
+    async function restartGateway() {
+      const btn = document.getElementById("restartBtn");
+      btn.disabled = true; btn.textContent = "Restarting...";
+      try { await fetch("/api/restart", { method: "POST" }); } catch(e) { alert("Failed: " + e.message); }
+      setTimeout(fetchStatus, 3000);
+      setTimeout(() => { btn.disabled = false; btn.textContent = "Restart Gateway"; }, 5000);
+    }
+
     fetchStatus();
-    pollInterval = setInterval(fetchStatus, 5000);
+    setInterval(fetchStatus, 5000);
   </script>
 </body>
 </html>

@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const QRCode = require("qrcode");
 
 const CONFIG_DIR = process.env.CONFIG_DIR || "/config";
 const WEB_CONTAINER = process.env.WEB_CONTAINER || "zot24-hermes_web_1";
@@ -339,28 +340,36 @@ async function handleRequest(req, res) {
     return;
   }
 
-  // ── API: WhatsApp pairing (start bridge, get QR) ──
-  if (req.method === "POST" && url.pathname === "/api/whatsapp-pair") {
-    // WhatsApp pairing requires the web container's bridge.
-    // For now, return instructions — full QR flow requires the bridge running.
-    sendJson(res, 200, {
-      status: "pending",
-      message: "WhatsApp pairing will complete after setup. The gateway will generate a QR code on first start. Check the status page for the QR code.",
-      instructions: [
-        "1. Complete setup to start the gateway",
-        "2. Visit the status page",
-        "3. The QR code will appear when WhatsApp bridge starts",
-        "4. Scan with WhatsApp on your phone",
-      ],
-    });
-    return;
-  }
+  // ── API: WhatsApp QR code ──
+  // The bridge writes the raw QR string to whatsapp/qr.txt on the shared volume.
+  // Once paired, it deletes the file. The status page polls this endpoint.
+  // Returns a data URL (base64 PNG) so no client-side QR library is needed.
+  if (req.method === "GET" && url.pathname === "/api/whatsapp-qr") {
+    const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
+    const sessionFile = path.join(CONFIG_DIR, "whatsapp", "session", "creds.json");
+    const paired = fs.existsSync(sessionFile);
 
-  // ── API: WhatsApp pairing status ──
-  if (req.method === "GET" && url.pathname === "/api/whatsapp-pair/status") {
-    const whatsappAuth = path.join(CONFIG_DIR, "whatsapp", "creds.json");
-    const paired = fs.existsSync(whatsappAuth);
-    sendJson(res, 200, { paired, status: paired ? "paired" : "pending" });
+    if (paired) {
+      sendJson(res, 200, { status: "paired", qrImage: null });
+      return;
+    }
+
+    try {
+      if (fs.existsSync(qrFile)) {
+        const qr = fs.readFileSync(qrFile, "utf8").trim();
+        const dataUrl = await QRCode.toDataURL(qr, {
+          width: 280,
+          margin: 2,
+          color: { dark: "#000000", light: "#ffffff" },
+        });
+        sendJson(res, 200, { status: "pending", qrImage: dataUrl });
+      } else {
+        sendJson(res, 200, { status: "waiting", qrImage: null, message: "Waiting for WhatsApp bridge to generate QR code..." });
+      }
+    } catch (e) {
+      console.error("QR generation error:", e.message);
+      sendJson(res, 200, { status: "waiting", qrImage: null, message: "Waiting for QR code..." });
+    }
     return;
   }
 
@@ -374,11 +383,13 @@ async function handleRequest(req, res) {
       platforms.push({ name: "Telegram", enabled: true });
     }
     if (config.WHATSAPP_ENABLED === "true") {
-      const whatsappAuth = path.join(CONFIG_DIR, "whatsapp", "creds.json");
+      const whatsappAuth = path.join(CONFIG_DIR, "whatsapp", "session", "creds.json");
+      const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
       platforms.push({
         name: "WhatsApp",
         enabled: true,
         paired: fs.existsSync(whatsappAuth),
+        hasQr: fs.existsSync(qrFile),
       });
     }
     if (config.DISCORD_BOT_TOKEN) {

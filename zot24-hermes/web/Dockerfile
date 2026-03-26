@@ -20,34 +20,56 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 # Clone hermes-agent at pinned version
 ARG HERMES_VERSION=v2026.3.23
 RUN git clone --depth 1 --branch "${HERMES_VERSION}" \
-    https://github.com/NousResearch/hermes-agent.git /build/hermes
+    https://github.com/NousResearch/hermes-agent.git /app
 
-WORKDIR /build/hermes
+WORKDIR /app
 
-# Create venv and install hermes with messaging extras
-RUN uv venv /build/hermes/venv --python 3.11
-ENV VIRTUAL_ENV=/build/hermes/venv
-ENV PATH="/build/hermes/venv/bin:${PATH}"
+# Create venv at its final path (/app/venv) so shebangs are correct at runtime
+RUN uv venv /app/venv --python 3.11
+ENV VIRTUAL_ENV=/app/venv
+ENV PATH="/app/venv/bin:${PATH}"
 RUN uv pip install -e ".[telegram,discord,slack,matrix,mcp,cron,pty]"
 
 # Install Node.js dependencies (agent-browser, WhatsApp bridge)
 RUN npm ci --omit=dev 2>/dev/null || true
 RUN if [ -d scripts/whatsapp-bridge ]; then cd scripts/whatsapp-bridge && npm ci --omit=dev; fi
 
+# Patch WhatsApp bridge to write QR data to a file for the setup server to serve.
+# bridge.js already imports writeFileSync + existsSync from 'fs' and 'path'.
+# SESSION_DIR is ~/.hermes/whatsapp/session — we write qr.txt one level up.
+# On QR: write the raw QR string. On connect: delete it.
+# 1. Add unlinkSync to the fs import
+RUN if [ -f scripts/whatsapp-bridge/bridge.js ]; then \
+    sed -i 's|readdirSync } from .fs.|readdirSync, unlinkSync } from "fs";|' \
+    scripts/whatsapp-bridge/bridge.js; \
+    fi
+# 2. On QR: write raw QR string to ~/.hermes/whatsapp/qr.txt
+RUN if [ -f scripts/whatsapp-bridge/bridge.js ]; then \
+    sed -i 's|qrcode.generate(qr, { small: true });|qrcode.generate(qr, { small: true }); try { writeFileSync(path.join(path.dirname(SESSION_DIR), "qr.txt"), qr); } catch(e) {}|' \
+    scripts/whatsapp-bridge/bridge.js; \
+    fi
+# 3. On connect: remove qr.txt (pairing complete)
+RUN if [ -f scripts/whatsapp-bridge/bridge.js ]; then \
+    sed -i "s|connectionState = 'connected';|connectionState = 'connected'; try { unlinkSync(path.join(path.dirname(SESSION_DIR), 'qr.txt')); } catch(e) {}|" \
+    scripts/whatsapp-bridge/bridge.js; \
+    fi
+
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM python:3.11-slim-bookworm
 
-# Install runtime dependencies
+# Install runtime dependencies (Node.js 22 needed for WhatsApp bridge crypto.subtle)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    sudo ca-certificates curl git procps file nodejs npm \
+    sudo ca-certificates curl git procps file \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Create hermes user
 RUN useradd -m -u 1000 -s /bin/bash hermes \
     && echo "hermes ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Copy hermes from builder
-COPY --from=builder /build/hermes /app
+# Copy hermes from builder (built at /app with venv at /app/venv)
+COPY --from=builder /app /app
 RUN chown -R hermes:hermes /app
 
 # Set up home directory
@@ -85,6 +107,9 @@ RUN sudo mv /home/hermes /home-skeleton \
 ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/app/venv/bin:${PATH}"
 ENV VIRTUAL_ENV=/app/venv
 ENV HERMES_HOME=/home/hermes/.hermes
+
+# Switch back to root for entrypoint (it will drop to hermes user after fixing permissions)
+USER root
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=120s \
     CMD python3 -c "import json,sys,os; p=os.path.join(os.getenv('HERMES_HOME','/home/hermes/.hermes'),'gateway_state.json'); d=json.load(open(p)); sys.exit(0 if d.get('gateway_state')=='running' else 1)" || exit 1
