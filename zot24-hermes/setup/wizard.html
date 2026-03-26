@@ -302,7 +302,47 @@
     .step { display: none; }
     .step.active { display: block; }
 
-    .wa-instructions { font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+    .channel-action-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-top: 2px;
+    }
+
+    /* Terminal message block */
+    .terminal-msg {
+      background: var(--bg);
+      border-left: 2px solid var(--phosphor-dim);
+      padding: 12px 14px;
+      margin-top: 4px;
+      font-size: 13px;
+    }
+    .terminal-msg-prompt {
+      font-family: var(--body);
+      font-size: 11px;
+      color: var(--phosphor-dim);
+      margin-bottom: 8px;
+      opacity: 0.6;
+    }
+    .terminal-msg-body {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .terminal-msg-line {
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .terminal-msg-line.dim {
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-top: 4px;
+      padding-left: 20px;
+    }
+    .terminal-msg-ok { color: var(--phosphor); font-size: 12px; }
+    .terminal-msg-wait { color: var(--amber); font-size: 8px; }
 
     .summary-block {
       padding: 14px 16px;
@@ -397,29 +437,17 @@
     .shake { animation: screenShake 0.5s ease-in-out; }
 
     .error-block {
-      border: 1px solid #ff3030;
-      background: rgba(255, 30, 20, 0.06);
-      padding: 16px;
-      margin-bottom: 14px;
+      background: var(--bg);
+      border-left: 2px solid #ff3030;
+      padding: 12px 14px;
+      margin-top: 14px;
       position: relative;
-      overflow: hidden;
-    }
-    .error-block::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, #ff3030, transparent);
     }
     .error-block .error-header {
-      font-family: var(--display);
-      font-size: 12px;
-      font-weight: 700;
-      color: #ff4040;
-      letter-spacing: 3px;
-      text-transform: uppercase;
+      font-family: var(--body);
+      font-size: 11px;
+      color: #ff5050;
       margin-bottom: 6px;
-      text-shadow: 0 0 10px rgba(255,64,64,0.3);
       animation: errorPulse 1.5s ease-in-out infinite;
     }
     @keyframes errorPulse {
@@ -435,9 +463,9 @@
       font-family: var(--body);
       font-size: 10px;
       color: #ff3030;
-      opacity: 0.4;
+      opacity: 0.3;
       margin-top: 8px;
-      letter-spacing: 1px;
+      letter-spacing: 2px;
     }
     .panel.error-state {
       border-color: rgba(255, 48, 48, 0.4);
@@ -585,7 +613,7 @@
               <input type="text" id="telegramChatId" placeholder="123456789">
               <p class="field-hint">Send /start to <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> to get your chat ID</p>
             </div>
-            <div style="display:flex;align-items:center;gap:10px;">
+            <div class="channel-action-row">
               <button class="btn btn-test" id="telegramTestBtn" onclick="testTelegram()">Test Connection</button>
               <span class="test-ok" id="telegramTestOk"><span class="test-tip">Test message sent. Check your Telegram.</span></span>
             </div>
@@ -602,12 +630,13 @@
             </label>
           </div>
           <div class="platform-config" id="whatsappConfig">
-            <div class="wa-instructions">
-              <p>WhatsApp requires scanning a QR code to pair your phone.</p>
-              <p style="margin-top:8px">The QR code will appear on the status page after setup.</p>
-            </div>
-            <div class="test-result success" style="display:block; margin-top:12px;">
-              WhatsApp will be configured after setup. You'll scan a QR code on the status page.
+            <div class="terminal-msg">
+              <div class="terminal-msg-prompt">&gt; hermes whatsapp --status</div>
+              <div class="terminal-msg-body">
+                <div class="terminal-msg-line"><span class="terminal-msg-ok">&#10003;</span> Self-chat mode enabled</div>
+                <div class="terminal-msg-line"><span class="terminal-msg-wait">&#9679;</span> QR pairing required after setup</div>
+                <div class="terminal-msg-line dim">Open the status page after setup to scan the QR code with your phone.</div>
+              </div>
             </div>
           </div>
           <div class="btn-row">
@@ -759,8 +788,8 @@
       document.getElementById("apiKeyHint").innerHTML = hints[provider];
     }
 
-    function triggerAccessDenied(msg) {
-      const errEl = document.getElementById("step0Error");
+    function triggerAccessDenied(msg, errorElId) {
+      const errEl = document.getElementById(errorElId || "step0Error");
       const panel = errEl.closest(".panel");
       const container = document.querySelector(".container");
 
@@ -781,9 +810,9 @@
       errEl.style.display = "block";
       errEl.className = "error-block";
       errEl.innerHTML = `
-        <div class="error-header">Access Denied</div>
+        <div class="error-header">&gt; error</div>
         <div class="error-msg">${msg}</div>
-        <div class="error-ascii">========================================</div>
+        <div class="error-ascii">════════════════════════════════════</div>
       `;
 
       // Glitch the cursor briefly
@@ -798,8 +827,8 @@
       }
     }
 
-    function clearAccessDenied() {
-      const errEl = document.getElementById("step0Error");
+    function clearAccessDenied(errorElId) {
+      const errEl = document.getElementById(errorElId || "step0Error");
       const panel = errEl.closest(".panel");
       errEl.style.display = "none";
       errEl.className = "test-result";
@@ -850,15 +879,19 @@
       const resultEl = document.getElementById("telegramTestResult");
       const okEl = document.getElementById("telegramTestOk");
       const btn = document.getElementById("telegramTestBtn");
-      if (!token || !chatId) { resultEl.className = "test-result error"; resultEl.textContent = "Enter both bot token and chat ID"; okEl.classList.remove("show"); return; }
+      if (!token || !chatId) {
+        triggerAccessDenied("Bot token and chat ID are both required to test the connection.", "telegramTestResult");
+        okEl.classList.remove("show");
+        return;
+      }
       btn.disabled = true; btn.textContent = "TESTING...";
-      resultEl.className = "test-result"; resultEl.style.display = "none";
+      clearAccessDenied("telegramTestResult");
       okEl.classList.remove("show");
       try {
         const data = await (await fetch("/api/test-telegram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, chatId }) })).json();
-        if (data.success) { okEl.classList.add("show"); state.telegramTested = true; updateStep1Next(); }
-        else { resultEl.className = "test-result error"; resultEl.textContent = data.error; }
-      } catch (e) { resultEl.className = "test-result error"; resultEl.textContent = `Connection error: ${e.message}`; }
+        if (data.success) { clearAccessDenied("telegramTestResult"); okEl.classList.add("show"); state.telegramTested = true; updateStep1Next(); }
+        else { triggerAccessDenied(data.error, "telegramTestResult"); }
+      } catch (e) { triggerAccessDenied(`Connection error: ${e.message}`, "telegramTestResult"); }
       btn.disabled = false; btn.textContent = "TEST CONNECTION";
     }
 
