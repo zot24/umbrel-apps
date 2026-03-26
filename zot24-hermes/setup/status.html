@@ -415,6 +415,58 @@
       letter-spacing: 1px;
     }
 
+    /* Pairing */
+    .pairing-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 14px;
+      background: var(--surface-2);
+      border-left: 2px solid var(--amber-dim);
+      margin-bottom: 3px;
+    }
+    .pairing-info {
+      font-size: 13px;
+    }
+    .pairing-info .pairing-platform {
+      font-size: 10px;
+      color: var(--amber);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .pairing-info .pairing-user {
+      color: var(--text);
+      margin-top: 2px;
+    }
+    .pairing-info .pairing-code {
+      font-family: var(--display);
+      color: var(--amber);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 2px;
+    }
+    .pairing-info .pairing-age {
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+    .btn-approve {
+      border: 1px solid var(--phosphor-dim);
+      background: var(--phosphor-glow);
+      color: var(--phosphor);
+      font-family: var(--body);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-approve:hover {
+      background: rgba(80,255,168,0.2);
+      box-shadow: 0 0 12px var(--phosphor-glow);
+    }
+
     .boot-footer {
       text-align: center;
       padding: 20px 0 4px;
@@ -483,6 +535,17 @@
     </div>
 
     <div class="qr-card" id="waQrSection" style="display:none;"></div>
+
+    <!-- Pairing requests -->
+    <div class="panel" id="pairingPanel" style="display:none;">
+      <div class="panel-header">
+        <span class="panel-title">Pairing Requests</span>
+        <span class="panel-indicator">SYS.AUTH</span>
+      </div>
+      <div class="panel-body">
+        <div id="pairingList"></div>
+      </div>
+    </div>
 
     <div class="panel">
       <div class="panel-header">
@@ -634,8 +697,56 @@
       setTimeout(() => { btn.disabled = false; btn.textContent = "RESTART"; }, 5000);
     }
 
+    async function fetchPairing() {
+      const panel = document.getElementById("pairingPanel");
+      const list = document.getElementById("pairingList");
+      try {
+        const data = await (await fetch("/api/pairing")).json();
+        if (data.pending && data.pending.length > 0) {
+          panel.style.display = "block";
+          list.innerHTML = data.pending.map(p => `
+            <div class="pairing-item" id="pair-${p.code}">
+              <div class="pairing-info">
+                <div class="pairing-platform">${p.platform}</div>
+                <div class="pairing-user">${p.user_name || p.user_id}</div>
+                <div><span class="pairing-code">${p.code}</span> <span class="pairing-age">${p.age_minutes}m ago</span></div>
+              </div>
+              <button class="btn-approve" onclick="approvePairing('${p.platform}', '${p.code}')">Approve</button>
+            </div>
+          `).join("");
+        } else {
+          panel.style.display = "none";
+        }
+      } catch (e) {}
+    }
+
+    async function approvePairing(platform, code) {
+      const el = document.getElementById(`pair-${code}`);
+      try {
+        const data = await (await fetch("/api/pairing/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform, code }),
+        })).json();
+        if (data.success) {
+          if (el) {
+            el.style.borderLeftColor = "var(--phosphor)";
+            el.querySelector(".btn-approve").textContent = "APPROVED";
+            el.querySelector(".btn-approve").disabled = true;
+            setTimeout(() => fetchPairing(), 2000);
+          }
+        } else {
+          alert("Failed: " + (data.error || "Unknown error"));
+        }
+      } catch (e) {
+        alert("Failed: " + e.message);
+      }
+    }
+
     fetchStatus();
     setInterval(fetchStatus, 5000);
+    setInterval(fetchPairing, 5000);
+    fetchPairing();
   </script>
 </body>
 </html>

@@ -430,6 +430,126 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: List pending pairing requests ──
+  if (req.method === "GET" && url.pathname === "/api/pairing") {
+    const pairingDir = path.join(CONFIG_DIR, "pairing");
+    const results = [];
+    try {
+      if (fs.existsSync(pairingDir)) {
+        const files = fs.readdirSync(pairingDir).filter(f => f.endsWith("-pending.json"));
+        for (const file of files) {
+          const platform = file.replace("-pending.json", "");
+          const pending = JSON.parse(fs.readFileSync(path.join(pairingDir, file), "utf8"));
+          const now = Date.now() / 1000;
+          for (const [code, info] of Object.entries(pending)) {
+            // Skip expired codes (1 hour TTL)
+            if (now - info.created_at > 3600) continue;
+            results.push({
+              platform,
+              code,
+              user_id: info.user_id,
+              user_name: info.user_name || "",
+              age_minutes: Math.floor((now - info.created_at) / 60),
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error reading pairing data:", e.message);
+    }
+    sendJson(res, 200, { pending: results });
+    return;
+  }
+
+  // ── API: Approve a pairing code ──
+  if (req.method === "POST" && url.pathname === "/api/pairing/approve") {
+    try {
+      const data = await parseBody(req);
+      const { platform, code } = data;
+      if (!platform || !code) {
+        sendJson(res, 400, { error: "Platform and code are required" });
+        return;
+      }
+
+      const pairingDir = path.join(CONFIG_DIR, "pairing");
+      const pendingFile = path.join(pairingDir, `${platform}-pending.json`);
+      const approvedFile = path.join(pairingDir, `${platform}-approved.json`);
+
+      if (!fs.existsSync(pendingFile)) {
+        sendJson(res, 404, { error: "No pending requests for this platform" });
+        return;
+      }
+
+      const pending = JSON.parse(fs.readFileSync(pendingFile, "utf8"));
+      const upperCode = code.toUpperCase().trim();
+
+      if (!pending[upperCode]) {
+        sendJson(res, 404, { error: "Code not found or expired" });
+        return;
+      }
+
+      const entry = pending[upperCode];
+      delete pending[upperCode];
+      fs.writeFileSync(pendingFile, JSON.stringify(pending, null, 2), { mode: 0o600 });
+
+      // Add to approved list
+      let approved = {};
+      try {
+        if (fs.existsSync(approvedFile)) {
+          approved = JSON.parse(fs.readFileSync(approvedFile, "utf8"));
+        }
+      } catch (e) {}
+
+      approved[entry.user_id] = {
+        user_name: entry.user_name || "",
+        approved_at: Date.now() / 1000,
+        approved_via: "umbrel-ui",
+      };
+      fs.writeFileSync(approvedFile, JSON.stringify(approved, null, 2), { mode: 0o600 });
+
+      // Send confirmation message to the user via the gateway's bridge
+      try {
+        const webHost = process.env.WEB_CONTAINER || "zot24-hermes_web_1";
+        // WhatsApp bridge runs on port 3000 inside the web container
+        if (data.platform === "whatsapp") {
+          await fetch(`http://${webHost}:3000/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chatId: entry.user_id,
+              message: `You're approved! Welcome to Hermes Agent. You can now chat with me anytime.`,
+            }),
+          }).catch(() => {});
+        }
+        // Telegram: use Bot API directly
+        if (data.platform === "telegram") {
+          const tgToken = readCurrentConfig().TELEGRAM_BOT_TOKEN;
+          if (tgToken) {
+            await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: entry.user_id,
+                text: `You're approved! Welcome to Hermes Agent. You can now chat with me anytime.`,
+              }),
+            }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.error("Failed to send approval message:", e.message);
+      }
+
+      sendJson(res, 200, {
+        success: true,
+        user_id: entry.user_id,
+        user_name: entry.user_name || "",
+      });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
   // ── 404 ──
   res.writeHead(404, { "Content-Type": "text/plain" });
   res.end("Not Found");
