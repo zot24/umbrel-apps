@@ -13,9 +13,10 @@ services:
   fix-permissions:
     image: busybox:1.37.0
     restart: "no"
-    command: ["sh", "-c", "chown -R 1000:1000 /data"]
+    command: ["sh", "-c", "chown -R 1000:1000 /data /home/linuxbrew"]
     volumes:
       - ./local-data:/data
+      - ./local-data/linuxbrew:/home/linuxbrew
 
   web:
     build: ./web
