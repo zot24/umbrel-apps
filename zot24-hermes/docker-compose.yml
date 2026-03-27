@@ -26,6 +26,13 @@ services:
       CONFIG_DIR: /config
       WEB_CONTAINER: zot24-hermes_web_1
 
+  fix-permissions:
+    image: busybox:1.37.0
+    restart: "no"
+    command: ["sh", "-c", "chown -R 1000:1000 /data"]
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+
   web:
     image: ghcr.io/zot24/hermes-docker:v2026.3.23@sha256:00f61b2e00ba3383792b12034d0301bc6f842068ccd9ec8871a8addb9571a724
     # Runs as node user (UID 1000) — same pattern as openclaw-umbrel
@@ -33,9 +40,10 @@ services:
     init: true
     stop_grace_period: 1m
     depends_on:
-      - setup
-    tmpfs:
-      - /data/.cache
+      setup:
+        condition: service_started
+      fix-permissions:
+        condition: service_completed_successfully
     volumes:
       - ${APP_DATA_DIR}/data:/data
       - ${APP_DATA_DIR}/data/linuxbrew:/home/linuxbrew

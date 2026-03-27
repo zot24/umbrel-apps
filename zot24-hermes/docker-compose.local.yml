@@ -1,0 +1,33 @@
+services:
+  setup:
+    build: ./setup
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./local-data:/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONFIG_DIR: /config
+      WEB_CONTAINER: zot24-hermes-web-1
+
+  fix-permissions:
+    image: busybox:1.37.0
+    restart: "no"
+    command: ["sh", "-c", "chown -R 1000:1000 /data"]
+    volumes:
+      - ./local-data:/data
+
+  web:
+    build: ./web
+    depends_on:
+      fix-permissions:
+        condition: service_completed_successfully
+    volumes:
+      - ./local-data:/data
+      - ./local-data/linuxbrew:/home/linuxbrew
+    env_file:
+      - path: ./local-data/.env
+        required: false
+    environment:
+      HOME: /data
+      HERMES_HOME: /data/.hermes
