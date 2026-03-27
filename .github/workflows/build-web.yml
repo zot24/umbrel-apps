@@ -1,0 +1,83 @@
+name: Build Web Image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'zot24-hermes/web/Dockerfile'
+      - 'zot24-hermes/web/entrypoint.sh'
+      - 'zot24-hermes/VERSION'
+  workflow_dispatch:
+    inputs:
+      hermes_version:
+        description: "Hermes Agent version tag (e.g. v2026.3.23)"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION="${{ inputs.hermes_version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(cat zot24-hermes/VERSION 2>/dev/null | tr -d '[:space:]')
+          fi
+          if [ -z "$VERSION" ]; then
+            VERSION="latest"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building hermes-docker with version: $VERSION"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: zot24-hermes/web
+          file: zot24-hermes/web/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            HERMES_VERSION=${{ steps.version.outputs.version }}
+          tags: |
+            ghcr.io/zot24/hermes-docker:${{ steps.version.outputs.version }}
+            ghcr.io/zot24/hermes-docker:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Update docker-compose.yml with new digest
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DIGEST="${{ steps.build.outputs.digest }}"
+          sed -i "s|image: ghcr.io/zot24/hermes-docker:.*|image: ghcr.io/zot24/hermes-docker:${VERSION}@${DIGEST}|" zot24-hermes/docker-compose.yml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-hermes/docker-compose.yml
+          git diff --cached --quiet || git commit -m "chore: update web image to ${{ steps.version.outputs.version }}"
+          git push
