@@ -60,6 +60,8 @@ jobs:
     needs: check-release
     if: needs.check-release.outputs.new_release == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ needs.check-release.outputs.version }}
     permissions:
       contents: write
     steps:
@@ -137,3 +139,12 @@ jobs:
           git add zot24-hermes/VERSION zot24-hermes/umbrel-app.yml zot24-hermes/docker-compose.yml
           git diff --cached --quiet || git commit -m "chore: update Hermes Agent to ${{ env.VERSION }}"
           git push
+
+  build-web:
+    needs: update-version
+    uses: ./.github/workflows/build-web.yml
+    with:
+      hermes_version: ${{ needs.update-version.outputs.version }}
+    permissions:
+      contents: write
+      packages: write
