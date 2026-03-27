@@ -7,6 +7,8 @@ RUN apk add --no-cache curl
 
 WORKDIR /app
 
+RUN npm init -y && npm install qrcode@1.5.4
+
 COPY server.js wizard.html status.html ./
 
 EXPOSE 8080

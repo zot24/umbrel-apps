@@ -1,73 +1,67 @@
 #!/bin/bash
 set -euo pipefail
 
-HERMES_HOME="${HERMES_HOME:-/home/hermes/.hermes}"
+HERMES_HOME="${HERMES_HOME:-/data/.hermes}"
 SKELETON_DIR="/home-skeleton"
 
+echo "=== Hermes Agent Entrypoint ==="
+echo "HERMES_HOME: $HERMES_HOME"
+
 # ── Initialize home directory from skeleton (first run) ──────────────────────
-init_home() {
-    local home_dir="${HOME:-/home/hermes}"
+if [ -d "$SKELETON_DIR" ]; then
+    for item in "$SKELETON_DIR"/* "$SKELETON_DIR"/.*; do
+        basename=$(basename "$item")
+        [ "$basename" = "." ] || [ "$basename" = ".." ] && continue
+        [ ! -e "$item" ] && continue
+        # linuxbrew is mounted as a separate volume at /home/linuxbrew
+        [ "$basename" = "linuxbrew" ] && continue
 
-    if [ -d "$SKELETON_DIR" ]; then
-        for item in "$SKELETON_DIR"/*  "$SKELETON_DIR"/.*; do
-            local basename
-            basename=$(basename "$item")
-            [ "$basename" = "." ] || [ "$basename" = ".." ] && continue
-            [ ! -e "$item" ] && continue
+        dest="$HOME/$basename"
+        if [ ! -e "$dest" ]; then
+            echo "Copying $basename to home..."
+            cp -r "$item" "$dest"
+        fi
+    done
+    echo "Home directory initialized"
+fi
 
-            local dest="$home_dir/$basename"
-            if [ ! -e "$dest" ]; then
-                echo "Copying $basename to home..."
-                cp -r "$item" "$dest"
-            fi
-        done
-        echo "Home directory initialized"
-    fi
-}
+# Initialize linuxbrew volume if empty (separate mount point)
+if [ -d "$SKELETON_DIR/linuxbrew" ] && [ ! -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then
+    echo "Initializing linuxbrew volume..."
+    cp -r "$SKELETON_DIR/linuxbrew/." /home/linuxbrew/
+    echo "Linuxbrew initialized"
+fi
 
 # ── Create required directories ──────────────────────────────────────────────
-init_dirs() {
-    mkdir -p "$HERMES_HOME"/{sessions,logs,pairing,hooks,image_cache,audio_cache,memories,skills,whatsapp,cron}
-}
+mkdir -p "$HERMES_HOME"/{sessions,logs,pairing,hooks,image_cache,audio_cache,memories,skills,whatsapp,cron}
 
 # ── Source environment from setup server config ──────────────────────────────
-load_env() {
-    if [ -f "$HERMES_HOME/.env" ]; then
-        echo "Loading environment from $HERMES_HOME/.env"
-        set -a
-        # shellcheck disable=SC1091
-        source "$HERMES_HOME/.env"
-        set +a
-    fi
+if [ -f "$HERMES_HOME/.env" ]; then
+    echo "Loading environment from $HERMES_HOME/.env"
+    set -a
+    # shellcheck disable=SC1091
+    source "$HERMES_HOME/.env"
+    set +a
+fi
 
-    if [ -f "$HERMES_HOME/.env.local" ]; then
-        set -a
-        # shellcheck disable=SC1091
-        source "$HERMES_HOME/.env.local"
-        set +a
-    fi
-}
+if [ -f "$HERMES_HOME/.env.local" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "$HERMES_HOME/.env.local"
+    set +a
+fi
 
-# ── Generate config.yaml if it doesn't exist ─────────────────────────────────
-# The setup server writes hermes.env with all the user's settings.
-# This function reads those env vars and generates a minimal config.yaml
-# that hermes gateway can consume.
-generate_config() {
-    local config_file="$HERMES_HOME/config.yaml"
+# ── Generate config.yaml if needed ───────────────────────────────────────────
+config_file="$HERMES_HOME/config.yaml"
 
-    # Don't overwrite existing config unless HERMES_REGEN_CONFIG is set
-    if [ -f "$config_file" ] && [ "${HERMES_REGEN_CONFIG:-}" != "true" ]; then
-        echo "Config exists at $config_file, using existing"
-        return
-    fi
-
+if [ ! -f "$config_file" ] || [ "${HERMES_REGEN_CONFIG:-}" = "true" ]; then
     echo "Generating config.yaml..."
 
-    local model="${HERMES_MODEL:-anthropic/claude-sonnet-4-20250514}"
-    local provider="${HERMES_PROVIDER:-auto}"
+    model="${HERMES_MODEL:-anthropic/claude-sonnet-4-20250514}"
+    provider="${HERMES_PROVIDER:-auto}"
 
     # Build gateway platforms section
-    local platforms=""
+    platforms=""
 
     if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
         platforms="${platforms}
@@ -127,26 +121,19 @@ YAML
 
     chmod 600 "$config_file"
     echo "Config generated at $config_file"
-}
+else
+    echo "Config exists at $config_file, using existing"
+fi
 
-# ── Main ─────────────────────────────────────────────────────────────────────
-
-echo "=== Hermes Agent Entrypoint ==="
-echo "HERMES_HOME: $HERMES_HOME"
-
-init_home
-init_dirs
-load_env
-generate_config
-
-# Activate the virtual environment
+# ── Activate venv and start ──────────────────────────────────────────────────
 # shellcheck disable=SC1091
 source /app/venv/bin/activate
 
 case "${1:-gateway}" in
     gateway)
         echo "Starting Hermes gateway..."
-        exec hermes gateway start
+        # Use 'run' (foreground) not 'start' (systemctl) — no systemd in Docker
+        exec hermes gateway run
         ;;
     shell)
         echo "Starting shell..."

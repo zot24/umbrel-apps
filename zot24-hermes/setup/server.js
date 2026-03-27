@@ -2,11 +2,13 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const QRCode = require("qrcode");
 
-const CONFIG_DIR = process.env.CONFIG_DIR || "/config";
+const VOLUME_DIR = process.env.CONFIG_DIR || "/config";
+const CONFIG_DIR = path.join(VOLUME_DIR, ".hermes");
 const WEB_CONTAINER = process.env.WEB_CONTAINER || "zot24-hermes_web_1";
 const PORT = parseInt(process.env.SETUP_PORT || "8080");
-const SETUP_SENTINEL = path.join(CONFIG_DIR, ".setup-complete");
+const SETUP_SENTINEL = path.join(VOLUME_DIR, ".setup-complete");
 const ENV_FILE = path.join(CONFIG_DIR, ".env");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.yaml");
 const STATE_FILE = path.join(CONFIG_DIR, "gateway_state.json");
@@ -237,7 +239,11 @@ async function handleRequest(req, res) {
 
       // Validate: need at least one LLM key
       const hasLlmKey = data.OPENROUTER_API_KEY || data.ANTHROPIC_API_KEY ||
-                        data.OPENAI_API_KEY || data.OLLAMA_BASE_URL;
+                        data.OLLAMA_BASE_URL || data.GLM_API_KEY ||
+                        data.KIMI_API_KEY || data.MINIMAX_API_KEY ||
+                        data.MINIMAX_CN_API_KEY || data.DEEPSEEK_API_KEY ||
+                        data.DASHSCOPE_API_KEY || data.OPENCODE_ZEN_API_KEY ||
+                        data.OPENCODE_GO_API_KEY;
       if (!hasLlmKey) {
         sendJson(res, 400, { error: "At least one LLM provider API key is required" });
         return;
@@ -255,10 +261,13 @@ async function handleRequest(req, res) {
       // Build the env config
       const envConfig = {};
       const envKeys = [
-        "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY",
+        "GLM_API_KEY", "KIMI_API_KEY", "MINIMAX_API_KEY", "MINIMAX_CN_API_KEY",
+        "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY",
+        "OPENCODE_ZEN_API_KEY", "OPENCODE_GO_API_KEY",
         "OLLAMA_BASE_URL", "HERMES_MODEL", "HERMES_PROVIDER",
         "TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID",
-        "WHATSAPP_ENABLED", "WHATSAPP_ALLOWED_USERS",
+        "WHATSAPP_ENABLED", "WHATSAPP_ALLOWED_USERS", "WHATSAPP_MODE",
         "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN",
       ];
 
@@ -266,6 +275,11 @@ async function handleRequest(req, res) {
         if (data[key]) {
           envConfig[key] = data[key];
         }
+      }
+
+      // WhatsApp: default to self-chat mode (only your own messages trigger the bot)
+      if (envConfig.WHATSAPP_ENABLED === "true" && !envConfig.WHATSAPP_MODE) {
+        envConfig.WHATSAPP_MODE = "self-chat";
       }
 
       // Set HERMES_REGEN_CONFIG to force config regeneration
@@ -339,28 +353,36 @@ async function handleRequest(req, res) {
     return;
   }
 
-  // ── API: WhatsApp pairing (start bridge, get QR) ──
-  if (req.method === "POST" && url.pathname === "/api/whatsapp-pair") {
-    // WhatsApp pairing requires the web container's bridge.
-    // For now, return instructions — full QR flow requires the bridge running.
-    sendJson(res, 200, {
-      status: "pending",
-      message: "WhatsApp pairing will complete after setup. The gateway will generate a QR code on first start. Check the status page for the QR code.",
-      instructions: [
-        "1. Complete setup to start the gateway",
-        "2. Visit the status page",
-        "3. The QR code will appear when WhatsApp bridge starts",
-        "4. Scan with WhatsApp on your phone",
-      ],
-    });
-    return;
-  }
+  // ── API: WhatsApp QR code ──
+  // The bridge writes the raw QR string to whatsapp/qr.txt on the shared volume.
+  // Once paired, it deletes the file. The status page polls this endpoint.
+  // Returns a data URL (base64 PNG) so no client-side QR library is needed.
+  if (req.method === "GET" && url.pathname === "/api/whatsapp-qr") {
+    const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
+    const sessionFile = path.join(CONFIG_DIR, "whatsapp", "session", "creds.json");
+    const paired = fs.existsSync(sessionFile);
 
-  // ── API: WhatsApp pairing status ──
-  if (req.method === "GET" && url.pathname === "/api/whatsapp-pair/status") {
-    const whatsappAuth = path.join(CONFIG_DIR, "whatsapp", "creds.json");
-    const paired = fs.existsSync(whatsappAuth);
-    sendJson(res, 200, { paired, status: paired ? "paired" : "pending" });
+    if (paired) {
+      sendJson(res, 200, { status: "paired", qrImage: null });
+      return;
+    }
+
+    try {
+      if (fs.existsSync(qrFile)) {
+        const qr = fs.readFileSync(qrFile, "utf8").trim();
+        const dataUrl = await QRCode.toDataURL(qr, {
+          width: 280,
+          margin: 2,
+          color: { dark: "#000000", light: "#ffffff" },
+        });
+        sendJson(res, 200, { status: "pending", qrImage: dataUrl });
+      } else {
+        sendJson(res, 200, { status: "waiting", qrImage: null, message: "Waiting for WhatsApp bridge to generate QR code..." });
+      }
+    } catch (e) {
+      console.error("QR generation error:", e.message);
+      sendJson(res, 200, { status: "waiting", qrImage: null, message: "Waiting for QR code..." });
+    }
     return;
   }
 
@@ -374,11 +396,13 @@ async function handleRequest(req, res) {
       platforms.push({ name: "Telegram", enabled: true });
     }
     if (config.WHATSAPP_ENABLED === "true") {
-      const whatsappAuth = path.join(CONFIG_DIR, "whatsapp", "creds.json");
+      const whatsappAuth = path.join(CONFIG_DIR, "whatsapp", "session", "creds.json");
+      const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
       platforms.push({
         name: "WhatsApp",
         enabled: true,
         paired: fs.existsSync(whatsappAuth),
+        hasQr: fs.existsSync(qrFile),
       });
     }
     if (config.DISCORD_BOT_TOKEN) {
@@ -408,6 +432,205 @@ async function handleRequest(req, res) {
   if (req.method === "POST" && url.pathname === "/api/restart") {
     const restarted = restartWebContainer();
     sendJson(res, 200, { success: restarted });
+    return;
+  }
+
+  // ── API: Relink WhatsApp (delete session, restart to get new QR) ──
+  if (req.method === "POST" && url.pathname === "/api/whatsapp-relink") {
+    try {
+      const sessionDir = path.join(CONFIG_DIR, "whatsapp", "session");
+      const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
+
+      // Delete session credentials
+      if (fs.existsSync(sessionDir)) {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+        console.log("Deleted WhatsApp session for relinking");
+      }
+      // Delete stale QR file
+      if (fs.existsSync(qrFile)) {
+        fs.unlinkSync(qrFile);
+      }
+
+      // Restart the web container so bridge generates a new QR
+      const restarted = restartWebContainer();
+
+      sendJson(res, 200, {
+        success: true,
+        restarted,
+        message: restarted
+          ? "WhatsApp session cleared. A new QR code will appear shortly."
+          : "Session cleared. Please restart the app manually.",
+      });
+    } catch (e) {
+      console.error("WhatsApp relink error:", e.message);
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Disconnect a platform ──
+  if (req.method === "POST" && url.pathname === "/api/disconnect") {
+    try {
+      const data = await parseBody(req);
+      const { platform } = data;
+      if (!platform) {
+        sendJson(res, 400, { error: "Platform is required" });
+        return;
+      }
+
+      // Keys to remove per platform
+      const platformKeys = {
+        telegram: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID"],
+        whatsapp: ["WHATSAPP_ENABLED", "WHATSAPP_ALLOWED_USERS", "WHATSAPP_MODE"],
+      };
+
+      const keysToRemove = platformKeys[platform];
+      if (!keysToRemove) {
+        sendJson(res, 400, { error: `Unknown platform: ${platform}` });
+        return;
+      }
+
+      // Read current env, remove platform keys, write back
+      const config = readCurrentConfig();
+      for (const key of keysToRemove) {
+        delete config[key];
+      }
+      writeEnvFile(config);
+      writeConfigYaml(config);
+
+      // WhatsApp: also delete session and QR
+      if (platform === "whatsapp") {
+        const sessionDir = path.join(CONFIG_DIR, "whatsapp", "session");
+        const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
+        if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
+        if (fs.existsSync(qrFile)) fs.unlinkSync(qrFile);
+      }
+
+      const restarted = restartWebContainer();
+      sendJson(res, 200, { success: true, restarted });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: List pending pairing requests ──
+  if (req.method === "GET" && url.pathname === "/api/pairing") {
+    const pairingDir = path.join(CONFIG_DIR, "pairing");
+    const results = [];
+    try {
+      if (fs.existsSync(pairingDir)) {
+        const files = fs.readdirSync(pairingDir).filter(f => f.endsWith("-pending.json"));
+        for (const file of files) {
+          const platform = file.replace("-pending.json", "");
+          const pending = JSON.parse(fs.readFileSync(path.join(pairingDir, file), "utf8"));
+          const now = Date.now() / 1000;
+          for (const [code, info] of Object.entries(pending)) {
+            // Skip expired codes (1 hour TTL)
+            if (now - info.created_at > 3600) continue;
+            results.push({
+              platform,
+              code,
+              user_id: info.user_id,
+              user_name: info.user_name || "",
+              age_minutes: Math.floor((now - info.created_at) / 60),
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Error reading pairing data:", e.message);
+    }
+    sendJson(res, 200, { pending: results });
+    return;
+  }
+
+  // ── API: Approve a pairing code ──
+  if (req.method === "POST" && url.pathname === "/api/pairing/approve") {
+    try {
+      const data = await parseBody(req);
+      const { platform, code } = data;
+      if (!platform || !code) {
+        sendJson(res, 400, { error: "Platform and code are required" });
+        return;
+      }
+
+      const pairingDir = path.join(CONFIG_DIR, "pairing");
+      const pendingFile = path.join(pairingDir, `${platform}-pending.json`);
+      const approvedFile = path.join(pairingDir, `${platform}-approved.json`);
+
+      if (!fs.existsSync(pendingFile)) {
+        sendJson(res, 404, { error: "No pending requests for this platform" });
+        return;
+      }
+
+      const pending = JSON.parse(fs.readFileSync(pendingFile, "utf8"));
+      const upperCode = code.toUpperCase().trim();
+
+      if (!pending[upperCode]) {
+        sendJson(res, 404, { error: "Code not found or expired" });
+        return;
+      }
+
+      const entry = pending[upperCode];
+      delete pending[upperCode];
+      fs.writeFileSync(pendingFile, JSON.stringify(pending, null, 2), { mode: 0o600 });
+
+      // Add to approved list
+      let approved = {};
+      try {
+        if (fs.existsSync(approvedFile)) {
+          approved = JSON.parse(fs.readFileSync(approvedFile, "utf8"));
+        }
+      } catch (e) {}
+
+      approved[entry.user_id] = {
+        user_name: entry.user_name || "",
+        approved_at: Date.now() / 1000,
+        approved_via: "umbrel-ui",
+      };
+      fs.writeFileSync(approvedFile, JSON.stringify(approved, null, 2), { mode: 0o600 });
+
+      // Send confirmation message to the user via the gateway's bridge
+      try {
+        const webHost = process.env.WEB_CONTAINER || "zot24-hermes_web_1";
+        // WhatsApp bridge runs on port 3000 inside the web container
+        if (data.platform === "whatsapp") {
+          await fetch(`http://${webHost}:3000/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chatId: entry.user_id,
+              message: `You're approved! Welcome to Hermes Agent. You can now chat with me anytime.`,
+            }),
+          }).catch(() => {});
+        }
+        // Telegram: use Bot API directly
+        if (data.platform === "telegram") {
+          const tgToken = readCurrentConfig().TELEGRAM_BOT_TOKEN;
+          if (tgToken) {
+            await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: entry.user_id,
+                text: `You're approved! Welcome to Hermes Agent. You can now chat with me anytime.`,
+              }),
+            }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.error("Failed to send approval message:", e.message);
+      }
+
+      sendJson(res, 200, {
+        success: true,
+        user_id: entry.user_id,
+        user_name: entry.user_name || "",
+      });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
     return;
   }
 
