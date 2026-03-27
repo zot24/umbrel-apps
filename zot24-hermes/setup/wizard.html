@@ -256,6 +256,87 @@
     .btn-primary::before { content: '>'; margin-right: 4px; opacity: 0.5; }
     .btn-secondary { color: var(--text-muted); }
     .btn-secondary:hover { border-color: var(--text-muted); background: rgba(255,255,255,0.02); }
+    /* Input with action button */
+    /* Input with action button */
+    .input-with-action {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .input-with-action input {
+      flex: 1;
+      margin-bottom: 0;
+    }
+    .input-action-btn {
+      width: 42px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--amber-dim);
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .input-action-btn:hover {
+      color: var(--amber);
+      background: var(--amber-glow);
+      border-color: var(--amber-dim);
+    }
+    .input-action-btn.testing {
+      color: var(--amber);
+      border-color: var(--amber-dim);
+      pointer-events: none;
+    }
+    .input-action-btn.testing .input-action-icon {
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+    }
+    .input-action-btn.ok {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+      background: var(--phosphor-glow);
+    }
+    .input-action-btn.fail {
+      color: var(--red);
+      border-color: var(--red-dim);
+    }
+    /* Tooltip */
+    .input-action-btn .action-tip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      font-family: var(--body);
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--text-muted);
+      white-space: nowrap;
+      z-index: 10000;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    .input-action-btn .action-tip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: var(--border);
+    }
+    .input-action-btn:hover .action-tip { display: block; }
+    .input-action-btn.testing .action-tip,
+    .input-action-btn.ok .action-tip,
+    .input-action-btn.fail .action-tip { display: none; }
+
     .btn-test {
       background: transparent; color: var(--amber);
       border-color: var(--amber-dim);
@@ -630,12 +711,14 @@
             </div>
             <div class="field-group">
               <label for="telegramChatId">Your Chat ID</label>
-              <input type="text" id="telegramChatId" placeholder="123456789">
+              <div class="input-with-action">
+                <input type="text" id="telegramChatId" placeholder="123456789" style="margin-bottom:0;">
+                <button class="input-action-btn" id="telegramTestBtn" onclick="testTelegram()">
+                  <span class="input-action-icon" id="telegramTestIcon">&#9655;</span>
+                  <span class="action-tip">Send a test message to your Telegram</span>
+                </button>
+              </div>
               <p class="field-hint">Send /start to <a href="https://t.me/userinfobot" target="_blank" rel="noopener">@userinfobot</a> to get your chat ID</p>
-            </div>
-            <div class="channel-action-row">
-              <button class="btn btn-test" id="telegramTestBtn" onclick="testTelegram()">Test Connection</button>
-              <span class="test-ok" id="telegramTestOk"><span class="test-tip">Test message sent. Check your Telegram.</span></span>
             </div>
             <div class="test-result" id="telegramTestResult"></div>
           </div>
@@ -661,7 +744,7 @@
           </div>
           <div class="btn-row">
             <button class="btn btn-secondary" onclick="goToStep(0)">Back</button>
-            <button class="btn btn-primary" id="step1Next" onclick="goToStep(2)" disabled>Continue</button>
+            <button class="btn btn-primary" id="step1Next" onclick="validateStep1()">Continue</button>
           </div>
         </div>
       </div>
@@ -887,49 +970,60 @@
     }
 
     function updateStep1Next() {
+      // No longer disables — validation happens on click
+    }
+
+    function validateStep1() {
       const tg = document.getElementById("telegramEnabled").checked;
       const wa = document.getElementById("whatsappEnabled").checked;
-      let ok = (tg && state.telegramTested) || (wa && !tg) || (tg && wa && state.telegramTested);
-      document.getElementById("step1Next").disabled = !ok;
+
+      if (!tg && !wa) {
+        triggerAccessDenied("Enable at least one messaging platform to continue.", "telegramTestResult");
+        return;
+      }
+
+      if (tg && !state.telegramTested) {
+        triggerAccessDenied("Test your Telegram connection first. Click the ▷ button next to your Chat ID.", "telegramTestResult");
+        return;
+      }
+
+      clearAccessDenied("telegramTestResult");
+      goToStep(2);
     }
 
     async function testTelegram() {
       const token = document.getElementById("telegramToken").value.trim();
       const chatId = document.getElementById("telegramChatId").value.trim();
       const resultEl = document.getElementById("telegramTestResult");
-      const okEl = document.getElementById("telegramTestOk");
       const btn = document.getElementById("telegramTestBtn");
+      const icon = document.getElementById("telegramTestIcon");
       if (!token || !chatId) {
         triggerAccessDenied("Bot token and chat ID are both required to test the connection.", "telegramTestResult");
-        okEl.classList.remove("show");
         return;
       }
-      btn.disabled = true;
-      btn.textContent = "TESTING...";
-      btn.classList.add("testing");
-      btn.classList.remove("success-flash");
+      btn.className = "input-action-btn testing";
+      icon.innerHTML = "&#9711;";
       clearAccessDenied("telegramTestResult");
-      okEl.classList.remove("show");
       try {
         const data = await (await fetch("/api/test-telegram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, chatId }) })).json();
-        btn.classList.remove("testing");
         if (data.success) {
           clearAccessDenied("telegramTestResult");
-          btn.classList.add("success-flash");
-          btn.textContent = "CONNECTED";
-          okEl.classList.add("show");
+          btn.className = "input-action-btn ok";
+          icon.innerHTML = "&#10003;";
           state.telegramTested = true;
           updateStep1Next();
-          setTimeout(() => { btn.classList.remove("success-flash"); btn.textContent = "TEST CONNECTION"; }, 2000);
         } else {
+          btn.className = "input-action-btn fail";
+          icon.innerHTML = "&#10007;";
           triggerAccessDenied(data.error, "telegramTestResult");
+          setTimeout(() => { btn.className = "input-action-btn"; icon.innerHTML = "&#9655;"; }, 3000);
         }
       } catch (e) {
-        btn.classList.remove("testing");
+        btn.className = "input-action-btn fail";
+        icon.innerHTML = "&#10007;";
         triggerAccessDenied(`Connection error: ${e.message}`, "telegramTestResult");
+        setTimeout(() => { btn.className = "input-action-btn"; icon.innerHTML = "&#9655;"; }, 3000);
       }
-      btn.disabled = false;
-      if (!btn.classList.contains("success-flash")) btn.textContent = "TEST CONNECTION";
     }
 
     function goToStep(n) {
