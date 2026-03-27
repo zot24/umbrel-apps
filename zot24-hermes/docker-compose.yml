@@ -14,7 +14,7 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      # Needed to write config files on the shared volume owned by hermes (UID 1000)
+      # Needed to write config files on the shared volume owned by node (UID 1000)
       - DAC_OVERRIDE
       - FOWNER
     tmpfs:
@@ -28,26 +28,23 @@ services:
 
   web:
     image: ghcr.io/zot24/hermes-docker:latest
-    # Note: No user directive - container starts as root, entrypoint fixes
-    # volume permissions then drops to hermes user (UID 1000)
+    # Runs as node user (UID 1000) — same pattern as openclaw-umbrel
     restart: on-failure
     init: true
     stop_grace_period: 1m
     depends_on:
       - setup
     volumes:
-      - ${APP_DATA_DIR}/data:/home/hermes/.hermes
+      - ${APP_DATA_DIR}/data:/data
       - ${APP_DATA_DIR}/data/linuxbrew:/home/linuxbrew
     env_file:
       - path: ${APP_DATA_DIR}/data/.env
         required: false
     environment:
-      # Ensure HOME is set correctly (Umbrel may override)
-      HOME: /home/hermes
-      # Data directory
-      HERMES_HOME: /home/hermes/.hermes
+      HOME: /data
+      HERMES_HOME: /data/.hermes
     healthcheck:
-      test: ["CMD", "python3", "-c", "import json,sys; d=json.load(open('/home/hermes/.hermes/gateway_state.json')); sys.exit(0 if d.get('gateway_state')=='running' else 1)"]
+      test: ["CMD", "python3", "-c", "import json,sys; d=json.load(open('/data/.hermes/gateway_state.json')); sys.exit(0 if d.get('gateway_state')=='running' else 1)"]
       interval: 30s
       timeout: 10s
       retries: 3

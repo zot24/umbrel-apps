@@ -1,7 +1,7 @@
 manifestVersion: 1.1
 id: zot24-hermes
 name: Hermes Agent
-icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/icon.png
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/icon.svg
 category: ai
 version: "0.4.0"
 tagline: Self-improving AI agent with Telegram & WhatsApp
@@ -36,14 +36,21 @@ description: >-
 
   4. Start chatting with your bot!
 releaseNotes: >-
-  Initial release of Hermes Agent for Umbrel.
+  Initial release. Retro terminal UI, Telegram and WhatsApp support
+  with QR pairing, 10+ LLM providers, self-chat mode, and in-app
+  platform management.
 developer: Nous Research
-website: https://github.com/NousResearch/hermes-agent
+website: https://hermes-agent.nousresearch.com
 dependencies: []
 repo: https://github.com/NousResearch/hermes-agent
 support: https://github.com/NousResearch/hermes-agent/issues
 port: 8080
-gallery: []
+gallery:
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/1.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/2.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/3.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/4.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/5.png
 path: ""
 defaultUsername: ""
 defaultPassword: ""

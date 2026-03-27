@@ -84,12 +84,35 @@ jobs:
         run: |
           echo "${{ env.VERSION }}" > zot24-hermes/VERSION
 
+      - name: Fetch release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get release body from upstream, strip markdown links/images, truncate
+          NOTES=$(gh release view "${{ env.VERSION }}" -R NousResearch/hermes-agent --json body -q .body \
+            | sed 's/!\[.*\](.*)//' \
+            | sed 's/\[([^]]*)\]([^)]*)/\1/g' \
+            | head -c 500 \
+            | tr '\n' ' ' \
+            | sed 's/  */ /g' \
+            | sed 's/^ *//' \
+            || echo "Updated to ${{ env.VERSION }}.")
+
+          if [ -z "$NOTES" ]; then
+            NOTES="Updated to ${{ env.VERSION }}."
+          fi
+
+          # Escape for sed
+          NOTES_ESCAPED=$(echo "$NOTES" | sed 's/[&/\]/\\&/g')
+          echo "RELEASE_NOTES=$NOTES_ESCAPED" >> $GITHUB_ENV
+
       - name: Update umbrel-app.yml
         run: |
           # Update version field (without 'v' prefix)
           sed -i "s/^version: \".*\"/version: \"${{ env.VERSION_NO_V }}\"/" zot24-hermes/umbrel-app.yml
-          # Update releaseNotes
-          sed -i "/^releaseNotes:/,/^[a-z]/s/Updated to v.*/Updated to ${{ env.VERSION }}./" zot24-hermes/umbrel-app.yml
+          # Update releaseNotes with actual changelog from upstream
+          sed -i "/^releaseNotes:/,/^[a-z]/{/^releaseNotes:/!{/^[a-z]/!d}}" zot24-hermes/umbrel-app.yml
+          sed -i "s/^releaseNotes:.*/releaseNotes: >-\n  ${{ env.RELEASE_NOTES }}/" zot24-hermes/umbrel-app.yml
 
       - name: Update docker-compose.yml
         run: |
