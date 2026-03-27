@@ -34,6 +34,8 @@ services:
     stop_grace_period: 1m
     depends_on:
       - setup
+    tmpfs:
+      - /data/.cache
     volumes:
       - ${APP_DATA_DIR}/data:/data
       - ${APP_DATA_DIR}/data/linuxbrew:/home/linuxbrew
