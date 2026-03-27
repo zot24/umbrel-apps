@@ -7,6 +7,9 @@ SKELETON_DIR="/home-skeleton"
 echo "=== Hermes Agent Entrypoint ==="
 echo "HERMES_HOME: $HERMES_HOME"
 
+# ── Fix volume ownership (Umbrel creates volumes as root) ────────────────────
+sudo chown -R "$(id -u):$(id -g)" /data /home/linuxbrew 2>/dev/null || true
+
 # ── Initialize home directory from skeleton (first run) ──────────────────────
 if [ -d "$SKELETON_DIR" ]; then
     for item in "$SKELETON_DIR"/* "$SKELETON_DIR"/.*; do
