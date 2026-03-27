@@ -28,8 +28,7 @@ services:
 
   web:
     image: ghcr.io/zot24/hermes-docker:v2026.3.23@sha256:00f61b2e00ba3383792b12034d0301bc6f842068ccd9ec8871a8addb9571a724
-    # TODO: remove user override once image handles permissions via sudo (openclaw pattern)
-    user: root
+    # Runs as hermes user (UID 1000) — entrypoint uses sudo chown for volume permissions
     restart: on-failure
     init: true
     stop_grace_period: 1m
