@@ -27,7 +27,7 @@ services:
       WEB_CONTAINER: zot24-hermes_web_1
 
   web:
-    image: ghcr.io/zot24/hermes-docker:latest
+    image: ghcr.io/zot24/hermes-docker:v2026.3.23@sha256:00f61b2e00ba3383792b12034d0301bc6f842068ccd9ec8871a8addb9571a724
     # Runs as node user (UID 1000) — same pattern as openclaw-umbrel
     restart: on-failure
     init: true
