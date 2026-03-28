@@ -139,4 +139,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add zot24-hermes/VERSION zot24-hermes/umbrel-app.yml
           git diff --cached --quiet || git commit -m "chore: update Hermes Agent to ${{ env.VERSION }}"
+          # Pull with rebase in case build-web pushed during the build
+          git pull --rebase origin main
           git push
