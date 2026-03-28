@@ -6,7 +6,6 @@ on:
     paths:
       - 'zot24-hermes/web/Dockerfile'
       - 'zot24-hermes/web/entrypoint.sh'
-      - 'zot24-hermes/VERSION'
   workflow_dispatch:
     inputs:
       hermes_version:

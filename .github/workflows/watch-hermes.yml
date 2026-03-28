@@ -56,12 +56,21 @@ jobs:
             echo "version=$LATEST" >> $GITHUB_OUTPUT
           fi
 
-  update-version:
+  # Build the Docker image FIRST — version files are only updated on success
+  build-web:
     needs: check-release
     if: needs.check-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/build-web.yml
+    with:
+      hermes_version: ${{ needs.check-release.outputs.version }}
+    permissions:
+      contents: write
+      packages: write
+
+  # Only commit version bump after a successful build to avoid race conditions
+  update-version:
+    needs: [check-release, build-web]
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ needs.check-release.outputs.version }}
     permissions:
       contents: write
     steps:
@@ -116,11 +125,6 @@ jobs:
           sed -i "/^releaseNotes:/,/^[a-z]/{/^releaseNotes:/!{/^[a-z]/!d}}" zot24-hermes/umbrel-app.yml
           sed -i "s/^releaseNotes:.*/releaseNotes: >-\n  ${{ env.RELEASE_NOTES }}/" zot24-hermes/umbrel-app.yml
 
-      - name: Update docker-compose.yml
-        run: |
-          # Update web image tag
-          sed -i "s|image: ghcr.io/zot24/hermes-docker:.*|image: ghcr.io/zot24/hermes-docker:${{ env.VERSION }}|" zot24-hermes/docker-compose.yml
-
       - name: Verify changes
         run: |
           echo "=== VERSION ==="
@@ -128,23 +132,11 @@ jobs:
           echo ""
           echo "=== umbrel-app.yml ==="
           grep -E "^version:|releaseNotes:" zot24-hermes/umbrel-app.yml
-          echo ""
-          echo "=== docker-compose.yml ==="
-          grep "image:" zot24-hermes/docker-compose.yml
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add zot24-hermes/VERSION zot24-hermes/umbrel-app.yml zot24-hermes/docker-compose.yml
+          git add zot24-hermes/VERSION zot24-hermes/umbrel-app.yml
           git diff --cached --quiet || git commit -m "chore: update Hermes Agent to ${{ env.VERSION }}"
           git push
-
-  build-web:
-    needs: update-version
-    uses: ./.github/workflows/build-web.yml
-    with:
-      hermes_version: ${{ needs.update-version.outputs.version }}
-    permissions:
-      contents: write
-      packages: write
