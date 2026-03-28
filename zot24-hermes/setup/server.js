@@ -634,6 +634,114 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: Export backup ──
+  if (req.method === "GET" && url.pathname === "/api/export") {
+    try {
+      if (!fs.existsSync(CONFIG_DIR)) {
+        sendJson(res, 404, { error: "No Hermes data found" });
+        return;
+      }
+
+      const tmpFile = `/tmp/hermes-backup-${Date.now()}.tar.gz`;
+      execSync(
+        `tar czf ${tmpFile} -C ${VOLUME_DIR}` +
+        ` --exclude='.hermes/logs'` +
+        ` --exclude='.hermes/image_cache'` +
+        ` --exclude='.hermes/audio_cache'` +
+        ` --exclude='.hermes/document_cache'` +
+        ` --exclude='.hermes/browser_screenshots'` +
+        ` --exclude='.hermes/gateway_state.json'` +
+        ` .hermes`,
+        { timeout: 120000 }
+      );
+
+      const stat = fs.statSync(tmpFile);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      res.writeHead(200, {
+        "Content-Type": "application/gzip",
+        "Content-Disposition": `attachment; filename="hermes-backup-${dateStr}.tar.gz"`,
+        "Content-Length": stat.size,
+      });
+
+      const stream = fs.createReadStream(tmpFile);
+      stream.pipe(res);
+      stream.on("end", () => {
+        try { fs.unlinkSync(tmpFile); } catch (e) {}
+      });
+      stream.on("error", (err) => {
+        console.error("Stream error:", err);
+        try { fs.unlinkSync(tmpFile); } catch (e) {}
+        if (!res.headersSent) sendJson(res, 500, { error: "Stream failed" });
+      });
+    } catch (e) {
+      console.error("Export error:", e.message);
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Import backup ──
+  if (req.method === "POST" && url.pathname === "/api/import") {
+    try {
+      const chunks = [];
+      let size = 0;
+      const MAX_SIZE = 500 * 1024 * 1024; // 500MB limit
+
+      await new Promise((resolve, reject) => {
+        req.on("data", (chunk) => {
+          size += chunk.length;
+          if (size > MAX_SIZE) {
+            req.destroy();
+            reject(new Error("Upload too large (max 500MB)"));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        req.on("end", resolve);
+        req.on("error", reject);
+      });
+
+      const tmpFile = `/tmp/hermes-import-${Date.now()}.tar.gz`;
+      fs.writeFileSync(tmpFile, Buffer.concat(chunks));
+
+      // Validate: check it's a valid tar.gz containing .hermes
+      try {
+        const listing = execSync(`tar tzf ${tmpFile} 2>&1 | head -5`, { encoding: "utf8" });
+        if (!listing.includes(".hermes")) {
+          fs.unlinkSync(tmpFile);
+          sendJson(res, 400, { error: "Invalid backup: archive must contain a .hermes directory" });
+          return;
+        }
+      } catch (e) {
+        fs.unlinkSync(tmpFile);
+        sendJson(res, 400, { error: "Invalid archive format" });
+        return;
+      }
+
+      // Extract over existing data
+      execSync(`tar xzf ${tmpFile} -C ${VOLUME_DIR}`, { timeout: 120000 });
+      fs.unlinkSync(tmpFile);
+
+      // Mark as configured (import implies prior setup)
+      fs.writeFileSync(SETUP_SENTINEL, new Date().toISOString(), { mode: 0o644 });
+
+      // Restart the web container
+      const restarted = restartWebContainer();
+
+      sendJson(res, 200, {
+        success: true,
+        restarted,
+        message: restarted
+          ? "Backup restored. Gateway is restarting..."
+          : "Backup restored. Please restart the app manually.",
+      });
+    } catch (e) {
+      console.error("Import error:", e.message);
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
   // ── 404 ──
   res.writeHead(404, { "Content-Type": "text/plain" });
   res.end("Not Found");
