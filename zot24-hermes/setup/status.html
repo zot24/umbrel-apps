@@ -798,6 +798,28 @@
       </div>
     </div>
 
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Backup</span>
+        <span class="panel-indicator">SYS.BACKUP</span>
+      </div>
+      <div class="panel-body">
+        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 10px;">
+          Export or restore your agent state &mdash; config, memory, sessions, skills, and cron jobs.
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px; padding: 8px 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.15);">
+          <span style="color: var(--amber-dim);">TIP:</span> Migrating from an existing install? Run this on your old machine:<br>
+          <code style="color: var(--phosphor); background: rgba(80,255,168,0.08); padding: 2px 6px; font-family: var(--body); font-size: 10px; user-select: all;">curl -fsSL https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-hermes/hermes-export.sh | bash</code>
+        </div>
+        <div class="actions" style="margin-top: 0;">
+          <button class="btn btn-primary" id="exportBtn" onclick="exportBackup()">Export</button>
+          <button class="btn btn-secondary" id="importBtn" onclick="document.getElementById('importFile').click()">Import</button>
+          <input type="file" id="importFile" accept=".tar.gz,.tgz" style="display:none" onchange="importBackup(this)">
+        </div>
+        <div id="backupStatus" style="display: none; margin-top: 10px; font-size: 12px; padding: 8px 10px; border: 1px solid var(--border);"></div>
+      </div>
+    </div>
+
     <div class="actions">
       <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
       <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart</button>
@@ -1093,6 +1115,67 @@
         if (e.key === "Escape") { el.textContent = "HERMES"; el.blur(); }
       });
     })();
+
+    function showBackupStatus(msg, isError) {
+      const el = document.getElementById("backupStatus");
+      el.style.display = "block";
+      el.style.color = isError ? "var(--amber)" : "var(--phosphor)";
+      el.style.borderColor = isError ? "var(--amber-dim)" : "var(--phosphor-dim)";
+      el.textContent = msg;
+    }
+
+    function exportBackup() {
+      const btn = document.getElementById("exportBtn");
+      btn.disabled = true; btn.textContent = "PACKING...";
+      showBackupStatus("Creating backup archive...", false);
+
+      const a = document.createElement("a");
+      a.href = "/api/export";
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      setTimeout(() => {
+        btn.disabled = false; btn.textContent = "Export";
+        showBackupStatus("Export complete. Check your downloads.", false);
+      }, 3000);
+    }
+
+    function importBackup(input) {
+      const file = input.files[0];
+      if (!file) return;
+      input.value = "";
+
+      showConfirm(
+        "Restore Backup",
+        "This will overwrite your current Hermes config, sessions, memories, and skills with the backup contents. The gateway will restart. Continue?",
+        "Restore",
+        async () => {
+          const btn = document.getElementById("importBtn");
+          btn.disabled = true; btn.textContent = "RESTORING...";
+          showBackupStatus("Uploading and extracting backup...", false);
+
+          try {
+            const resp = await fetch("/api/import", {
+              method: "POST",
+              headers: { "Content-Type": "application/octet-stream" },
+              body: file,
+            });
+            const data = await resp.json();
+            if (data.success) {
+              showBackupStatus(data.message || "Backup restored successfully.", false);
+              setTimeout(fetchStatus, 3000);
+            } else {
+              showBackupStatus("Error: " + (data.error || "Unknown error"), true);
+            }
+          } catch (e) {
+            showBackupStatus("Upload failed: " + e.message, true);
+          }
+          btn.disabled = false; btn.textContent = "Import";
+        }
+      );
+    }
 
     fetchStatus();
     setInterval(fetchStatus, 5000);
