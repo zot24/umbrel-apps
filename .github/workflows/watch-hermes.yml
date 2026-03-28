@@ -77,7 +77,9 @@ jobs:
       - name: Checkout umbrel-apps
         uses: actions/checkout@v4
 
-      - name: Set version variables
+      - name: Fetch release metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.check-release.outputs.version }}"
 
@@ -88,42 +90,58 @@ jobs:
           fi
 
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          # Version without 'v' prefix for umbrel-app.yml
-          echo "VERSION_NO_V=${VERSION#v}" >> $GITHUB_ENV
+
+          # Extract semver from release name (e.g. "Hermes Agent v0.5.0 (v2026.3.28)" → "0.5.0")
+          RELEASE_NAME=$(gh release view "$VERSION" -R NousResearch/hermes-agent --json name -q .name)
+          SEMVER=$(echo "$RELEASE_NAME" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//')
+          if [ -z "$SEMVER" ]; then
+            echo "::warning::Could not extract semver from '$RELEASE_NAME', using date version"
+            SEMVER="${VERSION#v}"
+          fi
+          echo "Semver: $SEMVER"
+          echo "SEMVER=$SEMVER" >> $GITHUB_ENV
+
+          # Extract release summary: prefer blockquote summary, fall back to generic
+          BODY=$(gh release view "$VERSION" -R NousResearch/hermes-agent --json body -q .body)
+          NOTES=$(echo "$BODY" | grep '^> ' | head -1 | sed 's/^> //' | head -c 500)
+          if [ -z "$NOTES" ]; then
+            NOTES="Updated to ${VERSION}."
+          fi
+          # Write to file to avoid shell escaping issues
+          echo "$NOTES" > /tmp/release_notes.txt
+          echo "Release notes: $NOTES"
 
       - name: Update VERSION file
         run: |
           echo "${{ env.VERSION }}" > zot24-hermes/VERSION
 
-      - name: Fetch release notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Get release body from upstream, strip markdown links/images, truncate
-          NOTES=$(gh release view "${{ env.VERSION }}" -R NousResearch/hermes-agent --json body -q .body \
-            | sed 's/!\[.*\](.*)//' \
-            | sed 's/\[([^]]*)\]([^)]*)/\1/g' \
-            | head -c 500 \
-            | tr '\n' ' ' \
-            | sed 's/  */ /g' \
-            | sed 's/^ *//' \
-            || echo "Updated to ${{ env.VERSION }}.")
-
-          if [ -z "$NOTES" ]; then
-            NOTES="Updated to ${{ env.VERSION }}."
-          fi
-
-          # Escape for sed
-          NOTES_ESCAPED=$(echo "$NOTES" | sed 's/[&/\]/\\&/g')
-          echo "RELEASE_NOTES=$NOTES_ESCAPED" >> $GITHUB_ENV
-
       - name: Update umbrel-app.yml
         run: |
-          # Update version field (without 'v' prefix)
-          sed -i "s/^version: \".*\"/version: \"${{ env.VERSION_NO_V }}\"/" zot24-hermes/umbrel-app.yml
-          # Update releaseNotes with actual changelog from upstream
-          sed -i "/^releaseNotes:/,/^[a-z]/{/^releaseNotes:/!{/^[a-z]/!d}}" zot24-hermes/umbrel-app.yml
-          sed -i "s/^releaseNotes:.*/releaseNotes: >-\n  ${{ env.RELEASE_NOTES }}/" zot24-hermes/umbrel-app.yml
+          python3 -c "
+          import os, re
+
+          semver = os.environ['SEMVER']
+          with open('/tmp/release_notes.txt') as f:
+              notes = f.read().strip()
+
+          path = 'zot24-hermes/umbrel-app.yml'
+          with open(path) as f:
+              content = f.read()
+
+          # Update version
+          content = re.sub(r'^version: \".*\"', f'version: \"{semver}\"', content, flags=re.MULTILINE)
+
+          # Update releaseNotes (multiline folded scalar up to next top-level key)
+          content = re.sub(
+              r'releaseNotes:.*?(?=\n[a-z])',
+              f'releaseNotes: >-\n  {notes}',
+              content,
+              flags=re.DOTALL,
+          )
+
+          with open(path, 'w') as f:
+              f.write(content)
+          "
 
       - name: Verify changes
         run: |

@@ -3,7 +3,7 @@ id: zot24-hermes
 name: Hermes Agent
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/icon.svg
 category: ai
-version: "2026.3.28"
+version: "0.5.0"
 tagline: Self-improving AI agent with Telegram & WhatsApp
 description: >-
   Hermes Agent by Nous Research is a self-improving AI assistant that connects
@@ -36,7 +36,10 @@ description: >-
 
   4. Start chatting with your bot!
 releaseNotes: >-
-  Updated to v2026.3.28.
+  The hardening release — Hugging Face provider, /model command overhaul,
+  Telegram Private Chat Topics, native Modal SDK, plugin lifecycle hooks,
+  tool-use enforcement for GPT models, Nix flake, 50+ security and
+  reliability fixes, and a comprehensive supply chain audit.
 developer: Nous Research
 website: https://hermes-agent.nousresearch.com
 dependencies: []
