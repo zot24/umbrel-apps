@@ -27,7 +27,7 @@ services:
       WEB_CONTAINER: zot24-hermes_web_1
 
   web:
-    image: ghcr.io/zot24/hermes-docker:v2026.3.28@sha256:9131ad94ee12e8cd52dda7a2bcc87dc80950ab793b58dd983b985fa887bbfa64
+    image: ghcr.io/zot24/hermes-docker:v2026.3.28@sha256:b1b3a02e615525704b97828119e193f5c5058f0487238291a45828446318115f
     # Runs as hermes user (UID 1000) — entrypoint uses sudo chown for volume permissions
     restart: on-failure
     init: true
