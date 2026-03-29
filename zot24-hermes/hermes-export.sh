@@ -36,11 +36,16 @@ fi
 echo "Creating archive..."
 tar czf "$BACKUP_FILE" \
   -C "$(dirname "$HERMES_DIR")" \
+  --exclude='*/hermes-agent' \
+  --exclude='*/checkpoints' \
+  --exclude='*/bin' \
   --exclude='*/logs' \
   --exclude='*/image_cache' \
   --exclude='*/audio_cache' \
   --exclude='*/document_cache' \
   --exclude='*/browser_screenshots' \
+  --exclude='*/pastes' \
+  --exclude='*/node_modules' \
   --exclude='*/gateway_state.json' \
   --exclude='*/*-shm' \
   --exclude='*/*-wal' \
@@ -63,4 +68,5 @@ echo ""
 echo "Contents: config, secrets, state.db, sessions, memories,"
 echo "skills, cron jobs, scripts, and platform auth state."
 echo ""
-echo "Excluded: logs, caches, runtime state, SQLite WAL files."
+echo "Excluded: hermes-agent source, checkpoints, binaries, logs,"
+echo "caches, node_modules, runtime state, SQLite WAL files."

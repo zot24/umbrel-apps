@@ -717,11 +717,15 @@ async function handleRequest(req, res) {
       const tmpFile = `/tmp/hermes-backup-${Date.now()}.tar.gz`;
       execSync(
         `tar czf ${tmpFile} -C ${VOLUME_DIR}` +
+        ` --exclude='.hermes/hermes-agent'` +
+        ` --exclude='.hermes/checkpoints'` +
+        ` --exclude='.hermes/bin'` +
         ` --exclude='.hermes/logs'` +
         ` --exclude='.hermes/image_cache'` +
         ` --exclude='.hermes/audio_cache'` +
         ` --exclude='.hermes/document_cache'` +
         ` --exclude='.hermes/browser_screenshots'` +
+        ` --exclude='.hermes/pastes'` +
         ` --exclude='.hermes/gateway_state.json'` +
         ` .hermes`,
         { timeout: 120000 }
