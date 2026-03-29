@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HERMES // GATEWAY</title>
+  <title>HERMES // DASHBOARD</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
@@ -111,7 +111,7 @@
     }
 
     .container {
-      max-width: 520px;
+      max-width: 620px;
       width: 100%;
       position: relative;
       z-index: 10;
@@ -1154,6 +1154,359 @@
       color: var(--border);
       font-size: 8px;
     }
+    /* ── Dashboard ── */
+    .dash-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 18px 0;
+      position: relative;
+    }
+    .dash-divider::after {
+      content: attr(data-label);
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg);
+      padding: 0 12px;
+      font-family: var(--display);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--phosphor-dim);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+    }
+    .stat-card {
+      background: var(--surface-2);
+      padding: 12px 14px;
+      border-left: 2px solid transparent;
+      transition: border-color 0.15s;
+    }
+    .stat-card:hover { border-left-color: var(--phosphor-dim); }
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-family: var(--display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--phosphor);
+      line-height: 1.2;
+    }
+    .stat-value.amber { color: var(--amber); }
+    .stat-sub {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Bar charts */
+    .bar-chart { display: flex; flex-direction: column; gap: 2px; }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .bar-label {
+      min-width: 32px;
+      color: var(--text-muted);
+      text-align: right;
+      letter-spacing: 0.5px;
+    }
+    .bar-track {
+      flex: 1;
+      height: 14px;
+      background: var(--surface-2);
+      overflow: hidden;
+      position: relative;
+    }
+    .bar-fill {
+      height: 100%;
+      background: var(--phosphor-dim);
+      transition: width 0.5s ease;
+      min-width: 1px;
+    }
+    .bar-fill.amber { background: var(--amber-dim); }
+    .bar-count {
+      min-width: 32px;
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    /* Hour heatmap */
+    .hour-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 2px;
+    }
+    .hour-cell {
+      aspect-ratio: 1;
+      background: var(--surface-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      color: var(--text-muted);
+      position: relative;
+      transition: all 0.15s;
+    }
+    .hour-cell.h1 { background: rgba(80,255,168,0.08); }
+    .hour-cell.h2 { background: rgba(80,255,168,0.18); }
+    .hour-cell.h3 { background: rgba(80,255,168,0.30); color: var(--phosphor); }
+    .hour-cell.h4 { background: rgba(80,255,168,0.45); color: #fff; }
+
+    /* Model/tool tables */
+    .dash-table {
+      width: 100%;
+      font-size: 12px;
+    }
+    .dash-table-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 14px;
+      background: var(--surface-2);
+      margin-bottom: 2px;
+      gap: 8px;
+    }
+    .dash-table-row:hover { background: rgba(80,255,168,0.025); }
+    .dash-table-name {
+      flex: 1;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dash-table-val {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-align: right;
+      min-width: 60px;
+    }
+    .dash-table-val.phosphor { color: var(--phosphor-dim); }
+    .dash-table-bar {
+      width: 60px;
+      height: 6px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .dash-table-bar-fill {
+      height: 100%;
+      background: var(--phosphor-dim);
+    }
+
+    /* Skills grid */
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 3px;
+    }
+    .skill-card {
+      background: var(--surface-2);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .skill-card:hover {
+      border-left-color: var(--amber-dim);
+      background: rgba(255,192,77,0.025);
+    }
+    .skill-name { color: var(--text); }
+    .skill-count {
+      font-family: var(--display);
+      font-size: 11px;
+      color: var(--amber-dim);
+      font-weight: 600;
+    }
+
+    /* Sessions table */
+    .session-row {
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      background: var(--surface-2);
+      margin-bottom: 2px;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .session-row:hover {
+      background: rgba(80,255,168,0.025);
+      border-left: 2px solid var(--phosphor-dim);
+      padding-left: 12px;
+    }
+    .session-source {
+      font-family: var(--display);
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--amber);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      min-width: 50px;
+    }
+    .session-info { flex: 1; min-width: 0; }
+    .session-title {
+      font-size: 12px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .session-meta {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .session-cost {
+      font-family: var(--display);
+      font-size: 12px;
+      color: var(--phosphor-dim);
+      font-weight: 600;
+      min-width: 50px;
+      text-align: right;
+    }
+    .session-detail {
+      display: none;
+      padding: 0 14px 14px;
+      background: var(--surface-2);
+      margin-top: -2px;
+      margin-bottom: 2px;
+      border-left: 2px solid var(--phosphor-dim);
+    }
+    .session-detail.open { display: block; }
+    .session-msg {
+      padding: 6px 0;
+      font-size: 11px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.5;
+    }
+    .session-msg:last-child { border-bottom: none; }
+    .session-msg-role {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .session-msg-role.user { color: var(--amber); }
+    .session-msg-role.assistant { color: var(--phosphor); }
+    .session-msg-role.tool { color: var(--text-muted); }
+    .session-msg-content {
+      color: var(--text-muted);
+      word-break: break-word;
+      white-space: pre-wrap;
+      max-height: 120px;
+      overflow: hidden;
+    }
+
+    /* Notable sessions */
+    .notable-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--surface-2);
+      margin-bottom: 2px;
+    }
+    .notable-label { font-size: 12px; color: var(--text-muted); }
+    .notable-value {
+      font-family: var(--display);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--phosphor);
+    }
+    .notable-date { font-size: 10px; color: var(--text-muted); margin-left: 8px; }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .page-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-family: var(--body);
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 1px;
+    }
+    .page-btn:hover:not(:disabled) {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+    }
+    .page-btn:disabled { opacity: 0.3; cursor: default; }
+    .page-info {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      letter-spacing: 0.5px;
+    }
+
+    /* Days selector */
+    .days-select {
+      display: flex;
+      gap: 4px;
+    }
+    .days-btn {
+      padding: 3px 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-family: var(--body);
+      font-size: 10px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.5px;
+    }
+    .days-btn:hover { border-color: var(--phosphor-dim); color: var(--phosphor); }
+    .days-btn.active {
+      border-color: var(--phosphor-dim);
+      color: var(--phosphor);
+      background: var(--phosphor-glow);
+    }
+
+    /* Empty state for dashboard */
+    .dash-empty {
+      text-align: center;
+      padding: 30px 20px;
+      color: var(--text-muted);
+      font-size: 12px;
+      letter-spacing: 1px;
+      line-height: 1.6;
+    }
+
+    /* Memory panel */
+    .memory-content {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 12px 14px;
+      background: var(--surface-2);
+    }
   </style>
 </head>
 <body>
@@ -1219,6 +1572,122 @@
     <div class="actions">
       <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
       <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart</button>
+    </div>
+
+    <!-- ═══════ DASHBOARD ═══════ -->
+    <hr class="dash-divider" data-label="DASHBOARD">
+
+    <!-- Days selector -->
+    <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+      <div class="days-select">
+        <button class="days-btn" data-days="7" onclick="setDays(7)">7d</button>
+        <button class="days-btn active" data-days="30" onclick="setDays(30)">30d</button>
+        <button class="days-btn" data-days="90" onclick="setDays(90)">90d</button>
+        <button class="days-btn" data-days="365" onclick="setDays(365)">1y</button>
+      </div>
+    </div>
+
+    <!-- Overview Stats -->
+    <div class="panel" id="overviewPanel">
+      <div class="panel-header">
+        <span class="panel-title">Overview</span>
+        <span class="panel-indicator">SYS.METRICS</span>
+      </div>
+      <div class="panel-body">
+        <div id="overviewStats" class="stats-grid">
+          <div class="dash-empty">LOADING...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity -->
+    <div class="panel" id="activityPanel" style="display:none;">
+      <div class="panel-header">
+        <span class="panel-title">Activity</span>
+        <span class="panel-indicator">SYS.ACTIVITY</span>
+      </div>
+      <div class="panel-body">
+        <div id="activityDays" class="bar-chart" style="margin-bottom: 14px;"></div>
+        <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Hours (UTC)</div>
+        <div id="activityHours" class="hour-grid"></div>
+        <div id="activityMeta" style="margin-top: 10px; font-size: 11px; color: var(--text-muted);"></div>
+      </div>
+    </div>
+
+    <!-- Models -->
+    <div class="panel" id="modelsPanel" style="display:none;">
+      <div class="panel-header">
+        <span class="panel-title">Models</span>
+        <span class="panel-indicator">SYS.MODELS</span>
+      </div>
+      <div class="panel-body">
+        <div id="modelsList" class="dash-table"></div>
+      </div>
+    </div>
+
+    <!-- Platforms -->
+    <div class="panel" id="platformsPanel" style="display:none;">
+      <div class="panel-header">
+        <span class="panel-title">Platform Usage</span>
+        <span class="panel-indicator">SYS.PLATFORMS</span>
+      </div>
+      <div class="panel-body">
+        <div id="platformsList" class="dash-table"></div>
+      </div>
+    </div>
+
+    <!-- Tools -->
+    <div class="panel" id="toolsPanel" style="display:none;">
+      <div class="panel-header">
+        <span class="panel-title">Tools</span>
+        <span class="panel-indicator">SYS.TOOLS</span>
+      </div>
+      <div class="panel-body">
+        <div id="toolsList" class="dash-table"></div>
+      </div>
+    </div>
+
+    <!-- Skills -->
+    <div class="panel" id="skillsPanel" style="display:none;">
+      <div class="panel-header">
+        <span class="panel-title">Skills</span>
+        <span class="panel-indicator">SYS.SKILLS</span>
+      </div>
+      <div class="panel-body">
+        <div id="skillsGrid" class="skills-grid"></div>
+      </div>
+    </div>
+
+    <!-- Notable Sessions -->
+    <div class="panel" id="notablePanel" style="display:none;">
+      <div class="panel-header">
+        <span class="panel-title">Notable Sessions</span>
+        <span class="panel-indicator">SYS.RECORDS</span>
+      </div>
+      <div class="panel-body">
+        <div id="notableList"></div>
+      </div>
+    </div>
+
+    <!-- Sessions History -->
+    <div class="panel" id="sessionsPanel" style="display:none;">
+      <div class="panel-header">
+        <span class="panel-title">Sessions</span>
+        <span class="panel-indicator">SYS.HISTORY</span>
+      </div>
+      <div class="panel-body">
+        <div id="sessionsList"></div>
+        <div id="sessionsPagination" class="pagination"></div>
+      </div>
+    </div>
+
+    <!-- Memory -->
+    <div class="panel" id="memoryPanel" style="display:none;">
+      <div class="panel-header">
+        <span class="panel-title">Memory</span>
+        <span class="panel-indicator">SYS.MEMORY</span>
+      </div>
+      <div class="panel-body" id="memoryBody"></div>
     </div>
 
     <div class="boot-footer">
@@ -1800,6 +2269,308 @@
     setInterval(fetchStatus, 5000);
     setInterval(fetchPairing, 5000);
     fetchPairing();
+
+    // ═══════ DASHBOARD ═══════
+
+    let dashDays = 30;
+    let sessionsPage = 0;
+    const SESSIONS_PER_PAGE = 20;
+
+    function setDays(d) {
+      dashDays = d;
+      document.querySelectorAll(".days-btn").forEach(b => b.classList.toggle("active", parseInt(b.dataset.days) === d));
+      fetchInsights();
+    }
+
+    function fmtNum(n) {
+      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+      if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+      return n.toLocaleString();
+    }
+
+    function fmtDuration(s) {
+      if (!s || s <= 0) return "-";
+      if (s < 60) return Math.round(s) + "s";
+      if (s < 3600) return Math.round(s / 60) + "m";
+      const h = Math.floor(s / 3600);
+      const m = Math.round((s % 3600) / 60);
+      return m > 0 ? h + "h " + m + "m" : h + "h";
+    }
+
+    async function fetchInsights() {
+      try {
+        const data = await (await fetch(`/api/insights?days=${dashDays}`)).json();
+        renderOverview(data);
+        renderActivity(data);
+        renderModels(data);
+        renderPlatforms(data);
+        renderTools(data);
+        renderNotable(data);
+      } catch (e) { console.error("Insights fetch failed:", e); }
+
+      fetchSkills();
+      fetchSessions();
+      fetchMemory();
+    }
+
+    function renderOverview(data) {
+      const el = document.getElementById("overviewStats");
+      if (data.empty) {
+        el.innerHTML = '<div class="dash-empty" style="grid-column: 1/-1;">NO SESSION DATA YET<br>Start chatting to see metrics here</div>';
+        return;
+      }
+      const o = data.overview;
+      el.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label">Sessions</div>
+          <div class="stat-value">${fmtNum(o.total_sessions)}</div>
+          <div class="stat-sub">${o.avg_messages_per_session} msg/session</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Messages</div>
+          <div class="stat-value">${fmtNum(o.total_messages)}</div>
+          <div class="stat-sub">${fmtNum(o.total_tool_calls)} tool calls</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Tokens</div>
+          <div class="stat-value">${fmtNum(o.total_tokens)}</div>
+          <div class="stat-sub">in: ${fmtNum(o.total_input_tokens)} / out: ${fmtNum(o.total_output_tokens)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Est. Cost</div>
+          <div class="stat-value amber">$${o.estimated_cost_usd.toFixed(2)}</div>
+          <div class="stat-sub">cache: ${fmtNum(o.total_cache_read_tokens)} read</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Time</div>
+          <div class="stat-value">${o.total_hours > 0 ? o.total_hours + "h" : "-"}</div>
+          <div class="stat-sub">avg: ${fmtDuration(o.avg_session_duration)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Period</div>
+          <div class="stat-value" style="font-size: 16px;">${dashDays}d</div>
+          <div class="stat-sub">${data.days} days</div>
+        </div>
+      `;
+    }
+
+    function renderActivity(data) {
+      const panel = document.getElementById("activityPanel");
+      if (data.empty || !data.activity?.by_day) { panel.style.display = "none"; return; }
+      panel.style.display = "block";
+      const act = data.activity;
+
+      // Day of week bars
+      const maxDay = Math.max(...act.by_day.map(d => d.count), 1);
+      document.getElementById("activityDays").innerHTML = act.by_day.map(d => {
+        const pct = Math.round(d.count / maxDay * 100);
+        return `<div class="bar-row">
+          <span class="bar-label">${d.day}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          <span class="bar-count">${d.count}</span>
+        </div>`;
+      }).join("");
+
+      // Hour heatmap
+      const maxHour = Math.max(...act.by_hour.map(h => h.count), 1);
+      document.getElementById("activityHours").innerHTML = act.by_hour.map(h => {
+        const ratio = h.count / maxHour;
+        let cls = "";
+        if (ratio > 0.75) cls = "h4";
+        else if (ratio > 0.5) cls = "h3";
+        else if (ratio > 0.25) cls = "h2";
+        else if (h.count > 0) cls = "h1";
+        const hr = h.hour % 12 || 12;
+        const ampm = h.hour < 12 ? "a" : "p";
+        return `<div class="hour-cell ${cls}" title="${h.hour}:00 - ${h.count} sessions">${hr}${ampm}</div>`;
+      }).join("");
+
+      // Meta
+      const parts = [];
+      if (act.active_days) parts.push(`${act.active_days} active days`);
+      if (act.max_streak > 1) parts.push(`${act.max_streak}-day streak`);
+      document.getElementById("activityMeta").textContent = parts.join(" / ");
+    }
+
+    function renderModels(data) {
+      const panel = document.getElementById("modelsPanel");
+      if (data.empty || !data.models?.length) { panel.style.display = "none"; return; }
+      panel.style.display = "block";
+      const maxTokens = Math.max(...data.models.map(m => m.tokens), 1);
+      document.getElementById("modelsList").innerHTML = data.models.map(m => `
+        <div class="dash-table-row">
+          <div class="dash-table-name">${m.model}</div>
+          <div class="dash-table-bar"><div class="dash-table-bar-fill" style="width:${Math.round(m.tokens/maxTokens*100)}%"></div></div>
+          <div class="dash-table-val">${m.sessions} sess</div>
+          <div class="dash-table-val">${fmtNum(m.tokens)} tok</div>
+          <div class="dash-table-val phosphor">$${m.cost.toFixed(2)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderPlatforms(data) {
+      const panel = document.getElementById("platformsPanel");
+      if (data.empty || !data.platforms?.length || (data.platforms.length === 1 && data.platforms[0].platform === "cli")) {
+        panel.style.display = "none"; return;
+      }
+      panel.style.display = "block";
+      const maxSess = Math.max(...data.platforms.map(p => p.sessions), 1);
+      document.getElementById("platformsList").innerHTML = data.platforms.map(p => `
+        <div class="dash-table-row">
+          <div class="dash-table-name">${p.platform}</div>
+          <div class="dash-table-bar"><div class="dash-table-bar-fill amber" style="width:${Math.round(p.sessions/maxSess*100)}%"></div></div>
+          <div class="dash-table-val">${p.sessions} sess</div>
+          <div class="dash-table-val">${fmtNum(p.messages)} msgs</div>
+          <div class="dash-table-val">${fmtNum(p.tokens)} tok</div>
+        </div>
+      `).join("");
+    }
+
+    function renderTools(data) {
+      const panel = document.getElementById("toolsPanel");
+      if (data.empty || !data.tools?.length) { panel.style.display = "none"; return; }
+      panel.style.display = "block";
+      const maxCount = Math.max(...data.tools.map(t => t.count), 1);
+      document.getElementById("toolsList").innerHTML = data.tools.map(t => `
+        <div class="dash-table-row">
+          <div class="dash-table-name">${t.tool}</div>
+          <div class="dash-table-bar"><div class="dash-table-bar-fill" style="width:${Math.round(t.count/maxCount*100)}%"></div></div>
+          <div class="dash-table-val">${fmtNum(t.count)}</div>
+          <div class="dash-table-val">${t.percentage.toFixed(1)}%</div>
+        </div>
+      `).join("");
+    }
+
+    function renderNotable(data) {
+      const panel = document.getElementById("notablePanel");
+      if (data.empty || !data.top_sessions?.length) { panel.style.display = "none"; return; }
+      panel.style.display = "block";
+      document.getElementById("notableList").innerHTML = data.top_sessions.map(t => `
+        <div class="notable-item">
+          <span class="notable-label">${t.label}</span>
+          <span><span class="notable-value">${t.value}</span><span class="notable-date">${t.date}</span></span>
+        </div>
+      `).join("");
+    }
+
+    async function fetchSkills() {
+      try {
+        const data = await (await fetch("/api/skills")).json();
+        const panel = document.getElementById("skillsPanel");
+        if (!data.categories?.length) { panel.style.display = "none"; return; }
+        panel.style.display = "block";
+        document.querySelector("#skillsPanel .panel-indicator").textContent = `${data.total} SKILLS`;
+        document.getElementById("skillsGrid").innerHTML = data.categories.map(c => `
+          <div class="skill-card">
+            <span class="skill-name">${c.name}</span>
+            <span class="skill-count">${c.count}</span>
+          </div>
+        `).join("");
+      } catch (e) {}
+    }
+
+    async function fetchSessions() {
+      try {
+        const offset = sessionsPage * SESSIONS_PER_PAGE;
+        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}`)).json();
+        const panel = document.getElementById("sessionsPanel");
+        if (!data.total) { panel.style.display = "none"; return; }
+        panel.style.display = "block";
+        document.querySelector("#sessionsPanel .panel-indicator").textContent = `${data.total} TOTAL`;
+
+        const list = document.getElementById("sessionsList");
+        list.innerHTML = data.sessions.map(s => {
+          const dur = s.started_at && s.ended_at ? fmtDuration(s.ended_at - s.started_at) : "-";
+          const model = s.model ? (s.model.includes("/") ? s.model.split("/").pop() : s.model) : "?";
+          const title = s.title || model;
+          const date = s.started_at ? new Date(s.started_at * 1000).toLocaleDateString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+          const cost = s.estimated_cost_usd > 0 ? "$" + s.estimated_cost_usd.toFixed(4) : "-";
+          return `
+            <div class="session-row" onclick="toggleSession(this, '${s.id}')">
+              <span class="session-source">${s.source || "?"}</span>
+              <div class="session-info">
+                <div class="session-title">${title}</div>
+                <div class="session-meta">${date} / ${dur} / ${s.message_count || 0} msgs / ${fmtNum((s.input_tokens||0)+(s.output_tokens||0))} tok</div>
+              </div>
+              <span class="session-cost">${cost}</span>
+            </div>
+            <div class="session-detail" id="detail-${s.id}"></div>
+          `;
+        }).join("");
+
+        // Pagination
+        const totalPages = Math.ceil(data.total / SESSIONS_PER_PAGE);
+        const pag = document.getElementById("sessionsPagination");
+        if (totalPages <= 1) { pag.innerHTML = ""; return; }
+        pag.innerHTML = `
+          <button class="page-btn" onclick="sessionsPage=Math.max(0,sessionsPage-1);fetchSessions()" ${sessionsPage===0?"disabled":""}>PREV</button>
+          <span class="page-info">${sessionsPage+1} / ${totalPages}</span>
+          <button class="page-btn" onclick="sessionsPage=Math.min(${totalPages-1},sessionsPage+1);fetchSessions()" ${sessionsPage>=totalPages-1?"disabled":""}>NEXT</button>
+        `;
+      } catch (e) { console.error("Sessions fetch failed:", e); }
+    }
+
+    async function toggleSession(row, sessionId) {
+      const detail = document.getElementById("detail-" + sessionId);
+      if (detail.classList.contains("open")) {
+        detail.classList.remove("open");
+        return;
+      }
+      // Close other open details
+      document.querySelectorAll(".session-detail.open").forEach(d => d.classList.remove("open"));
+
+      detail.innerHTML = '<div class="dash-empty">LOADING...</div>';
+      detail.classList.add("open");
+      try {
+        const data = await (await fetch(`/api/sessions/${sessionId}/messages`)).json();
+        if (!data.messages?.length) {
+          detail.innerHTML = '<div class="dash-empty">NO MESSAGES</div>';
+          return;
+        }
+        // Show first 30 messages
+        detail.innerHTML = data.messages.slice(0, 30).map(m => {
+          if (m.role === "tool" && !m.content) return "";
+          const content = m.content || (m.tool_calls ? m.tool_calls.map(tc => `[${tc.function?.name || tc.name || "tool"}]`).join(" ") : "");
+          return `<div class="session-msg">
+            <div class="session-msg-role ${m.role}">${m.role}${m.tool_name ? " :: " + m.tool_name : ""}</div>
+            <div class="session-msg-content">${escapeHtml(content.slice(0, 500))}</div>
+          </div>`;
+        }).filter(Boolean).join("") || '<div class="dash-empty">NO VISIBLE MESSAGES</div>';
+      } catch (e) {
+        detail.innerHTML = '<div class="dash-empty">FAILED TO LOAD</div>';
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    async function fetchMemory() {
+      try {
+        const data = await (await fetch("/api/memory")).json();
+        const panel = document.getElementById("memoryPanel");
+        if (!data.soul && !data.memory) { panel.style.display = "none"; return; }
+        panel.style.display = "block";
+        let html = "";
+        if (data.soul) {
+          html += `<div style="font-size:10px; color:var(--amber); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; padding: 0 14px;">SOUL.md</div>
+                   <div class="memory-content">${escapeHtml(data.soul)}</div>`;
+        }
+        if (data.memory) {
+          html += `<div style="font-size:10px; color:var(--phosphor-dim); letter-spacing:1px; text-transform:uppercase; margin: 10px 0 4px; padding: 0 14px;">MEMORY.md</div>
+                   <div class="memory-content">${escapeHtml(data.memory)}</div>`;
+        }
+        if (data.has_user_profile) {
+          html += `<div style="font-size:10px; color:var(--text-muted); padding: 8px 14px 0; letter-spacing:0.5px;">USER.md profile active</div>`;
+        }
+        document.getElementById("memoryBody").innerHTML = html;
+      } catch (e) {}
+    }
+
+    // Initial dashboard load
+    fetchInsights();
+    // Refresh insights every 60s
+    setInterval(fetchInsights, 60000);
   </script>
 
   <!-- Import error overlay -->

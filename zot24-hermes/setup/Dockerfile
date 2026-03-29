@@ -1,15 +1,15 @@
-# Hermes Setup & Status Server for Umbrel
-# Lightweight Node.js server for first-run setup wizard and status dashboard
+# Hermes Setup & Dashboard Server for Umbrel
+# Lightweight Node.js server for first-run setup wizard and dashboard
 
 FROM node:20-alpine
 
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl python3 make g++
 
 WORKDIR /app
 
-RUN npm init -y && npm install qrcode@1.5.4
+RUN npm init -y && npm install qrcode@1.5.4 better-sqlite3@11.9.1
 
-COPY server.js wizard.html status.html ./
+COPY server.js wizard.html dashboard.html ./
 
 EXPOSE 8080
 
