@@ -239,11 +239,13 @@ async function handleRequest(req, res) {
 
       // Validate: need at least one LLM key
       const hasLlmKey = data.OPENROUTER_API_KEY || data.ANTHROPIC_API_KEY ||
-                        data.OLLAMA_BASE_URL || data.GLM_API_KEY ||
-                        data.KIMI_API_KEY || data.MINIMAX_API_KEY ||
-                        data.MINIMAX_CN_API_KEY || data.DEEPSEEK_API_KEY ||
-                        data.DASHSCOPE_API_KEY || data.OPENCODE_ZEN_API_KEY ||
-                        data.OPENCODE_GO_API_KEY;
+                        data.OLLAMA_BASE_URL || data.OPENAI_BASE_URL ||
+                        data.GLM_API_KEY || data.KIMI_API_KEY ||
+                        data.MINIMAX_API_KEY || data.MINIMAX_CN_API_KEY ||
+                        data.DEEPSEEK_API_KEY || data.DASHSCOPE_API_KEY ||
+                        data.OPENCODE_ZEN_API_KEY || data.OPENCODE_GO_API_KEY ||
+                        data.HF_TOKEN || data.GITHUB_TOKEN ||
+                        data.AI_GATEWAY_API_KEY;
       if (!hasLlmKey) {
         sendJson(res, 400, { error: "At least one LLM provider API key is required" });
         return;
@@ -265,6 +267,8 @@ async function handleRequest(req, res) {
         "GLM_API_KEY", "KIMI_API_KEY", "MINIMAX_API_KEY", "MINIMAX_CN_API_KEY",
         "DEEPSEEK_API_KEY", "DASHSCOPE_API_KEY",
         "OPENCODE_ZEN_API_KEY", "OPENCODE_GO_API_KEY",
+        "HF_TOKEN", "GITHUB_TOKEN", "AI_GATEWAY_API_KEY",
+        "OPENAI_BASE_URL", "OPENAI_API_KEY",
         "OLLAMA_BASE_URL", "HERMES_MODEL", "HERMES_PROVIDER",
         "TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID",
         "WHATSAPP_ENABLED", "WHATSAPP_ALLOWED_USERS", "WHATSAPP_MODE",
