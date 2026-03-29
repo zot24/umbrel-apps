@@ -115,7 +115,7 @@ jobs:
         run: |
           echo "${{ env.VERSION }}" > zot24-hermes/VERSION
 
-      - name: Update umbrel-app.yml
+      - name: Update umbrel-app.yml and docker-compose.yml
         run: |
           python3 -c "
           import os, re
@@ -124,14 +124,13 @@ jobs:
           with open('/tmp/release_notes.txt') as f:
               notes = f.read().strip()
 
+          # Update umbrel-app.yml
           path = 'zot24-hermes/umbrel-app.yml'
           with open(path) as f:
               content = f.read()
 
-          # Update version
           content = re.sub(r'^version: \".*\"', f'version: \"{semver}\"', content, flags=re.MULTILINE)
 
-          # Update releaseNotes (multiline folded scalar up to next top-level key)
           content = re.sub(
               r'releaseNotes:.*?(?=\n[a-z])',
               f'releaseNotes: >-\n  {notes}',
@@ -141,6 +140,16 @@ jobs:
 
           with open(path, 'w') as f:
               f.write(content)
+
+          # Update APP_VERSION in docker-compose.yml
+          dc_path = 'zot24-hermes/docker-compose.yml'
+          with open(dc_path) as f:
+              dc = f.read()
+
+          dc = re.sub(r'APP_VERSION: v.*', f'APP_VERSION: v{semver}', dc)
+
+          with open(dc_path, 'w') as f:
+              f.write(dc)
           "
 
       - name: Verify changes
@@ -155,7 +164,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add zot24-hermes/VERSION zot24-hermes/umbrel-app.yml
+          git add zot24-hermes/VERSION zot24-hermes/umbrel-app.yml zot24-hermes/docker-compose.yml
           git diff --cached --quiet || git commit -m "chore: update Hermes Agent to ${{ env.VERSION }}"
           # Pull with rebase in case build-web pushed during the build
           git pull --rebase origin main
