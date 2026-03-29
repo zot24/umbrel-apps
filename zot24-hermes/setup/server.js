@@ -13,9 +13,10 @@ const ENV_FILE = path.join(CONFIG_DIR, ".env");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.yaml");
 const STATE_FILE = path.join(CONFIG_DIR, "gateway_state.json");
 
-// Pre-load static files
-const WIZARD_HTML = fs.readFileSync(path.join(__dirname, "wizard.html"), "utf8");
-const STATUS_HTML = fs.readFileSync(path.join(__dirname, "status.html"), "utf8");
+// Pre-load static files with version injection
+const APP_VERSION = process.env.APP_VERSION || "dev";
+const WIZARD_HTML = fs.readFileSync(path.join(__dirname, "wizard.html"), "utf8").replaceAll("__APP_VERSION__", APP_VERSION);
+const STATUS_HTML = fs.readFileSync(path.join(__dirname, "status.html"), "utf8").replaceAll("__APP_VERSION__", APP_VERSION);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -725,6 +726,18 @@ async function handleRequest(req, res) {
       // Extract over existing data
       execSync(`tar xzf ${tmpFile} -C ${VOLUME_DIR}`, { timeout: 120000 });
       fs.unlinkSync(tmpFile);
+
+      // Remove HERMES_REGEN_CONFIG from .env so the imported config.yaml is preserved
+      // (the setup wizard sets this flag, which causes the entrypoint to overwrite config.yaml)
+      try {
+        if (fs.existsSync(ENV_FILE)) {
+          const envContent = fs.readFileSync(ENV_FILE, "utf8");
+          const cleaned = envContent.split("\n").filter(l => !l.startsWith("HERMES_REGEN_CONFIG=")).join("\n");
+          fs.writeFileSync(ENV_FILE, cleaned, { mode: 0o600 });
+        }
+      } catch (e) {
+        console.error("Warning: could not clean HERMES_REGEN_CONFIG from .env:", e.message);
+      }
 
       // Mark as configured (import implies prior setup)
       fs.writeFileSync(SETUP_SENTINEL, new Date().toISOString(), { mode: 0o644 });
