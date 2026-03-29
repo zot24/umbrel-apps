@@ -13,10 +13,9 @@ const ENV_FILE = path.join(CONFIG_DIR, ".env");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.yaml");
 const STATE_FILE = path.join(CONFIG_DIR, "gateway_state.json");
 
-// Pre-load static files, injecting version from environment
-const APP_VERSION = process.env.APP_VERSION || "unknown";
-const WIZARD_HTML = fs.readFileSync(path.join(__dirname, "wizard.html"), "utf8").replace(/__APP_VERSION__/g, APP_VERSION);
-const STATUS_HTML = fs.readFileSync(path.join(__dirname, "status.html"), "utf8").replace(/__APP_VERSION__/g, APP_VERSION);
+// Pre-load static files
+const WIZARD_HTML = fs.readFileSync(path.join(__dirname, "wizard.html"), "utf8");
+const STATUS_HTML = fs.readFileSync(path.join(__dirname, "status.html"), "utf8");
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -686,7 +685,7 @@ async function handleRequest(req, res) {
     try {
       const chunks = [];
       let size = 0;
-      const MAX_SIZE = 500 * 1024 * 1024; // 500MB limit
+      const MAX_SIZE = 2 * 1024 * 1024 * 1024; // 2GB limit
 
       await new Promise((resolve, reject) => {
         req.on("data", (chunk) => {

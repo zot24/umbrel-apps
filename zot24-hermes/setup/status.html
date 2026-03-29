@@ -640,14 +640,16 @@
       transition: opacity 0.3s;
     }
     .boot-footer:hover { opacity: 0.85; }
-    /* Corner help hint */
-    .corner-help {
+    /* Corner buttons */
+    .corner-buttons {
       position: fixed;
       bottom: 16px;
       right: 16px;
       z-index: 100;
+      display: flex;
+      gap: 8px;
     }
-    .corner-help-btn {
+    .corner-btn {
       width: 32px;
       height: 32px;
       border: 1px solid var(--text-muted);
@@ -662,12 +664,424 @@
       justify-content: center;
       transition: all 0.2s;
     }
-    .corner-help-btn:hover {
+    .corner-btn:hover {
       color: var(--phosphor);
       border-color: var(--phosphor);
       box-shadow: 0 0 14px var(--phosphor-glow);
       background: rgba(80,255,168,0.05);
     }
+    .corner-btn svg { width: 16px; height: 16px; }
+
+    /* Backup modal */
+    .backup-modal .modal-box {
+      border-color: var(--phosphor-dim);
+      max-width: 460px;
+    }
+    .backup-modal .modal-box::before {
+      background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+    }
+    .backup-modal .modal-header {
+      background: rgba(80,255,168,0.02);
+    }
+    .backup-modal .modal-icon { color: var(--phosphor); }
+    .backup-modal .modal-title { color: var(--phosphor); }
+    /* Import active state — swap green to amber */
+    .backup-modal.importing .modal-box { border-color: var(--amber-dim); }
+    .backup-modal.importing .modal-box::before {
+      background: linear-gradient(90deg, transparent, var(--amber-dim), transparent);
+    }
+    .backup-modal.importing .modal-header { background: rgba(255,192,77,0.02); }
+    .backup-modal.importing .modal-icon { color: var(--amber); }
+    .backup-modal.importing .modal-title { color: var(--amber); }
+    .backup-section {
+      margin-bottom: 16px;
+    }
+    .backup-section-label {
+      font-family: var(--body);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .backup-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .backup-terminal {
+      border: 1px solid var(--border);
+      background: #000;
+      overflow: hidden;
+    }
+    .backup-terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--body);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+    .backup-terminal-dot {
+      width: 6px; height: 6px;
+      background: var(--text-muted);
+      opacity: 0.4;
+    }
+    .backup-terminal-copy {
+      margin-left: auto;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--body);
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      padding: 2px 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .backup-terminal-copy:hover {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+    }
+    .backup-terminal-body {
+      padding: 12px 14px;
+      font-family: var(--body);
+      font-size: 11px;
+      line-height: 1.7;
+      color: var(--text-muted);
+      word-break: break-all;
+      white-space: normal;
+    }
+    .backup-terminal-body .prompt { color: var(--phosphor-dim); }
+    .backup-terminal-body .cmd { color: var(--phosphor); }
+    .backup-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 16px 0 12px;
+      opacity: 0.5;
+    }
+    .backup-status {
+      margin-top: 12px;
+      font-size: 12px;
+      font-family: var(--body);
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      line-height: 1.5;
+    }
+    .backup-progress {
+      margin-top: 12px;
+      display: none;
+    }
+    .backup-progress.active { display: block; }
+    .backup-progress-label {
+      font-family: var(--body);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .backup-progress-label.warning {
+      color: var(--amber);
+      animation: importLabelBlink 1s step-end infinite;
+    }
+    .backup-progress-label .warn-icon {
+      display: none;
+      font-size: 13px;
+    }
+    .backup-progress-label.warning .warn-icon {
+      display: inline;
+    }
+    .backup-progress-track {
+      height: 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      position: relative;
+    }
+    .backup-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--phosphor-dim);
+      transition: width 0.3s ease;
+      position: relative;
+    }
+    .backup-progress-bar.amber {
+      background: var(--amber-dim);
+    }
+    .backup-progress-bar::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 20px;
+      background: linear-gradient(90deg, transparent, var(--phosphor));
+      animation: progressGlow 1s ease-in-out infinite;
+    }
+    .backup-progress-bar.amber::after {
+      background: linear-gradient(90deg, transparent, var(--amber));
+    }
+    @keyframes progressGlow {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+    .backup-progress-bar.done {
+      background: var(--phosphor-dim);
+    }
+    .backup-progress-bar.done::after { display: none; }
+    .backup-progress-bar.done-amber {
+      background: var(--amber-dim);
+    }
+    .backup-progress-bar.done-amber::after { display: none; }
+    .backup-progress-bar.error {
+      background: var(--red-dim);
+    }
+    .backup-progress-bar.error::after { display: none; }
+
+    /* Import warning overlay — retro alert flash */
+    .import-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 20000;
+      pointer-events: none;
+    }
+    .import-overlay.active { display: block; }
+    .import-overlay-flash {
+      position: absolute;
+      inset: 0;
+      animation: importFlash 2s ease-in-out infinite;
+    }
+    @keyframes importFlash {
+      0%, 100% { background: rgba(255, 192, 77, 0); }
+      15% { background: rgba(255, 192, 77, 0.04); }
+      30% { background: rgba(255, 192, 77, 0); }
+      45% { background: rgba(255, 192, 77, 0.03); }
+      60% { background: rgba(255, 192, 77, 0); }
+    }
+    .import-overlay-scanline {
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 10%, var(--amber-dim) 50%, transparent 90%);
+      opacity: 0.3;
+      animation: importScanline 3s linear infinite;
+    }
+    @keyframes importScanline {
+      0% { top: -2px; }
+      100% { top: 100%; }
+    }
+    .import-overlay-border {
+      position: absolute;
+      inset: 0;
+      border: 2px solid transparent;
+      animation: importBorder 1.5s step-end infinite;
+    }
+    @keyframes importBorder {
+      0%, 100% { border-color: transparent; }
+      50% { border-color: rgba(255, 192, 77, 0.15); }
+    }
+    .import-overlay-label {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: var(--display);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      color: var(--amber);
+      padding: 4px 14px;
+      border: 1px solid var(--amber-dim);
+      background: rgba(6, 10, 13, 0.9);
+      animation: importLabelBlink 1s step-end infinite;
+      pointer-events: none;
+    }
+    @keyframes importLabelBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Import error overlay — red shake */
+    .import-error-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 25000;
+      background: rgba(6, 10, 13, 0.9);
+      align-items: center;
+      justify-content: center;
+      animation: importErrorFadeIn 0.15s ease-out;
+    }
+    .import-error-overlay.active { display: flex; }
+    @keyframes importErrorFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .import-error-overlay .error-flash {
+      position: absolute;
+      inset: 0;
+      animation: importErrorFlash 0.15s ease-out;
+    }
+    @keyframes importErrorFlash {
+      0% { background: rgba(255, 96, 96, 0.2); }
+      100% { background: transparent; }
+    }
+    .import-error-box {
+      border: 1px solid var(--red-dim);
+      background: var(--surface);
+      max-width: 380px;
+      width: 90%;
+      overflow: hidden;
+      animation: importErrorShake 0.5s ease-out;
+      position: relative;
+    }
+    .import-error-box::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--red), transparent);
+      opacity: 0.6;
+    }
+    @keyframes importErrorShake {
+      0%, 100% { transform: translateX(0); }
+      10% { transform: translateX(-8px); }
+      20% { transform: translateX(8px); }
+      30% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      50% { transform: translateX(-3px); }
+      60% { transform: translateX(3px); }
+      70% { transform: translateX(-1px); }
+      80% { transform: translateX(1px); }
+    }
+    .import-error-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 96, 96, 0.03);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .import-error-header .err-icon {
+      color: var(--red);
+      font-size: 18px;
+      animation: importLabelBlink 0.8s step-end infinite;
+    }
+    .import-error-header .err-title {
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--red);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .import-error-body {
+      padding: 18px;
+      font-family: var(--body);
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--text);
+    }
+    .import-error-body .err-msg {
+      color: var(--red);
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--red-dim);
+      background: rgba(255, 96, 96, 0.04);
+      font-size: 11px;
+      word-break: break-all;
+    }
+    .import-error-actions {
+      padding: 0 18px 18px;
+    }
+    .import-error-actions .btn {
+      border-color: var(--red-dim);
+      color: var(--red);
+      width: 100%;
+    }
+    .import-error-actions .btn:hover {
+      background: var(--red-glow);
+      box-shadow: 0 0 12px var(--red-glow);
+    }
+    .import-error-actions .btn::before { color: var(--red-dim); }
+
+    /* Import success toast */
+    .import-toast {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 25000;
+      background: rgba(6, 10, 13, 0.85);
+      align-items: center;
+      justify-content: center;
+      animation: modalFadeIn 0.3s ease-out;
+    }
+    .import-toast.active { display: flex; }
+    .import-toast-box {
+      border: 1px solid var(--phosphor-dim);
+      background: var(--surface);
+      max-width: 360px;
+      width: 90%;
+      overflow: hidden;
+      animation: modalSlideIn 0.25s ease-out;
+      position: relative;
+    }
+    .import-toast-box::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+      opacity: 0.6;
+    }
+    .import-toast-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(80, 255, 168, 0.02);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .import-toast-header .toast-icon { color: var(--phosphor); font-size: 16px; }
+    .import-toast-header .toast-title {
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--phosphor);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .import-toast-body {
+      padding: 18px;
+      font-family: var(--body);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+    .backup-footer {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--body);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+      opacity: 0.6;
+    }
+    .backup-footer svg { width: 12px; height: 12px; flex-shrink: 0; opacity: 0.5; }
+
+    /* Corner help hint */
+    .corner-help {
+      position: relative;
+    }
+    .corner-help .corner-btn { font-family: var(--display); font-weight: 700; }
     .corner-help-tip {
       display: none;
       position: absolute;
@@ -705,8 +1119,7 @@
     }
     .corner-help-tip a:hover { color: var(--phosphor); }
     .corner-help.open .corner-help-tip { display: block; }
-    .corner-help.open .corner-help-btn {
-      opacity: 1;
+    .corner-help.open .corner-btn {
       color: var(--phosphor);
       border-color: var(--phosphor-dim);
       background: var(--phosphor-glow);
@@ -798,35 +1211,13 @@
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">Backup</span>
-        <span class="panel-indicator">SYS.BACKUP</span>
-      </div>
-      <div class="panel-body">
-        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 10px;">
-          Export or restore your agent state &mdash; config, memory, sessions, skills, and cron jobs.
-        </div>
-        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px; padding: 8px 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.15);">
-          <span style="color: var(--amber-dim);">TIP:</span> Migrating from an existing install? Run this on your old machine:<br>
-          <code style="color: var(--phosphor); background: rgba(80,255,168,0.08); padding: 2px 6px; font-family: var(--body); font-size: 10px; user-select: all;">curl -fsSL https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-hermes/hermes-export.sh | bash</code>
-        </div>
-        <div class="actions" style="margin-top: 0;">
-          <button class="btn btn-primary" id="exportBtn" onclick="exportBackup()">Export</button>
-          <button class="btn btn-secondary" id="importBtn" onclick="document.getElementById('importFile').click()">Import</button>
-          <input type="file" id="importFile" accept=".tar.gz,.tgz" style="display:none" onchange="importBackup(this)">
-        </div>
-        <div id="backupStatus" style="display: none; margin-top: 10px; font-size: 12px; padding: 8px 10px; border: 1px solid var(--border);"></div>
-      </div>
-    </div>
-
     <div class="actions">
       <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
       <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart</button>
     </div>
 
     <div class="boot-footer">
-      <div class="version">HERMES AGENT __APP_VERSION__ // UMBREL NODE</div>
+      <div class="version">HERMES AGENT v0.4.0 // UMBREL NODE</div>
       <div class="credits">
         <span>powered by</span>
         <a href="https://github.com/zot24" target="_blank" rel="noopener">
@@ -842,13 +1233,74 @@
     </div>
   </div>
 
-  <!-- Corner help -->
-  <div class="corner-help" id="cornerHelp" onclick="this.classList.toggle('open')">
-    <div class="corner-help-tip">
-      Need deeper configuration? Send <code>/hermes-agent-setup</code> from any connected channel (Telegram, WhatsApp, etc.) to configure models, providers, tools, voice, gateway, and more.<br><br>
-      <a href="https://hermes-agent.nousresearch.com/docs/reference/skills-catalog" target="_blank" rel="noopener">View bundled skills catalog</a>
+  <!-- Corner buttons -->
+  <div class="corner-buttons">
+    <div class="corner-btn" onclick="openBackupModal()" title="Backup">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><rect x="4" y="2" width="16" height="20"/><rect x="7" y="2" width="10" height="7"/><rect x="7" y="14" width="10" height="4"/><line x1="13" y1="4" x2="13" y2="7"/></svg>
     </div>
-    <div class="corner-help-btn">?</div>
+    <div class="corner-help" id="cornerHelp" onclick="this.classList.toggle('open')">
+      <div class="corner-help-tip">
+        Need deeper configuration? Send <code>/hermes-agent-setup</code> from any connected channel (Telegram, WhatsApp, etc.) to configure models, providers, tools, voice, gateway, and more.<br><br>
+        <a href="https://hermes-agent.nousresearch.com/docs/reference/skills-catalog" target="_blank" rel="noopener">View bundled skills catalog</a>
+      </div>
+      <div class="corner-btn">?</div>
+    </div>
+  </div>
+
+  <!-- Backup modal -->
+  <div class="modal-backdrop backup-modal" id="backupModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span class="modal-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><rect x="4" y="2" width="16" height="20"/><rect x="7" y="2" width="10" height="7"/><rect x="7" y="14" width="10" height="4"/><line x1="13" y1="4" x2="13" y2="7"/></svg>
+        </span>
+        <span class="modal-title">Backup</span>
+        <span style="margin-left: auto; font-family: var(--body); font-size: 10px; color: var(--text-muted); letter-spacing: 1px;">SYS.BACKUP</span>
+      </div>
+      <div class="modal-body">
+        <div class="backup-desc">
+          Export or restore your agent state &mdash; config, memory, sessions, skills, cron jobs, and scripts.
+        </div>
+
+        <div class="backup-section">
+          <div class="backup-section-label">Actions</div>
+          <div class="actions" style="margin-top: 0;">
+            <button class="btn btn-primary" id="exportBtn" onclick="exportBackup()">Export</button>
+            <button class="btn btn-secondary" id="importBtn" onclick="document.getElementById('importFile').click()">Import</button>
+            <input type="file" id="importFile" accept=".tar.gz,.tgz" style="display:none" onchange="importBackup(this)">
+          </div>
+          <div class="backup-progress" id="backupProgress">
+            <div class="backup-progress-label" id="backupProgressLabel"><span class="warn-icon">&#9888;</span><span id="backupProgressText"></span></div>
+            <div class="backup-progress-track">
+              <div class="backup-progress-bar" id="backupProgressBar"></div>
+            </div>
+          </div>
+          <div class="backup-status" id="backupStatus" style="display: none;"></div>
+        </div>
+
+        <hr class="backup-divider">
+
+        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; opacity: 0.7;">
+          Migrating from an existing Hermes install? Run this on your old machine to generate a backup file, then use Import above.
+        </div>
+        <div class="backup-terminal">
+          <div class="backup-terminal-bar">
+            <span class="backup-terminal-dot"></span>
+            <span class="backup-terminal-dot"></span>
+            <span class="backup-terminal-dot"></span>
+            <span style="margin-left: 4px;">terminal</span>
+            <button class="backup-terminal-copy" id="termCopyBtn" onclick="copyExportCmd()">COPY</button>
+          </div>
+          <div class="backup-terminal-body">
+            <span class="prompt">$</span> <span class="cmd" id="termCmd">curl -fsSL https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-hermes/hermes-export.sh | bash</span>
+          </div>
+        </div>
+      </div>
+      <div class="backup-footer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Includes config, secrets, state.db, sessions, memories, skills, and scripts. Excludes caches and logs.
+      </div>
+    </div>
   </div>
 
   <!-- Confirm modal -->
@@ -875,7 +1327,7 @@
       document.getElementById("modalBody").textContent = message;
       document.getElementById("modalConfirmBtn").textContent = confirmText;
       modalCallback = onConfirm;
-      document.getElementById("modalConfirmBtn").onclick = () => { closeModal(); if (modalCallback) modalCallback(); };
+      document.getElementById("modalConfirmBtn").onclick = () => { const cb = modalCallback; closeModal(); if (cb) cb(); };
       document.getElementById("confirmModal").classList.add("show");
     }
 
@@ -1116,6 +1568,34 @@
       });
     })();
 
+    function openBackupModal() {
+      document.getElementById("backupModal").classList.add("show");
+      document.getElementById("backupStatus").style.display = "none";
+    }
+
+    function closeBackupModal() {
+      document.getElementById("backupModal").classList.remove("show", "importing");
+    }
+
+    document.getElementById("backupModal").addEventListener("click", function(e) {
+      if (e.target === this) closeBackupModal();
+    });
+
+    function copyExportCmd() {
+      const cmd = document.getElementById("termCmd").textContent;
+      const btn = document.getElementById("termCopyBtn");
+      navigator.clipboard.writeText(cmd).then(() => {
+        btn.textContent = "COPIED";
+        btn.style.color = "var(--phosphor)";
+        btn.style.borderColor = "var(--phosphor-dim)";
+        setTimeout(() => {
+          btn.textContent = "COPY";
+          btn.style.color = "";
+          btn.style.borderColor = "";
+        }, 1500);
+      });
+    }
+
     function showBackupStatus(msg, isError) {
       const el = document.getElementById("backupStatus");
       el.style.display = "block";
@@ -1124,22 +1604,123 @@
       el.textContent = msg;
     }
 
-    function exportBackup() {
+    function showProgress(label, pct, state, isWarning) {
+      const wrap = document.getElementById("backupProgress");
+      const lbl = document.getElementById("backupProgressLabel");
+      const txt = document.getElementById("backupProgressText");
+      const bar = document.getElementById("backupProgressBar");
+      wrap.classList.add("active");
+      txt.textContent = label;
+      lbl.className = "backup-progress-label" + (isWarning ? " warning" : "");
+      bar.style.width = pct + "%";
+      bar.className = "backup-progress-bar" + (state ? " " + state : "") + (isWarning && !state ? " amber" : "");
+    }
+
+    function hideProgress() {
+      document.getElementById("backupProgress").classList.remove("active");
+    }
+
+    let progressTimer = null;
+    function simulateProgress(label, durationMs, isWarning) {
+      const startedAt = Date.now();
+      const minShowMs = isWarning ? 3000 : 2500;
+      showProgress(label, 0, "", isWarning);
+      let pct = 0;
+      const step = 50;
+      const inc = (90 / (durationMs / step));
+      progressTimer = setInterval(() => {
+        pct = Math.min(pct + inc + Math.random() * inc * 0.5, 92);
+        showProgress(label, pct, "", isWarning);
+      }, step);
+      return {
+        complete(msg) {
+          const elapsed = Date.now() - startedAt;
+          const delay = Math.max(0, minShowMs - elapsed);
+          setTimeout(() => {
+            clearInterval(progressTimer);
+            showProgress(msg || label, 100, isWarning ? "done-amber" : "done", isWarning);
+            setTimeout(hideProgress, 2000);
+          }, delay);
+        },
+        error(msg) {
+          clearInterval(progressTimer);
+          showProgress(msg || "ERROR", 100, "error", false);
+          setTimeout(hideProgress, 3000);
+        }
+      };
+    }
+
+    async function exportBackup() {
       const btn = document.getElementById("exportBtn");
       btn.disabled = true; btn.textContent = "PACKING...";
-      showBackupStatus("Creating backup archive...", false);
+      document.getElementById("backupStatus").style.display = "none";
 
-      const a = document.createElement("a");
-      a.href = "/api/export";
-      a.download = "";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const prog = simulateProgress("PACKING ARCHIVE...", 10000);
 
-      setTimeout(() => {
-        btn.disabled = false; btn.textContent = "Export";
-        showBackupStatus("Export complete. Check your downloads.", false);
-      }, 3000);
+      try {
+        const resp = await fetch("/api/export");
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data.error || "Export failed");
+        }
+
+        const blob = await resp.blob();
+        const disposition = resp.headers.get("Content-Disposition") || "";
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        const filename = match ? match[1] : "hermes-backup.tar.gz";
+
+        // Use File System Access API to detect save vs cancel
+        if (window.showSaveFilePicker) {
+          try {
+            const handle = await window.showSaveFilePicker({
+              suggestedName: filename,
+              types: [{ description: "Backup archive", accept: { "application/gzip": [".tar.gz"] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            prog.complete("DOWNLOAD READY");
+          } catch (e) {
+            if (e.name === "AbortError") { prog.complete("CANCELLED"); }
+            else throw e;
+          }
+        } else {
+          // Fallback: auto-download via hidden link
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+          prog.complete("DOWNLOAD READY");
+        }
+      } catch (e) {
+        if (e.name !== "AbortError") {
+          prog.error("EXPORT FAILED");
+          showBackupStatus("Export failed: " + e.message, true);
+        }
+      }
+      btn.disabled = false; btn.textContent = "Export";
+    }
+
+    function showImportError(msg) {
+      document.getElementById("importErrorMsg").textContent = msg;
+      document.getElementById("importErrorOverlay").classList.add("active");
+    }
+
+    function closeImportError() {
+      document.getElementById("importErrorOverlay").classList.remove("active");
+    }
+
+    function showImportOverlay(label) {
+      document.getElementById("importOverlayLabel").textContent = label;
+      document.getElementById("importOverlay").classList.add("active");
+    }
+
+    function hideImportOverlay() {
+      document.getElementById("importOverlay").classList.remove("active");
     }
 
     function importBackup(input) {
@@ -1154,7 +1735,12 @@
         async () => {
           const btn = document.getElementById("importBtn");
           btn.disabled = true; btn.textContent = "RESTORING...";
-          showBackupStatus("Uploading and extracting backup...", false);
+          document.getElementById("backupStatus").style.display = "none";
+
+          document.getElementById("backupModal").classList.add("importing");
+          document.getElementById("exportBtn").disabled = true;
+          showImportOverlay("RESTORING BACKUP");
+          const prog = simulateProgress("UPLOADING BACKUP...", 12000, true);
 
           try {
             const resp = await fetch("/api/import", {
@@ -1164,15 +1750,32 @@
             });
             const data = await resp.json();
             if (data.success) {
-              showBackupStatus(data.message || "Backup restored successfully.", false);
-              setTimeout(fetchStatus, 3000);
+              prog.complete("RESTORE COMPLETE");
+              // Wait for progress bar to finish its minimum display, then show overlay transition + toast
+              setTimeout(() => {
+                showImportOverlay("RESTARTING GATEWAY");
+                setTimeout(() => {
+                  hideImportOverlay();
+                  closeBackupModal();
+                  document.getElementById("importToastBody").textContent = data.message || "Backup restored. Gateway is restarting...";
+                  document.getElementById("importToast").classList.add("active");
+                  setTimeout(() => { document.getElementById("importToast").classList.remove("active"); fetchStatus(); }, 5000);
+                }, 2500);
+              }, 3500);
             } else {
-              showBackupStatus("Error: " + (data.error || "Unknown error"), true);
+              hideImportOverlay();
+              prog.error("RESTORE FAILED");
+              closeBackupModal();
+              showImportError(data.error || "Unknown error");
             }
           } catch (e) {
-            showBackupStatus("Upload failed: " + e.message, true);
+            hideImportOverlay();
+            prog.error("UPLOAD FAILED");
+            closeBackupModal();
+            showImportError(e.message);
           }
           btn.disabled = false; btn.textContent = "Import";
+          document.getElementById("exportBtn").disabled = false;
         }
       );
     }
@@ -1182,5 +1785,44 @@
     setInterval(fetchPairing, 5000);
     fetchPairing();
   </script>
+
+  <!-- Import error overlay -->
+  <div class="import-error-overlay" id="importErrorOverlay">
+    <div class="error-flash"></div>
+    <div class="import-error-box">
+      <div class="import-error-header">
+        <span class="err-icon">&#9888;</span>
+        <span class="err-title">Restore Failed</span>
+      </div>
+      <div class="import-error-body">
+        Something went wrong while restoring your backup.
+        <div class="err-msg" id="importErrorMsg"></div>
+      </div>
+      <div class="import-error-actions">
+        <button class="btn" onclick="closeImportError()">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import success toast -->
+  <div class="import-toast" id="importToast" onclick="this.classList.remove('active')">
+    <div class="import-toast-box">
+      <div class="import-toast-header">
+        <span class="toast-icon">&#10003;</span>
+        <span class="toast-title">Restore Complete</span>
+      </div>
+      <div class="import-toast-body" id="importToastBody">
+        Backup restored. Gateway is restarting...
+      </div>
+    </div>
+  </div>
+
+  <!-- Import warning overlay -->
+  <div class="import-overlay" id="importOverlay">
+    <div class="import-overlay-flash"></div>
+    <div class="import-overlay-scanline"></div>
+    <div class="import-overlay-border"></div>
+    <div class="import-overlay-label" id="importOverlayLabel">RESTORING BACKUP</div>
+  </div>
 </body>
 </html>
