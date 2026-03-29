@@ -737,6 +737,14 @@
       align-items: center;
       gap: 6px;
     }
+    .bk-progress-label.success {
+      color: var(--phosphor);
+      animation: none;
+    }
+    .bk-progress-label.error {
+      color: var(--red);
+      animation: none;
+    }
     .bk-progress-track {
       height: 6px;
       background: var(--surface-2);
@@ -1363,6 +1371,7 @@
       status.style.display = "none";
       bar.style.width = "0%";
       bar.className = "bk-progress-bar";
+      label.parentElement.className = "bk-progress-label";
       label.textContent = "UPLOADING BACKUP...";
 
       let pct = 0;
@@ -1380,11 +1389,13 @@
         .then(data => {
           clearInterval(bkTimer);
           if (data.success) {
+            label.parentElement.className = "bk-progress-label success";
             label.textContent = "RESTORE COMPLETE";
             bar.className = "bk-progress-bar done";
             bar.style.width = "100%";
             setTimeout(() => { window.location.href = "/"; }, 2000);
           } else {
+            label.parentElement.className = "bk-progress-label error";
             bar.className = "bk-progress-bar error";
             bar.style.width = "100%";
             label.textContent = "RESTORE FAILED";
@@ -1398,6 +1409,7 @@
         })
         .catch(e => {
           clearInterval(bkTimer);
+          label.parentElement.className = "bk-progress-label error";
           bar.className = "bk-progress-bar error";
           bar.style.width = "100%";
           label.textContent = "UPLOAD FAILED";
