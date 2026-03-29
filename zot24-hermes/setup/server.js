@@ -12,11 +12,78 @@ const SETUP_SENTINEL = path.join(VOLUME_DIR, ".setup-complete");
 const ENV_FILE = path.join(CONFIG_DIR, ".env");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.yaml");
 const STATE_FILE = path.join(CONFIG_DIR, "gateway_state.json");
+const STATE_DB = path.join(CONFIG_DIR, "state.db");
+const SKILLS_DIR = path.join(CONFIG_DIR, "skills");
+const MEMORIES_DIR = path.join(CONFIG_DIR, "memories");
 
 // Pre-load static files with version injection
 const APP_VERSION = process.env.APP_VERSION || "dev";
 const WIZARD_HTML = fs.readFileSync(path.join(__dirname, "wizard.html"), "utf8").replaceAll("__APP_VERSION__", APP_VERSION);
-const STATUS_HTML = fs.readFileSync(path.join(__dirname, "status.html"), "utf8").replaceAll("__APP_VERSION__", APP_VERSION);
+const DASHBOARD_HTML = fs.readFileSync(path.join(__dirname, "dashboard.html"), "utf8").replaceAll("__APP_VERSION__", APP_VERSION);
+
+// ── SQLite helpers ──────────────────────────────────────────────────────────
+
+let Database;
+try {
+  Database = require("better-sqlite3");
+} catch (e) {
+  console.warn("better-sqlite3 not available, dashboard endpoints will return empty data");
+}
+
+function openStateDb() {
+  if (!Database || !fs.existsSync(STATE_DB)) return null;
+  try {
+    const db = new Database(STATE_DB, { readonly: true, fileMustExist: true });
+    db.pragma("journal_mode = WAL");
+    return db;
+  } catch (e) {
+    console.error("Failed to open state.db:", e.message);
+    return null;
+  }
+}
+
+// ── Model pricing (subset of hermes-agent usage_pricing.py) ─────────────────
+
+const MODEL_PRICING = {
+  "claude-opus-4-20250514":       { input: 15.00, output: 75.00, cache_read: 1.50, cache_write: 18.75 },
+  "claude-sonnet-4-20250514":     { input: 3.00,  output: 15.00, cache_read: 0.30, cache_write: 3.75 },
+  "claude-3-5-sonnet-20241022":   { input: 3.00,  output: 15.00, cache_read: 0.30, cache_write: 3.75 },
+  "claude-3-5-haiku-20241022":    { input: 0.80,  output: 4.00,  cache_read: 0.08, cache_write: 1.00 },
+  "claude-3-opus-20240229":       { input: 15.00, output: 75.00, cache_read: 1.50, cache_write: 18.75 },
+  "claude-3-haiku-20240307":      { input: 0.25,  output: 1.25,  cache_read: 0.03, cache_write: 0.30 },
+  "gpt-4o":                       { input: 2.50,  output: 10.00, cache_read: 1.25 },
+  "gpt-4o-mini":                  { input: 0.15,  output: 0.60,  cache_read: 0.075 },
+  "gpt-4.1":                      { input: 2.00,  output: 8.00,  cache_read: 0.50 },
+  "gpt-4.1-mini":                 { input: 0.40,  output: 1.60,  cache_read: 0.10 },
+  "gpt-4.1-nano":                 { input: 0.10,  output: 0.40,  cache_read: 0.025 },
+  "o3":                           { input: 10.00, output: 40.00, cache_read: 2.50 },
+  "o3-mini":                      { input: 1.10,  output: 4.40,  cache_read: 0.55 },
+  "deepseek-chat":                { input: 0.27,  output: 1.10,  cache_read: 0.07 },
+  "deepseek-reasoner":            { input: 0.55,  output: 2.19,  cache_read: 0.14 },
+};
+
+function getModelPricing(modelName) {
+  if (!modelName) return null;
+  // Strip provider prefix (e.g. "anthropic/claude-sonnet-4-20250514" → "claude-sonnet-4-20250514")
+  const short = modelName.includes("/") ? modelName.split("/").pop() : modelName;
+  return MODEL_PRICING[short] || null;
+}
+
+function estimateCost(session) {
+  // Use stored cost if available
+  if (session.estimated_cost_usd != null && session.estimated_cost_usd > 0) {
+    return session.estimated_cost_usd;
+  }
+  const pricing = getModelPricing(session.model);
+  if (!pricing) return 0;
+  const M = 1_000_000;
+  return (
+    ((session.input_tokens || 0) * pricing.input / M) +
+    ((session.output_tokens || 0) * pricing.output / M) +
+    ((session.cache_read_tokens || 0) * (pricing.cache_read || 0) / M) +
+    ((session.cache_write_tokens || 0) * (pricing.cache_write || 0) / M)
+  );
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -211,7 +278,7 @@ async function handleRequest(req, res) {
 
   // ── Static pages ──
   if (req.method === "GET" && url.pathname === "/") {
-    sendHtml(res, isConfigured() ? STATUS_HTML : WIZARD_HTML);
+    sendHtml(res, isConfigured() ? DASHBOARD_HTML : WIZARD_HTML);
     return;
   }
 
@@ -802,9 +869,366 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: Dashboard insights ──
+  if (req.method === "GET" && url.pathname === "/api/insights") {
+    const days = parseInt(url.searchParams.get("days") || "30");
+    const sourceFilter = url.searchParams.get("source") || null;
+    const cutoff = Date.now() / 1000 - days * 86400;
+
+    const db = openStateDb();
+    if (!db) {
+      sendJson(res, 200, { empty: true, days, overview: {}, models: [], platforms: [], tools: [], activity: {}, top_sessions: [] });
+      return;
+    }
+
+    try {
+      // Fetch sessions
+      let sessions;
+      if (sourceFilter) {
+        sessions = db.prepare(
+          `SELECT id, source, model, started_at, ended_at, message_count, tool_call_count,
+                  input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+                  estimated_cost_usd, actual_cost_usd, cost_status, end_reason, title
+           FROM sessions WHERE started_at >= ? AND source = ? ORDER BY started_at DESC`
+        ).all(cutoff, sourceFilter);
+      } else {
+        sessions = db.prepare(
+          `SELECT id, source, model, started_at, ended_at, message_count, tool_call_count,
+                  input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+                  estimated_cost_usd, actual_cost_usd, cost_status, end_reason, title
+           FROM sessions WHERE started_at >= ? ORDER BY started_at DESC`
+        ).all(cutoff);
+      }
+
+      if (!sessions.length) {
+        db.close();
+        sendJson(res, 200, { empty: true, days, overview: {}, models: [], platforms: [], tools: [], activity: {}, top_sessions: [] });
+        return;
+      }
+
+      // Overview
+      let totalInput = 0, totalOutput = 0, totalCacheRead = 0, totalCacheWrite = 0;
+      let totalToolCalls = 0, totalMessages = 0, totalCost = 0;
+      const durations = [];
+      for (const s of sessions) {
+        totalInput += s.input_tokens || 0;
+        totalOutput += s.output_tokens || 0;
+        totalCacheRead += s.cache_read_tokens || 0;
+        totalCacheWrite += s.cache_write_tokens || 0;
+        totalToolCalls += s.tool_call_count || 0;
+        totalMessages += s.message_count || 0;
+        totalCost += estimateCost(s);
+        if (s.started_at && s.ended_at && s.ended_at > s.started_at) {
+          durations.push(s.ended_at - s.started_at);
+        }
+      }
+      const totalTokens = totalInput + totalOutput + totalCacheRead + totalCacheWrite;
+      const totalHours = durations.reduce((a, b) => a + b, 0) / 3600;
+      const avgDuration = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
+
+      const overview = {
+        total_sessions: sessions.length,
+        total_messages: totalMessages,
+        total_tool_calls: totalToolCalls,
+        total_input_tokens: totalInput,
+        total_output_tokens: totalOutput,
+        total_cache_read_tokens: totalCacheRead,
+        total_cache_write_tokens: totalCacheWrite,
+        total_tokens: totalTokens,
+        estimated_cost_usd: Math.round(totalCost * 100) / 100,
+        total_hours: Math.round(totalHours * 10) / 10,
+        avg_session_duration: Math.round(avgDuration),
+        avg_messages_per_session: Math.round(totalMessages / sessions.length * 10) / 10,
+      };
+
+      // Model breakdown
+      const modelMap = {};
+      for (const s of sessions) {
+        const model = s.model ? (s.model.includes("/") ? s.model.split("/").pop() : s.model) : "unknown";
+        if (!modelMap[model]) modelMap[model] = { model, sessions: 0, tokens: 0, cost: 0, tool_calls: 0 };
+        modelMap[model].sessions++;
+        modelMap[model].tokens += (s.input_tokens || 0) + (s.output_tokens || 0) + (s.cache_read_tokens || 0) + (s.cache_write_tokens || 0);
+        modelMap[model].cost += estimateCost(s);
+        modelMap[model].tool_calls += s.tool_call_count || 0;
+      }
+      const models = Object.values(modelMap).sort((a, b) => b.tokens - a.tokens);
+      models.forEach(m => { m.cost = Math.round(m.cost * 100) / 100; });
+
+      // Platform breakdown
+      const platMap = {};
+      for (const s of sessions) {
+        const src = s.source || "unknown";
+        if (!platMap[src]) platMap[src] = { platform: src, sessions: 0, messages: 0, tokens: 0 };
+        platMap[src].sessions++;
+        platMap[src].messages += s.message_count || 0;
+        platMap[src].tokens += (s.input_tokens || 0) + (s.output_tokens || 0);
+      }
+      const platforms = Object.values(platMap).sort((a, b) => b.sessions - a.sessions);
+
+      // Tool usage from messages
+      let tools = [];
+      try {
+        let toolRows;
+        if (sourceFilter) {
+          toolRows = db.prepare(
+            `SELECT m.tool_name, COUNT(*) as count
+             FROM messages m JOIN sessions s ON s.id = m.session_id
+             WHERE s.started_at >= ? AND s.source = ? AND m.role = 'tool' AND m.tool_name IS NOT NULL
+             GROUP BY m.tool_name ORDER BY count DESC LIMIT 20`
+          ).all(cutoff, sourceFilter);
+        } else {
+          toolRows = db.prepare(
+            `SELECT m.tool_name, COUNT(*) as count
+             FROM messages m JOIN sessions s ON s.id = m.session_id
+             WHERE s.started_at >= ? AND m.role = 'tool' AND m.tool_name IS NOT NULL
+             GROUP BY m.tool_name ORDER BY count DESC LIMIT 20`
+          ).all(cutoff);
+        }
+        const totalToolCount = toolRows.reduce((a, r) => a + r.count, 0);
+        tools = toolRows.map(r => ({
+          tool: r.tool_name,
+          count: r.count,
+          percentage: totalToolCount ? Math.round(r.count / totalToolCount * 1000) / 10 : 0,
+        }));
+      } catch (e) {
+        console.error("Tool usage query failed:", e.message);
+      }
+
+      // Activity patterns
+      const dayCounts = [0, 0, 0, 0, 0, 0, 0]; // Mon-Sun
+      const hourCounts = new Array(24).fill(0);
+      const dailyCounts = {};
+      for (const s of sessions) {
+        if (!s.started_at) continue;
+        const dt = new Date(s.started_at * 1000);
+        const dow = (dt.getDay() + 6) % 7; // Convert Sun=0 to Mon=0
+        dayCounts[dow]++;
+        hourCounts[dt.getHours()]++;
+        const dateKey = dt.toISOString().slice(0, 10);
+        dailyCounts[dateKey] = (dailyCounts[dateKey] || 0) + 1;
+      }
+      const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      const byDay = dayNames.map((d, i) => ({ day: d, count: dayCounts[i] }));
+      const byHour = hourCounts.map((c, i) => ({ hour: i, count: c }));
+
+      // Streak calculation
+      const sortedDates = Object.keys(dailyCounts).sort();
+      let maxStreak = sortedDates.length ? 1 : 0;
+      let curStreak = 1;
+      for (let i = 1; i < sortedDates.length; i++) {
+        const d1 = new Date(sortedDates[i - 1]);
+        const d2 = new Date(sortedDates[i]);
+        if ((d2 - d1) === 86400000) { curStreak++; maxStreak = Math.max(maxStreak, curStreak); }
+        else { curStreak = 1; }
+      }
+
+      const activity = {
+        by_day: byDay,
+        by_hour: byHour,
+        active_days: sortedDates.length,
+        max_streak: maxStreak,
+      };
+
+      // Top sessions
+      const topSessions = [];
+      const withDuration = sessions.filter(s => s.started_at && s.ended_at && s.ended_at > s.started_at);
+      if (withDuration.length) {
+        const longest = withDuration.reduce((a, b) => (b.ended_at - b.started_at) > (a.ended_at - a.started_at) ? b : a);
+        const dur = longest.ended_at - longest.started_at;
+        topSessions.push({ label: "Longest", session_id: longest.id.slice(0, 16), value: formatDuration(dur), date: fmtDate(longest.started_at) });
+      }
+      const mostMsgs = sessions.reduce((a, b) => (b.message_count || 0) > (a.message_count || 0) ? b : a);
+      if ((mostMsgs.message_count || 0) > 0) {
+        topSessions.push({ label: "Most messages", session_id: mostMsgs.id.slice(0, 16), value: `${mostMsgs.message_count} msgs`, date: fmtDate(mostMsgs.started_at) });
+      }
+      const mostTokens = sessions.reduce((a, b) => ((b.input_tokens || 0) + (b.output_tokens || 0)) > ((a.input_tokens || 0) + (a.output_tokens || 0)) ? b : a);
+      const tokenTotal = (mostTokens.input_tokens || 0) + (mostTokens.output_tokens || 0);
+      if (tokenTotal > 0) {
+        topSessions.push({ label: "Most tokens", session_id: mostTokens.id.slice(0, 16), value: `${tokenTotal.toLocaleString()} tok`, date: fmtDate(mostTokens.started_at) });
+      }
+      const mostTools = sessions.reduce((a, b) => (b.tool_call_count || 0) > (a.tool_call_count || 0) ? b : a);
+      if ((mostTools.tool_call_count || 0) > 0) {
+        topSessions.push({ label: "Most tool calls", session_id: mostTools.id.slice(0, 16), value: `${mostTools.tool_call_count} calls`, date: fmtDate(mostTools.started_at) });
+      }
+
+      db.close();
+      sendJson(res, 200, { empty: false, days, overview, models, platforms, tools, activity, top_sessions: topSessions });
+    } catch (e) {
+      try { db.close(); } catch (_) {}
+      console.error("Insights error:", e.message);
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Sessions list ──
+  if (req.method === "GET" && url.pathname === "/api/sessions") {
+    const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 200);
+    const offset = parseInt(url.searchParams.get("offset") || "0");
+    const sourceFilter = url.searchParams.get("source") || null;
+
+    const db = openStateDb();
+    if (!db) {
+      sendJson(res, 200, { sessions: [], total: 0 });
+      return;
+    }
+
+    try {
+      let total, rows;
+      if (sourceFilter) {
+        total = db.prepare("SELECT COUNT(*) as c FROM sessions WHERE source = ?").get(sourceFilter).c;
+        rows = db.prepare(
+          `SELECT id, source, model, started_at, ended_at, message_count, tool_call_count,
+                  input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+                  estimated_cost_usd, end_reason, title
+           FROM sessions WHERE source = ? ORDER BY started_at DESC LIMIT ? OFFSET ?`
+        ).all(sourceFilter, limit, offset);
+      } else {
+        total = db.prepare("SELECT COUNT(*) as c FROM sessions").get().c;
+        rows = db.prepare(
+          `SELECT id, source, model, started_at, ended_at, message_count, tool_call_count,
+                  input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+                  estimated_cost_usd, end_reason, title
+           FROM sessions ORDER BY started_at DESC LIMIT ? OFFSET ?`
+        ).all(limit, offset);
+      }
+
+      const sessions = rows.map(s => ({
+        ...s,
+        estimated_cost_usd: Math.round(estimateCost(s) * 10000) / 10000,
+      }));
+
+      db.close();
+      sendJson(res, 200, { sessions, total });
+    } catch (e) {
+      try { db.close(); } catch (_) {}
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Session messages ──
+  if (req.method === "GET" && url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/messages")) {
+    const sessionId = url.pathname.replace("/api/sessions/", "").replace("/messages", "");
+    const db = openStateDb();
+    if (!db) { sendJson(res, 200, { messages: [] }); return; }
+
+    try {
+      const messages = db.prepare(
+        `SELECT role, content, tool_name, tool_calls, timestamp, token_count, finish_reason
+         FROM messages WHERE session_id = ? ORDER BY timestamp ASC LIMIT 500`
+      ).all(sessionId);
+
+      db.close();
+      sendJson(res, 200, {
+        messages: messages.map(m => ({
+          role: m.role,
+          content: m.content ? m.content.slice(0, 2000) : null, // Truncate large content
+          tool_name: m.tool_name,
+          tool_calls: m.tool_calls ? (() => { try { return JSON.parse(m.tool_calls); } catch { return null; } })() : null,
+          timestamp: m.timestamp,
+          token_count: m.token_count,
+        })),
+      });
+    } catch (e) {
+      try { db.close(); } catch (_) {}
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Skills listing ──
+  if (req.method === "GET" && url.pathname === "/api/skills") {
+    const categories = [];
+    let total = 0;
+    try {
+      if (fs.existsSync(SKILLS_DIR)) {
+        const dirs = fs.readdirSync(SKILLS_DIR, { withFileTypes: true });
+        for (const d of dirs) {
+          if (!d.isDirectory()) continue;
+          const catPath = path.join(SKILLS_DIR, d.name);
+          const files = fs.readdirSync(catPath).filter(f => f.endsWith(".md"));
+          categories.push({ name: d.name, count: files.length, skills: files.map(f => f.replace(".md", "")) });
+          total += files.length;
+        }
+        categories.sort((a, b) => b.count - a.count);
+      }
+    } catch (e) {
+      console.error("Skills listing error:", e.message);
+    }
+    sendJson(res, 200, { categories, total });
+    return;
+  }
+
+  // ── API: Tools listing ──
+  if (req.method === "GET" && url.pathname === "/api/tools") {
+    // Read configured toolsets from config.yaml
+    let configuredToolsets = [];
+    try {
+      if (fs.existsSync(CONFIG_FILE)) {
+        const yaml = fs.readFileSync(CONFIG_FILE, "utf8");
+        const match = yaml.match(/toolsets:\s*\n((?:\s+-\s+.+\n?)*)/);
+        if (match) {
+          configuredToolsets = match[1].match(/- (.+)/g)?.map(m => m.replace("- ", "").trim()) || [];
+        }
+      }
+    } catch (e) {}
+
+    // Get tool usage from DB
+    let toolsUsed = [];
+    const db = openStateDb();
+    if (db) {
+      try {
+        toolsUsed = db.prepare(
+          `SELECT tool_name as name, COUNT(*) as calls
+           FROM messages WHERE role = 'tool' AND tool_name IS NOT NULL
+           GROUP BY tool_name ORDER BY calls DESC LIMIT 30`
+        ).all();
+        db.close();
+      } catch (e) { try { db.close(); } catch (_) {} }
+    }
+
+    sendJson(res, 200, { configured_toolsets: configuredToolsets, tools_used: toolsUsed });
+    return;
+  }
+
+  // ── API: Memory files ──
+  if (req.method === "GET" && url.pathname === "/api/memory") {
+    const result = { soul: null, memory: null, has_user_profile: false };
+    try {
+      const soulFile = path.join(MEMORIES_DIR, "SOUL.md");
+      const memoryFile = path.join(MEMORIES_DIR, "MEMORY.md");
+      const userFile = path.join(MEMORIES_DIR, "USER.md");
+      if (fs.existsSync(soulFile)) result.soul = fs.readFileSync(soulFile, "utf8");
+      if (fs.existsSync(memoryFile)) result.memory = fs.readFileSync(memoryFile, "utf8");
+      result.has_user_profile = fs.existsSync(userFile);
+    } catch (e) {
+      console.error("Memory read error:", e.message);
+    }
+    sendJson(res, 200, result);
+    return;
+  }
+
   // ── 404 ──
   res.writeHead(404, { "Content-Type": "text/plain" });
   res.end("Not Found");
+}
+
+// ── Dashboard helpers ────────────────────────────────────────────────────────
+
+function formatDuration(seconds) {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function fmtDate(ts) {
+  if (!ts) return "?";
+  const dt = new Date(ts * 1000);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[dt.getMonth()]} ${dt.getDate()}`;
 }
 
 // ── Server ───────────────────────────────────────────────────────────────────
