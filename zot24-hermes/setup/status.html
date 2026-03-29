@@ -395,6 +395,11 @@
     }
     .btn::before { content: '>'; margin-right: 6px; color: var(--text-muted); transition: color 0.15s; }
     .btn:active { transform: translateY(1px); }
+    .btn:disabled {
+      opacity: 0.35;
+      pointer-events: none;
+      cursor: not-allowed;
+    }
 
     .btn-primary { border-color: var(--phosphor-dim); color: var(--phosphor); }
     .btn-primary:hover {
@@ -1217,7 +1222,7 @@
     </div>
 
     <div class="boot-footer">
-      <div class="version">HERMES AGENT v0.4.0 // UMBREL NODE</div>
+      <div class="version">HERMES AGENT __APP_VERSION__ // UMBREL NODE</div>
       <div class="credits">
         <span>powered by</span>
         <a href="https://github.com/zot24" target="_blank" rel="noopener">
@@ -1584,16 +1589,27 @@
     function copyExportCmd() {
       const cmd = document.getElementById("termCmd").textContent;
       const btn = document.getElementById("termCopyBtn");
-      navigator.clipboard.writeText(cmd).then(() => {
+      function onCopied() {
         btn.textContent = "COPIED";
         btn.style.color = "var(--phosphor)";
         btn.style.borderColor = "var(--phosphor-dim)";
-        setTimeout(() => {
-          btn.textContent = "COPY";
-          btn.style.color = "";
-          btn.style.borderColor = "";
-        }, 1500);
-      });
+        setTimeout(() => { btn.textContent = "COPY"; btn.style.color = ""; btn.style.borderColor = ""; }, 1500);
+      }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(cmd).then(onCopied).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+      function fallbackCopy() {
+        const ta = document.createElement("textarea");
+        ta.value = cmd;
+        ta.style.cssText = "position:fixed;left:-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        onCopied();
+      }
     }
 
     function showBackupStatus(msg, isError) {

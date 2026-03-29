@@ -54,6 +54,36 @@ if [ -f "$HERMES_HOME/.env.local" ]; then
     set +a
 fi
 
+# ── Pre-approve Telegram home chat (skip pairing for the owner) ──────────────
+if [ -n "${TELEGRAM_HOME_CHAT_ID:-}" ]; then
+    approved_file="$HERMES_HOME/pairing/telegram-approved.json"
+    if [ ! -f "$approved_file" ] || ! grep -q "\"${TELEGRAM_HOME_CHAT_ID}\"" "$approved_file" 2>/dev/null; then
+        echo "Pre-approving Telegram home chat: $TELEGRAM_HOME_CHAT_ID"
+        mkdir -p "$HERMES_HOME/pairing"
+        # Merge with existing approvals if file exists
+        if [ -f "$approved_file" ]; then
+            python3 -c "
+import json, time
+with open('$approved_file') as f: d = json.load(f)
+d['${TELEGRAM_HOME_CHAT_ID}'] = {'user_name': 'owner', 'approved_at': time.time(), 'approved_via': 'entrypoint'}
+with open('$approved_file', 'w') as f: json.dump(d, f, indent=2)
+"
+        else
+            echo "{\"${TELEGRAM_HOME_CHAT_ID}\": {\"user_name\": \"owner\", \"approved_at\": $(date +%s), \"approved_via\": \"entrypoint\"}}" > "$approved_file"
+        fi
+        # Clear any rate limits for this user
+        rate_file="$HERMES_HOME/pairing/_rate_limits.json"
+        if [ -f "$rate_file" ]; then
+            python3 -c "
+import json
+with open('$rate_file') as f: d = json.load(f)
+d = {k:v for k,v in d.items() if not k.endswith(':${TELEGRAM_HOME_CHAT_ID}')}
+with open('$rate_file', 'w') as f: json.dump(d, f, indent=2)
+" 2>/dev/null || true
+        fi
+    fi
+fi
+
 # ── Generate config.yaml if needed ───────────────────────────────────────────
 config_file="$HERMES_HOME/config.yaml"
 
