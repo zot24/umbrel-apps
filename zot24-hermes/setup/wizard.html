@@ -996,6 +996,25 @@
           <div class="bk-progress-track"><div class="bk-progress-bar" id="bkProgressBar"></div></div>
         </div>
         <div class="bk-status" id="bkStatus"></div>
+        <div id="bkError" style="display:none;"></div>
+
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 16px 0 12px; opacity: 0.5;">
+
+        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; opacity: 0.7;">
+          Migrating from an existing Hermes install? Run this on your old machine to generate a backup file, then use Import above.
+        </div>
+        <div style="border: 1px solid var(--border); background: #000; overflow: hidden;">
+          <div style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); font-family: 'Fira Code', monospace; font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px;">
+            <span style="width:6px;height:6px;background:var(--text-muted);opacity:0.4;display:inline-block;"></span>
+            <span style="width:6px;height:6px;background:var(--text-muted);opacity:0.4;display:inline-block;"></span>
+            <span style="width:6px;height:6px;background:var(--text-muted);opacity:0.4;display:inline-block;"></span>
+            <span style="margin-left:4px;">terminal</span>
+            <button id="bkCopyBtn" onclick="bkCopyCmd()" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-muted);font-family:'Fira Code',monospace;font-size:9px;letter-spacing:0.5px;padding:2px 8px;cursor:pointer;">COPY</button>
+          </div>
+          <div style="padding: 12px 14px; font-family: 'Fira Code', monospace; font-size: 11px; line-height: 1.7; color: var(--text-muted); word-break: break-all;">
+            <span style="color: var(--phosphor-dim);">$</span> <span style="color: var(--phosphor);" id="bkCmd">curl -fsSL https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-hermes/hermes-export.sh | bash</span>
+          </div>
+        </div>
       </div>
       <div class="bk-footer">
         Restores config, secrets, state.db, sessions, memories, skills, and scripts.
@@ -1352,7 +1371,29 @@
 
     (async function() { try { const data = await (await fetch("/api/setup")).json(); if (data.configured && data.config?.HERMES_MODEL) { const sel = document.getElementById("model"); for (const opt of sel.options) { if (opt.value === data.config.HERMES_MODEL) { opt.selected = true; break; } } } } catch(e) {} })();
 
-    // ── Wizard import (skip setup) ──
+    // ── Wizard backup copy + import ──
+    function bkCopyCmd() {
+      const cmd = document.getElementById("bkCmd").textContent;
+      const btn = document.getElementById("bkCopyBtn");
+      function onCopied() {
+        btn.textContent = "COPIED";
+        btn.style.color = "var(--phosphor)";
+        btn.style.borderColor = "var(--phosphor-dim)";
+        setTimeout(() => { btn.textContent = "COPY"; btn.style.color = ""; btn.style.borderColor = ""; }, 1500);
+      }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(cmd).then(onCopied).catch(fallback);
+      } else { fallback(); }
+      function fallback() {
+        const ta = document.createElement("textarea");
+        ta.value = cmd; ta.style.cssText = "position:fixed;left:-9999px";
+        document.body.appendChild(ta); ta.select();
+        document.execCommand("copy"); document.body.removeChild(ta);
+        onCopied();
+      }
+    }
+
+    //
     let bkTimer = null;
     function wizardImport(input) {
       const file = input.files[0];
@@ -1373,6 +1414,10 @@
       bar.className = "bk-progress-bar";
       label.parentElement.className = "bk-progress-label";
       label.textContent = "UPLOADING BACKUP...";
+      const box = document.querySelector("#bkModal .bk-box");
+      box.style.borderColor = "";
+      box.style.boxShadow = "";
+      document.getElementById("bkError").style.display = "none";
 
       let pct = 0;
       bkTimer = setInterval(() => {
@@ -1407,30 +1452,55 @@
     function showImportError(msg) {
       const btn = document.getElementById("bkImportBtn");
       const prog = document.getElementById("bkProgress");
-      const modal = document.getElementById("bkModal");
+      const box = document.querySelector("#bkModal .bk-box");
+      const errEl = document.getElementById("bkError");
 
-      // Close modal and reset
-      modal.classList.remove("show");
-      prog.classList.remove("active");
-      btn.disabled = false;
-      btn.textContent = "Import Backup";
+      // Progress bar turns red — keep current position but ensure visible
+      clearInterval(bkTimer);
+      const bar = document.getElementById("bkProgressBar");
+      const label = document.getElementById("bkProgressText");
+      const currentWidth = parseFloat(bar.style.width) || 0;
+      bar.style.width = Math.max(currentWidth, 30) + "%";
+      bar.className = "bk-progress-bar error";
+      label.parentElement.className = "bk-progress-label error";
+      label.textContent = "RESTORE FAILED";
 
-      // Red flash
+      // Red flash overlay
       const flash = document.createElement("div");
       flash.className = "red-flash";
       document.body.appendChild(flash);
       setTimeout(() => flash.remove(), 700);
 
-      // Shake
-      const container = document.querySelector(".container");
-      container.classList.add("shake");
-      setTimeout(() => container.classList.remove("shake"), 500);
+      // Shake the modal box
+      box.style.animation = "none";
+      box.offsetHeight;
+      box.style.animation = "screenShake 0.5s ease-in-out";
+      setTimeout(() => { box.style.animation = ""; }, 600);
 
-      // Show error in step0 error area
-      const errEl = document.getElementById("step0Error");
-      errEl.className = "test-result error";
-      errEl.innerHTML = "<strong>RESTORE FAILED:</strong> " + msg;
-      setTimeout(() => { errEl.className = "test-result"; errEl.textContent = ""; }, 8000);
+      // Modal goes into error state (red border + glow)
+      box.style.borderColor = "rgba(255, 48, 48, 0.4)";
+      box.style.boxShadow = "0 0 20px rgba(255, 30, 20, 0.05), inset 0 0 30px rgba(255, 30, 20, 0.02)";
+
+      // Show error block (same style as wizard validation errors)
+      errEl.style.display = "block";
+      errEl.className = "error-block";
+      errEl.innerHTML = `
+        <div class="error-header">&gt; error</div>
+        <div class="error-msg">${msg}</div>
+        <div class="error-ascii">════════════════════════════════════</div>
+      `;
+
+      // Glitch cursor
+      const cursor = document.querySelector(".cursor");
+      if (cursor) {
+        cursor.style.background = "#ff4040";
+        cursor.style.boxShadow = "0 0 8px rgba(255,64,64,0.5)";
+        setTimeout(() => { cursor.style.background = ""; cursor.style.boxShadow = ""; }, 3000);
+      }
+
+      // Re-enable button for retry
+      btn.disabled = false;
+      btn.textContent = "Import Backup";
     }
   </script>
 </body>
