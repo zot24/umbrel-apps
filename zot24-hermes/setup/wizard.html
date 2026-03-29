@@ -658,6 +658,10 @@
               <option value="opencode-zen">OpenCode Zen</option>
               <option value="opencode-go">OpenCode Go</option>
               <option value="ollama">Ollama (Local / Self-hosted)</option>
+              <option value="huggingface">Hugging Face</option>
+              <option value="copilot">GitHub Copilot</option>
+              <option value="ai-gateway">AI Gateway (Vercel)</option>
+              <option value="custom">Custom (OpenAI-compatible)</option>
             </select>
           </div>
           <div class="field-group" id="apiKeyGroup">
@@ -671,6 +675,16 @@
             <label for="ollamaUrl">Ollama URL</label>
             <input type="text" id="ollamaUrl" placeholder="http://host.docker.internal:11434" value="http://host.docker.internal:11434">
             <p class="field-hint">URL where your Ollama server is running</p>
+          </div>
+          <div class="field-group" id="customGroup" style="display:none">
+            <label for="customUrl">Endpoint URL</label>
+            <input type="text" id="customUrl" placeholder="http://host.docker.internal:8080/v1">
+            <p class="field-hint">OpenAI-compatible API endpoint (llama.cpp, LM Studio, vLLM, etc.)</p>
+            <label for="customKey" style="margin-top: 10px;">API Key <span style="color: var(--text-muted); font-size: 10px;">(optional)</span></label>
+            <input type="password" id="customKey" placeholder="sk-... (leave empty if not required)">
+            <label for="customModel" style="margin-top: 10px;">Model name</label>
+            <input type="text" id="customModel" placeholder="e.g. llama-3.1-8b, mistral-7b">
+            <p class="field-hint">The model identifier your server expects</p>
           </div>
           <div class="field-group">
             <label for="model">Model</label>
@@ -795,8 +809,12 @@
 
     function onProviderChange() {
       const provider = document.getElementById("provider").value;
-      document.getElementById("ollamaGroup").style.display = provider === "ollama" ? "block" : "none";
-      document.getElementById("apiKeyGroup").style.display = provider === "ollama" ? "none" : "block";
+      const isOllama = provider === "ollama";
+      const isCustom = provider === "custom";
+      document.getElementById("ollamaGroup").style.display = isOllama ? "block" : "none";
+      document.getElementById("customGroup").style.display = isCustom ? "block" : "none";
+      document.getElementById("apiKeyGroup").style.display = (isOllama || isCustom) ? "none" : "block";
+      document.getElementById("model").closest(".field-group").style.display = isCustom ? "none" : "block";
       const apiKeyInput = document.getElementById("apiKey");
       const modelSelect = document.getElementById("model");
 
@@ -867,6 +885,26 @@
           ["mistral:7b","Mistral 7B"],["deepseek-r1:7b","DeepSeek R1 7B"],
           ["gemma2:9b","Gemma 2 9B"],
         ],
+        huggingface: [
+          ["Qwen/Qwen3.5-397B-A17B","Qwen 3.5 397B"],
+          ["deepseek-ai/DeepSeek-V3.2","DeepSeek V3.2"],
+          ["moonshotai/Kimi-K2.5","Kimi K2.5"],
+          ["meta-llama/Llama-3.3-70B-Instruct","Llama 3.3 70B"],
+          ["mistralai/Mistral-Small-24B-Instruct-2501","Mistral Small 24B"],
+        ],
+        copilot: [
+          ["gpt-5.4","GPT-5.4"],["gpt-4o","GPT-4o"],
+          ["claude-opus-4.6","Claude Opus 4.6"],["claude-sonnet-4.6","Claude Sonnet 4.6"],
+          ["gemini-2.5-pro","Gemini 2.5 Pro"],
+        ],
+        "ai-gateway": [
+          ["anthropic/claude-opus-4.6","Claude Opus 4.6"],
+          ["anthropic/claude-sonnet-4.5","Claude Sonnet 4.5"],
+          ["openai/gpt-5.4","GPT-5.4"],
+          ["google/gemini-3-pro-preview","Gemini 3 Pro"],
+          ["deepseek/deepseek-chat","DeepSeek Chat"],
+        ],
+        custom: [],
       };
       const hints = {
         openrouter: 'Get your key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>',
@@ -880,17 +918,23 @@
         "opencode-zen": 'Get your key at <a href="https://opencode.ai/auth" target="_blank" rel="noopener">opencode.ai</a> (pay-as-you-go)',
         "opencode-go": 'Get your key at <a href="https://opencode.ai/auth" target="_blank" rel="noopener">opencode.ai</a> ($10/mo subscription)',
         ollama: '',
+        huggingface: 'Get your token at <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">huggingface.co/settings/tokens</a>',
+        copilot: 'Use your GitHub personal access token with Copilot access',
+        "ai-gateway": 'Get your key at <a href="https://ai-gateway.vercel.sh" target="_blank" rel="noopener">ai-gateway.vercel.sh</a>',
+        custom: '',
       };
       const placeholders = {
         openrouter: "sk-or-...", anthropic: "sk-ant-...",
         zai: "", "kimi-coding": "", minimax: "", "minimax-cn": "",
         deepseek: "sk-...", alibaba: "sk-...",
         "opencode-zen": "", "opencode-go": "", ollama: "",
+        huggingface: "hf_...", copilot: "ghp_...", "ai-gateway": "", custom: "",
       };
 
-      modelSelect.innerHTML = models[provider].map(([v,l]) => `<option value="${v}">${l}</option>`).join("");
-      apiKeyInput.placeholder = placeholders[provider];
-      document.getElementById("apiKeyHint").innerHTML = hints[provider];
+      const provModels = models[provider] || [];
+      modelSelect.innerHTML = provModels.map(([v,l]) => `<option value="${v}">${l}</option>`).join("");
+      apiKeyInput.placeholder = placeholders[provider] || "";
+      document.getElementById("apiKeyHint").innerHTML = hints[provider] || "";
     }
 
     function triggerAccessDenied(msg, errorElId) {
@@ -947,6 +991,17 @@
         const url = document.getElementById("ollamaUrl").value.trim();
         if (!url) {
           triggerAccessDenied("Ollama endpoint URL is required. Provide the URL where your Ollama server is running.");
+          return;
+        }
+      } else if (provider === "custom") {
+        const url = document.getElementById("customUrl").value.trim();
+        const model = document.getElementById("customModel").value.trim();
+        if (!url) {
+          triggerAccessDenied("Endpoint URL is required. Provide the URL of your OpenAI-compatible server (e.g. http://host.docker.internal:8080/v1).");
+          return;
+        }
+        if (!model) {
+          triggerAccessDenied("Model name is required. Enter the model identifier your server expects (e.g. llama-3.1-8b).");
           return;
         }
       } else {
@@ -1037,7 +1092,7 @@
 
     function buildSummary() {
       const provider = document.getElementById("provider").value;
-      const modelLabel = document.getElementById("model").selectedOptions[0].text;
+      const modelLabel = provider === "custom" ? document.getElementById("customModel").value : document.getElementById("model").selectedOptions[0].text;
       const platforms = [];
       if (document.getElementById("telegramEnabled").checked) platforms.push("Telegram");
       if (document.getElementById("whatsappEnabled").checked) platforms.push("WhatsApp");
@@ -1063,16 +1118,25 @@
         "alibaba": ["DASHSCOPE_API_KEY", "alibaba"],
         "opencode-zen": ["OPENCODE_ZEN_API_KEY", "opencode-zen"],
         "opencode-go": ["OPENCODE_GO_API_KEY", "opencode-go"],
+        "huggingface": ["HF_TOKEN", "huggingface"],
+        "copilot": ["GITHUB_TOKEN", "copilot"],
+        "ai-gateway": ["AI_GATEWAY_API_KEY", "ai-gateway"],
       };
       if (provider === "ollama") {
         config.OLLAMA_BASE_URL = document.getElementById("ollamaUrl").value.trim();
         config.HERMES_PROVIDER = "ollama";
+      } else if (provider === "custom") {
+        config.OPENAI_BASE_URL = document.getElementById("customUrl").value.trim();
+        const customKey = document.getElementById("customKey").value.trim();
+        if (customKey) config.OPENAI_API_KEY = customKey;
+        config.HERMES_PROVIDER = "custom";
+        config.HERMES_MODEL = document.getElementById("customModel").value.trim();
       } else {
         const [keyName, prov] = providerKeyMap[provider];
         config[keyName] = apiKey;
         config.HERMES_PROVIDER = prov;
       }
-      config.HERMES_MODEL = document.getElementById("model").value;
+      if (provider !== "custom") config.HERMES_MODEL = document.getElementById("model").value;
       if (document.getElementById("telegramEnabled").checked) { config.TELEGRAM_BOT_TOKEN = document.getElementById("telegramToken").value.trim(); config.TELEGRAM_HOME_CHAT_ID = document.getElementById("telegramChatId").value.trim(); }
       if (document.getElementById("whatsappEnabled").checked) config.WHATSAPP_ENABLED = "true";
       try {
