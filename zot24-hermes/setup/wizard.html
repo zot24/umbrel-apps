@@ -1395,31 +1395,42 @@
             bar.style.width = "100%";
             setTimeout(() => { window.location.href = "/"; }, 2000);
           } else {
-            label.parentElement.className = "bk-progress-label error";
-            bar.className = "bk-progress-bar error";
-            bar.style.width = "100%";
-            label.textContent = "RESTORE FAILED";
-            status.style.display = "block";
-            status.style.color = "var(--red)";
-            status.style.borderColor = "var(--red-dim)";
-            status.textContent = data.error || "Unknown error";
-            btn.disabled = false;
-            btn.textContent = "Import Backup";
+            showImportError(data.error || "Unknown error");
           }
         })
         .catch(e => {
           clearInterval(bkTimer);
-          label.parentElement.className = "bk-progress-label error";
-          bar.className = "bk-progress-bar error";
-          bar.style.width = "100%";
-          label.textContent = "UPLOAD FAILED";
-          status.style.display = "block";
-          status.style.color = "var(--red)";
-          status.style.borderColor = "var(--red-dim)";
-          status.textContent = e.message;
-          btn.disabled = false;
-          btn.textContent = "Import Backup";
+          showImportError(e.message);
         });
+    }
+
+    function showImportError(msg) {
+      const btn = document.getElementById("bkImportBtn");
+      const prog = document.getElementById("bkProgress");
+      const modal = document.getElementById("bkModal");
+
+      // Close modal and reset
+      modal.classList.remove("show");
+      prog.classList.remove("active");
+      btn.disabled = false;
+      btn.textContent = "Import Backup";
+
+      // Red flash
+      const flash = document.createElement("div");
+      flash.className = "red-flash";
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 700);
+
+      // Shake
+      const container = document.querySelector(".container");
+      container.classList.add("shake");
+      setTimeout(() => container.classList.remove("shake"), 500);
+
+      // Show error in step0 error area
+      const errEl = document.getElementById("step0Error");
+      errEl.className = "test-result error";
+      errEl.innerHTML = "<strong>RESTORE FAILED:</strong> " + msg;
+      setTimeout(() => { errEl.className = "test-result"; errEl.textContent = ""; }, 8000);
     }
   </script>
 </body>
