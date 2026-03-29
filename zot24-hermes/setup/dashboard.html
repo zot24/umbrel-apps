@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HERMES // GATEWAY</title>
+  <title>HERMES // DASHBOARD</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
@@ -111,7 +111,7 @@
     }
 
     .container {
-      max-width: 520px;
+      max-width: 620px;
       width: 100%;
       position: relative;
       z-index: 10;
@@ -677,6 +677,108 @@
     }
     .corner-btn svg { width: 16px; height: 16px; }
 
+    /* Dashboard toggle button */
+    .corner-dash {
+      position: relative;
+    }
+    .corner-dash .corner-btn {
+      color: var(--amber-dim);
+      border-color: var(--amber-dim);
+    }
+    .corner-dash .corner-btn:hover {
+      color: var(--amber);
+      border-color: var(--amber);
+      box-shadow: 0 0 14px var(--amber-glow);
+      background: rgba(255,192,77,0.05);
+    }
+    .corner-dash .corner-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+    .corner-dash.active .corner-btn {
+      color: var(--amber);
+      border-color: var(--amber);
+      background: rgba(255,192,77,0.1);
+      box-shadow: 0 0 16px var(--amber-glow), inset 0 0 8px var(--amber-glow);
+    }
+    /* Pulse ring when active */
+    .corner-dash.active .corner-btn::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border: 1px solid var(--amber-dim);
+      opacity: 0;
+      animation: dashPulse 2s ease-out infinite;
+    }
+    @keyframes dashPulse {
+      0% { opacity: 0.6; inset: -3px; }
+      100% { opacity: 0; inset: -10px; }
+    }
+
+    /* Dashboard tooltip */
+    .corner-dash-tip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--amber-dim);
+      padding: 10px 14px;
+      font-family: var(--body);
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      width: 220px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .corner-dash-tip::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--amber-dim), transparent);
+      opacity: 0.5;
+    }
+    .corner-dash-tip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      right: 10px;
+      border: 5px solid transparent;
+      border-top-color: var(--amber-dim);
+    }
+    .corner-dash-tip .tip-tag {
+      font-family: var(--display);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--amber);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid var(--amber-dim);
+      margin-bottom: 6px;
+    }
+    .corner-dash-tip .tip-text {
+      display: block;
+      text-align: left;
+      line-height: 1.6;
+    }
+    .corner-dash:hover .corner-dash-tip { display: block; }
+
+    /* Dashboard wrapper (hidden by default) */
+    .dash-section {
+      display: none;
+    }
+    .dash-section.open {
+      display: block;
+      animation: dashReveal 0.4s ease-out;
+    }
+    @keyframes dashReveal {
+      0% { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+      50% { filter: blur(0); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
     /* Backup modal */
     .backup-modal .modal-box {
       border-color: var(--phosphor-dim);
@@ -1154,6 +1256,438 @@
       color: var(--border);
       font-size: 8px;
     }
+    /* ── Dashboard Nav ── */
+    .dash-nav-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      margin: 18px -16px 0;
+      padding: 0 16px;
+    }
+    .dash-nav-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: flex;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      position: relative;
+    }
+    .dash-nav-bar::-webkit-scrollbar { display: none; }
+    .dash-nav-bar::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 5%, var(--phosphor-dim) 50%, transparent 95%);
+      opacity: 0.4;
+    }
+    .dash-tab {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 9px 12px;
+      border: none;
+      background: none;
+      font-family: var(--body);
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-muted);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .dash-tab:hover {
+      color: var(--text);
+      background: rgba(80,255,168,0.03);
+    }
+    .dash-tab.active {
+      color: var(--phosphor);
+      background: rgba(80,255,168,0.06);
+    }
+    .dash-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 8px; right: 8px;
+      height: 2px;
+      background: var(--phosphor);
+      box-shadow: 0 0 8px var(--phosphor-glow);
+    }
+    .dash-tab .fkey {
+      font-family: var(--display);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--phosphor-dim);
+      padding: 1px 4px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+    .dash-tab.active .fkey {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+      background: rgba(80,255,168,0.1);
+      box-shadow: 0 0 4px var(--phosphor-glow);
+    }
+
+    /* Controls row (days selector + indicator) */
+    .dash-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0 10px;
+    }
+    .dash-view-label {
+      font-family: var(--display);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--phosphor-dim);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* Tab content */
+    .dash-view { display: none; }
+    .dash-view.active { display: block; animation: viewIn 0.25s ease-out; }
+    @keyframes viewIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+    }
+    .stat-card {
+      background: var(--surface-2);
+      padding: 12px 14px;
+      border-left: 2px solid transparent;
+      transition: border-color 0.15s;
+    }
+    .stat-card:hover { border-left-color: var(--phosphor-dim); }
+    .stat-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-family: var(--display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--phosphor);
+      line-height: 1.2;
+    }
+    .stat-value.amber { color: var(--amber); }
+    .stat-sub {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Bar charts */
+    .bar-chart { display: flex; flex-direction: column; gap: 2px; }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+    }
+    .bar-label {
+      min-width: 32px;
+      color: var(--text-muted);
+      text-align: right;
+      letter-spacing: 0.5px;
+    }
+    .bar-track {
+      flex: 1;
+      height: 14px;
+      background: var(--surface-2);
+      overflow: hidden;
+      position: relative;
+    }
+    .bar-fill {
+      height: 100%;
+      background: var(--phosphor-dim);
+      transition: width 0.5s ease;
+      min-width: 1px;
+    }
+    .bar-fill.amber { background: var(--amber-dim); }
+    .bar-count {
+      min-width: 32px;
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    /* Hour heatmap */
+    .hour-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 2px;
+    }
+    .hour-cell {
+      aspect-ratio: 1;
+      background: var(--surface-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      color: var(--text-muted);
+      position: relative;
+      transition: all 0.15s;
+    }
+    .hour-cell.h1 { background: rgba(80,255,168,0.08); }
+    .hour-cell.h2 { background: rgba(80,255,168,0.18); }
+    .hour-cell.h3 { background: rgba(80,255,168,0.30); color: var(--phosphor); }
+    .hour-cell.h4 { background: rgba(80,255,168,0.45); color: #fff; }
+
+    /* Model/tool tables */
+    .dash-table {
+      width: 100%;
+      font-size: 12px;
+    }
+    .dash-table-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 14px;
+      background: var(--surface-2);
+      margin-bottom: 2px;
+      gap: 8px;
+    }
+    .dash-table-row:hover { background: rgba(80,255,168,0.025); }
+    .dash-table-name {
+      flex: 1;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dash-table-val {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-align: right;
+      min-width: 60px;
+    }
+    .dash-table-val.phosphor { color: var(--phosphor-dim); }
+    .dash-table-bar {
+      width: 60px;
+      height: 6px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .dash-table-bar-fill {
+      height: 100%;
+      background: var(--phosphor-dim);
+    }
+
+    /* Skills grid */
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 3px;
+    }
+    .skill-card {
+      background: var(--surface-2);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .skill-card:hover {
+      border-left-color: var(--amber-dim);
+      background: rgba(255,192,77,0.025);
+    }
+    .skill-name { color: var(--text); }
+    .skill-count {
+      font-family: var(--display);
+      font-size: 11px;
+      color: var(--amber-dim);
+      font-weight: 600;
+    }
+
+    /* Sessions table */
+    .session-row {
+      display: flex;
+      align-items: center;
+      padding: 10px 14px;
+      background: var(--surface-2);
+      margin-bottom: 2px;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .session-row:hover {
+      background: rgba(80,255,168,0.025);
+      border-left: 2px solid var(--phosphor-dim);
+      padding-left: 12px;
+    }
+    .session-source {
+      font-family: var(--display);
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--amber);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      min-width: 50px;
+    }
+    .session-info { flex: 1; min-width: 0; }
+    .session-title {
+      font-size: 12px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .session-meta {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .session-cost {
+      font-family: var(--display);
+      font-size: 12px;
+      color: var(--phosphor-dim);
+      font-weight: 600;
+      min-width: 50px;
+      text-align: right;
+    }
+    .session-detail {
+      display: none;
+      padding: 0 14px 14px;
+      background: var(--surface-2);
+      margin-top: -2px;
+      margin-bottom: 2px;
+      border-left: 2px solid var(--phosphor-dim);
+    }
+    .session-detail.open { display: block; }
+    .session-msg {
+      padding: 6px 0;
+      font-size: 11px;
+      border-bottom: 1px solid var(--border);
+      line-height: 1.5;
+    }
+    .session-msg:last-child { border-bottom: none; }
+    .session-msg-role {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .session-msg-role.user { color: var(--amber); }
+    .session-msg-role.assistant { color: var(--phosphor); }
+    .session-msg-role.tool { color: var(--text-muted); }
+    .session-msg-content {
+      color: var(--text-muted);
+      word-break: break-word;
+      white-space: pre-wrap;
+      max-height: 120px;
+      overflow: hidden;
+    }
+
+    /* Notable sessions */
+    .notable-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--surface-2);
+      margin-bottom: 2px;
+    }
+    .notable-label { font-size: 12px; color: var(--text-muted); }
+    .notable-value {
+      font-family: var(--display);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--phosphor);
+    }
+    .notable-date { font-size: 10px; color: var(--text-muted); margin-left: 8px; }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .page-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-family: var(--body);
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 1px;
+    }
+    .page-btn:hover:not(:disabled) {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+    }
+    .page-btn:disabled { opacity: 0.3; cursor: default; }
+    .page-info {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      letter-spacing: 0.5px;
+    }
+
+    /* Days selector */
+    .days-select {
+      display: flex;
+      gap: 4px;
+    }
+    .days-btn {
+      padding: 3px 10px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-family: var(--body);
+      font-size: 10px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.5px;
+    }
+    .days-btn:hover { border-color: var(--phosphor-dim); color: var(--phosphor); }
+    .days-btn.active {
+      border-color: var(--phosphor-dim);
+      color: var(--phosphor);
+      background: var(--phosphor-glow);
+    }
+
+    /* Empty state for dashboard */
+    .dash-empty {
+      text-align: center;
+      padding: 30px 20px;
+      color: var(--text-muted);
+      font-size: 12px;
+      letter-spacing: 1px;
+      line-height: 1.6;
+    }
+
+    /* Memory panel */
+    .memory-content {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 12px 14px;
+      background: var(--surface-2);
+    }
   </style>
 </head>
 <body>
@@ -1221,6 +1755,150 @@
       <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart</button>
     </div>
 
+    <!-- ═══════ DASHBOARD ═══════ -->
+    <div class="dash-section" id="dashSection">
+    <div class="dash-nav-wrap">
+      <div class="dash-nav-bar">
+        <button class="dash-tab active" data-view="metrics" onclick="switchView('metrics')">
+          <span class="fkey">F1</span> Metrics
+        </button>
+        <button class="dash-tab" data-view="activity" onclick="switchView('activity')">
+          <span class="fkey">F2</span> Activity
+        </button>
+        <button class="dash-tab" data-view="tools" onclick="switchView('tools')">
+          <span class="fkey">F3</span> Tools
+        </button>
+        <button class="dash-tab" data-view="sessions" onclick="switchView('sessions')">
+          <span class="fkey">F4</span> Sessions
+        </button>
+        <button class="dash-tab" data-view="memory" onclick="switchView('memory')">
+          <span class="fkey">F5</span> Memory
+        </button>
+      </div>
+    </div>
+
+    <!-- Controls: view label + days selector -->
+    <div class="dash-controls">
+      <span class="dash-view-label" id="dashViewLabel">SYS.METRICS</span>
+      <div class="days-select">
+        <button class="days-btn" data-days="7" onclick="setDays(7)">7d</button>
+        <button class="days-btn active" data-days="30" onclick="setDays(30)">30d</button>
+        <button class="days-btn" data-days="90" onclick="setDays(90)">90d</button>
+        <button class="days-btn" data-days="365" onclick="setDays(365)">1y</button>
+      </div>
+    </div>
+
+    <!-- ── VIEW: Metrics ── -->
+    <div class="dash-view active" id="view-metrics">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Overview</span>
+          <span class="panel-indicator" id="metricsIndicator">SYS.METRICS</span>
+        </div>
+        <div class="panel-body">
+          <div id="overviewStats" class="stats-grid">
+            <div class="dash-empty">LOADING...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="modelsPanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Models</span>
+          <span class="panel-indicator">SYS.MODELS</span>
+        </div>
+        <div class="panel-body">
+          <div id="modelsList" class="dash-table"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="platformsPanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Platform Usage</span>
+          <span class="panel-indicator">SYS.PLATFORMS</span>
+        </div>
+        <div class="panel-body">
+          <div id="platformsList" class="dash-table"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="notablePanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Notable Sessions</span>
+          <span class="panel-indicator">SYS.RECORDS</span>
+        </div>
+        <div class="panel-body">
+          <div id="notableList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VIEW: Activity ── -->
+    <div class="dash-view" id="view-activity">
+      <div class="panel" id="activityPanel">
+        <div class="panel-header">
+          <span class="panel-title">Activity Patterns</span>
+          <span class="panel-indicator">SYS.ACTIVITY</span>
+        </div>
+        <div class="panel-body">
+          <div id="activityContent">
+            <div class="dash-empty">LOADING...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VIEW: Tools ── -->
+    <div class="dash-view" id="view-tools">
+      <div class="panel" id="toolsPanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Tool Usage</span>
+          <span class="panel-indicator">SYS.TOOLS</span>
+        </div>
+        <div class="panel-body">
+          <div id="toolsList" class="dash-table"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="skillsPanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Skills</span>
+          <span class="panel-indicator">SYS.SKILLS</span>
+        </div>
+        <div class="panel-body">
+          <div id="skillsGrid" class="skills-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VIEW: Sessions ── -->
+    <div class="dash-view" id="view-sessions">
+      <div class="panel" id="sessionsPanel">
+        <div class="panel-header">
+          <span class="panel-title">Sessions</span>
+          <span class="panel-indicator" id="sessionsIndicator">SYS.HISTORY</span>
+        </div>
+        <div class="panel-body">
+          <div id="sessionsList"><div class="dash-empty">LOADING...</div></div>
+          <div id="sessionsPagination" class="pagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VIEW: Memory ── -->
+    <div class="dash-view" id="view-memory">
+      <div class="panel" id="memoryPanel">
+        <div class="panel-header">
+          <span class="panel-title">Memory</span>
+          <span class="panel-indicator">SYS.MEMORY</span>
+        </div>
+        <div class="panel-body" id="memoryBody">
+          <div class="dash-empty">LOADING...</div>
+        </div>
+      </div>
+    </div>
+    </div><!-- /dash-section -->
+
     <div class="boot-footer">
       <div class="version">HERMES AGENT __APP_VERSION__ // UMBREL NODE</div>
       <div class="credits">
@@ -1240,10 +1918,21 @@
 
   <!-- Corner buttons -->
   <div class="corner-buttons">
+    <div class="corner-dash" id="cornerDash" onclick="toggleDashboard()">
+      <div class="corner-dash-tip">
+        <div class="tip-tag">Experimental</div>
+        <span class="tip-text">Agent diagnostics &mdash; sessions, tokens, cost, tools, and memory. Data read from local state only.</span>
+      </div>
+      <div class="corner-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </div>
+    </div>
     <div class="corner-btn" onclick="openBackupModal()" title="Backup">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><rect x="4" y="2" width="16" height="20"/><rect x="7" y="2" width="10" height="7"/><rect x="7" y="14" width="10" height="4"/><line x1="13" y1="4" x2="13" y2="7"/></svg>
     </div>
-    <div class="corner-help" id="cornerHelp" onclick="this.classList.toggle('open')">
+    <div class="corner-help" id="cornerHelp" onclick="event.stopPropagation(); this.classList.toggle('open')">
       <div class="corner-help-tip">
         Need deeper configuration? Send <code>/hermes-agent-setup</code> from any connected channel (Telegram, WhatsApp, etc.) to configure models, providers, tools, voice, gateway, and more.<br><br>
         <a href="https://hermes-agent.nousresearch.com/docs/reference/skills-catalog" target="_blank" rel="noopener">View bundled skills catalog</a>
@@ -1544,6 +2233,14 @@
       );
     }
 
+    // Close tooltips on click-outside
+    document.addEventListener("click", (e) => {
+      const help = document.getElementById("cornerHelp");
+      if (help.classList.contains("open") && !help.contains(e.target)) {
+        help.classList.remove("open");
+      }
+    });
+
     // Easter egg: editable title, saved to cookie
     (function() {
       const el = document.getElementById("heroText");
@@ -1800,6 +2497,372 @@
     setInterval(fetchStatus, 5000);
     setInterval(fetchPairing, 5000);
     fetchPairing();
+
+    // ═══════ DASHBOARD ═══════
+
+    let dashDays = 30;
+    let sessionsPage = 0;
+    let currentView = "metrics";
+    let insightsCache = null;
+    const SESSIONS_PER_PAGE = 20;
+
+    const VIEW_LABELS = {
+      metrics: "SYS.METRICS",
+      activity: "SYS.ACTIVITY",
+      tools: "SYS.TOOLS",
+      sessions: "SYS.HISTORY",
+      memory: "SYS.MEMORY",
+    };
+
+    function switchView(view) {
+      currentView = view;
+      document.querySelectorAll(".dash-tab").forEach(t => t.classList.toggle("active", t.dataset.view === view));
+      document.querySelectorAll(".dash-view").forEach(v => v.classList.toggle("active", v.id === "view-" + view));
+      document.getElementById("dashViewLabel").textContent = VIEW_LABELS[view] || "";
+      // Lazy-load data for the view
+      if (view === "sessions") fetchSessions();
+      if (view === "memory") fetchMemory();
+      if (view === "tools") { fetchSkills(); if (insightsCache) renderTools(insightsCache); }
+    }
+
+    // Keyboard shortcuts: F1-F5
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.contentEditable === "true") return;
+      const views = ["metrics", "activity", "tools", "sessions", "memory"];
+      const fkey = e.key.match(/^F([1-5])$/);
+      if (fkey) { e.preventDefault(); switchView(views[parseInt(fkey[1]) - 1]); }
+      // Also support 1-5 number keys
+      if (e.key >= "1" && e.key <= "5" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        switchView(views[parseInt(e.key) - 1]);
+      }
+    });
+
+    function setDays(d) {
+      dashDays = d;
+      document.querySelectorAll(".days-btn").forEach(b => b.classList.toggle("active", parseInt(b.dataset.days) === d));
+      fetchInsights();
+    }
+
+    function fmtNum(n) {
+      if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+      if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+      return n.toLocaleString();
+    }
+
+    function fmtDuration(s) {
+      if (!s || s <= 0) return "-";
+      if (s < 60) return Math.round(s) + "s";
+      if (s < 3600) return Math.round(s / 60) + "m";
+      const h = Math.floor(s / 3600);
+      const m = Math.round((s % 3600) / 60);
+      return m > 0 ? h + "h " + m + "m" : h + "h";
+    }
+
+    async function fetchInsights() {
+      try {
+        const data = await (await fetch(`/api/insights?days=${dashDays}`)).json();
+        insightsCache = data;
+        renderOverview(data);
+        renderActivity(data);
+        renderModels(data);
+        renderPlatforms(data);
+        renderTools(data);
+        renderNotable(data);
+      } catch (e) { console.error("Insights fetch failed:", e); }
+    }
+
+    function renderOverview(data) {
+      const el = document.getElementById("overviewStats");
+      if (data.empty) {
+        el.innerHTML = '<div class="dash-empty" style="grid-column: 1/-1;">NO SESSION DATA YET<br>Start chatting to see metrics here</div>';
+        return;
+      }
+      const o = data.overview;
+      el.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label">Sessions</div>
+          <div class="stat-value">${fmtNum(o.total_sessions)}</div>
+          <div class="stat-sub">${o.avg_messages_per_session} msg/session</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Messages</div>
+          <div class="stat-value">${fmtNum(o.total_messages)}</div>
+          <div class="stat-sub">${fmtNum(o.total_tool_calls)} tool calls</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Tokens</div>
+          <div class="stat-value">${fmtNum(o.total_tokens)}</div>
+          <div class="stat-sub">in: ${fmtNum(o.total_input_tokens)} / out: ${fmtNum(o.total_output_tokens)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Est. Cost</div>
+          <div class="stat-value amber">$${o.estimated_cost_usd.toFixed(2)}</div>
+          <div class="stat-sub">cache: ${fmtNum(o.total_cache_read_tokens)} read</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active Time</div>
+          <div class="stat-value">${o.total_hours > 0 ? o.total_hours + "h" : "-"}</div>
+          <div class="stat-sub">avg: ${fmtDuration(o.avg_session_duration)}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Period</div>
+          <div class="stat-value" style="font-size: 16px;">${dashDays}d</div>
+          <div class="stat-sub">${data.days} days</div>
+        </div>
+      `;
+    }
+
+    function renderActivity(data) {
+      const el = document.getElementById("activityContent");
+      if (data.empty || !data.activity?.by_day) {
+        el.innerHTML = '<div class="dash-empty">NO ACTIVITY DATA YET</div>';
+        return;
+      }
+      const act = data.activity;
+
+      // Day of week bars
+      const maxDay = Math.max(...act.by_day.map(d => d.count), 1);
+      const daysHtml = act.by_day.map(d => {
+        const pct = Math.round(d.count / maxDay * 100);
+        return `<div class="bar-row">
+          <span class="bar-label">${d.day}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          <span class="bar-count">${d.count}</span>
+        </div>`;
+      }).join("");
+
+      // Hour heatmap
+      const maxHour = Math.max(...act.by_hour.map(h => h.count), 1);
+      const hoursHtml = act.by_hour.map(h => {
+        const ratio = h.count / maxHour;
+        let cls = "";
+        if (ratio > 0.75) cls = "h4";
+        else if (ratio > 0.5) cls = "h3";
+        else if (ratio > 0.25) cls = "h2";
+        else if (h.count > 0) cls = "h1";
+        const hr = h.hour % 12 || 12;
+        const ampm = h.hour < 12 ? "a" : "p";
+        return `<div class="hour-cell ${cls}" title="${h.hour}:00 - ${h.count} sessions">${hr}${ampm}</div>`;
+      }).join("");
+
+      // Meta
+      const parts = [];
+      if (act.active_days) parts.push(`${act.active_days} active days`);
+      if (act.max_streak > 1) parts.push(`${act.max_streak}-day streak`);
+
+      el.innerHTML = `
+        <div class="bar-chart" style="margin-bottom: 14px;">${daysHtml}</div>
+        <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Hours (UTC)</div>
+        <div class="hour-grid">${hoursHtml}</div>
+        <div style="margin-top: 10px; font-size: 11px; color: var(--text-muted);">${parts.join(" / ")}</div>
+      `;
+    }
+
+    function renderModels(data) {
+      const panel = document.getElementById("modelsPanel");
+      if (data.empty || !data.models?.length) { panel.style.display = "none"; return; }
+      panel.style.display = "block";
+      const maxTokens = Math.max(...data.models.map(m => m.tokens), 1);
+      document.getElementById("modelsList").innerHTML = data.models.map(m => `
+        <div class="dash-table-row">
+          <div class="dash-table-name">${m.model}</div>
+          <div class="dash-table-bar"><div class="dash-table-bar-fill" style="width:${Math.round(m.tokens/maxTokens*100)}%"></div></div>
+          <div class="dash-table-val">${m.sessions} sess</div>
+          <div class="dash-table-val">${fmtNum(m.tokens)} tok</div>
+          <div class="dash-table-val phosphor">$${m.cost.toFixed(2)}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderPlatforms(data) {
+      const panel = document.getElementById("platformsPanel");
+      if (data.empty || !data.platforms?.length || (data.platforms.length === 1 && data.platforms[0].platform === "cli")) {
+        panel.style.display = "none"; return;
+      }
+      panel.style.display = "block";
+      const maxSess = Math.max(...data.platforms.map(p => p.sessions), 1);
+      document.getElementById("platformsList").innerHTML = data.platforms.map(p => `
+        <div class="dash-table-row">
+          <div class="dash-table-name">${p.platform}</div>
+          <div class="dash-table-bar"><div class="dash-table-bar-fill amber" style="width:${Math.round(p.sessions/maxSess*100)}%"></div></div>
+          <div class="dash-table-val">${p.sessions} sess</div>
+          <div class="dash-table-val">${fmtNum(p.messages)} msgs</div>
+          <div class="dash-table-val">${fmtNum(p.tokens)} tok</div>
+        </div>
+      `).join("");
+    }
+
+    function renderTools(data) {
+      const panel = document.getElementById("toolsPanel");
+      if (data.empty || !data.tools?.length) { panel.style.display = "none"; return; }
+      panel.style.display = "block";
+      const maxCount = Math.max(...data.tools.map(t => t.count), 1);
+      document.getElementById("toolsList").innerHTML = data.tools.map(t => `
+        <div class="dash-table-row">
+          <div class="dash-table-name">${t.tool}</div>
+          <div class="dash-table-bar"><div class="dash-table-bar-fill" style="width:${Math.round(t.count/maxCount*100)}%"></div></div>
+          <div class="dash-table-val">${fmtNum(t.count)}</div>
+          <div class="dash-table-val">${t.percentage.toFixed(1)}%</div>
+        </div>
+      `).join("");
+    }
+
+    function renderNotable(data) {
+      const panel = document.getElementById("notablePanel");
+      if (data.empty || !data.top_sessions?.length) { panel.style.display = "none"; return; }
+      panel.style.display = "block";
+      document.getElementById("notableList").innerHTML = data.top_sessions.map(t => `
+        <div class="notable-item">
+          <span class="notable-label">${t.label}</span>
+          <span><span class="notable-value">${t.value}</span><span class="notable-date">${t.date}</span></span>
+        </div>
+      `).join("");
+    }
+
+    async function fetchSkills() {
+      try {
+        const data = await (await fetch("/api/skills")).json();
+        const panel = document.getElementById("skillsPanel");
+        if (!data.categories?.length) { panel.style.display = "none"; return; }
+        panel.style.display = "block";
+        document.querySelector("#skillsPanel .panel-indicator").textContent = `${data.total} SKILLS`;
+        document.getElementById("skillsGrid").innerHTML = data.categories.map(c => `
+          <div class="skill-card">
+            <span class="skill-name">${c.name}</span>
+            <span class="skill-count">${c.count}</span>
+          </div>
+        `).join("");
+      } catch (e) {}
+    }
+
+    async function fetchSessions() {
+      try {
+        const offset = sessionsPage * SESSIONS_PER_PAGE;
+        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}`)).json();
+        document.getElementById("sessionsIndicator").textContent = data.total ? `${data.total} TOTAL` : "SYS.HISTORY";
+
+        const list = document.getElementById("sessionsList");
+        if (!data.total) {
+          list.innerHTML = '<div class="dash-empty">NO SESSIONS YET</div>';
+          document.getElementById("sessionsPagination").innerHTML = "";
+          return;
+        }
+
+        list.innerHTML = data.sessions.map(s => {
+          const dur = s.started_at && s.ended_at ? fmtDuration(s.ended_at - s.started_at) : "-";
+          const model = s.model ? (s.model.includes("/") ? s.model.split("/").pop() : s.model) : "?";
+          const title = s.title || model;
+          const date = s.started_at ? new Date(s.started_at * 1000).toLocaleDateString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+          const cost = s.estimated_cost_usd > 0 ? "$" + s.estimated_cost_usd.toFixed(4) : "-";
+          return `
+            <div class="session-row" onclick="toggleSession(this, '${s.id}')">
+              <span class="session-source">${s.source || "?"}</span>
+              <div class="session-info">
+                <div class="session-title">${title}</div>
+                <div class="session-meta">${date} / ${dur} / ${s.message_count || 0} msgs / ${fmtNum((s.input_tokens||0)+(s.output_tokens||0))} tok</div>
+              </div>
+              <span class="session-cost">${cost}</span>
+            </div>
+            <div class="session-detail" id="detail-${s.id}"></div>
+          `;
+        }).join("");
+
+        // Pagination
+        const totalPages = Math.ceil(data.total / SESSIONS_PER_PAGE);
+        const pag = document.getElementById("sessionsPagination");
+        if (totalPages <= 1) { pag.innerHTML = ""; return; }
+        pag.innerHTML = `
+          <button class="page-btn" onclick="sessionsPage=Math.max(0,sessionsPage-1);fetchSessions()" ${sessionsPage===0?"disabled":""}>PREV</button>
+          <span class="page-info">${sessionsPage+1} / ${totalPages}</span>
+          <button class="page-btn" onclick="sessionsPage=Math.min(${totalPages-1},sessionsPage+1);fetchSessions()" ${sessionsPage>=totalPages-1?"disabled":""}>NEXT</button>
+        `;
+      } catch (e) { console.error("Sessions fetch failed:", e); }
+    }
+
+    async function toggleSession(row, sessionId) {
+      const detail = document.getElementById("detail-" + sessionId);
+      if (detail.classList.contains("open")) {
+        detail.classList.remove("open");
+        return;
+      }
+      document.querySelectorAll(".session-detail.open").forEach(d => d.classList.remove("open"));
+
+      detail.innerHTML = '<div class="dash-empty">LOADING...</div>';
+      detail.classList.add("open");
+      try {
+        const data = await (await fetch(`/api/sessions/${sessionId}/messages`)).json();
+        if (!data.messages?.length) {
+          detail.innerHTML = '<div class="dash-empty">NO MESSAGES</div>';
+          return;
+        }
+        detail.innerHTML = data.messages.slice(0, 30).map(m => {
+          if (m.role === "tool" && !m.content) return "";
+          const content = m.content || (m.tool_calls ? m.tool_calls.map(tc => `[${tc.function?.name || tc.name || "tool"}]`).join(" ") : "");
+          return `<div class="session-msg">
+            <div class="session-msg-role ${m.role}">${m.role}${m.tool_name ? " :: " + m.tool_name : ""}</div>
+            <div class="session-msg-content">${escapeHtml(content.slice(0, 500))}</div>
+          </div>`;
+        }).filter(Boolean).join("") || '<div class="dash-empty">NO VISIBLE MESSAGES</div>';
+      } catch (e) {
+        detail.innerHTML = '<div class="dash-empty">FAILED TO LOAD</div>';
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    async function fetchMemory() {
+      try {
+        const data = await (await fetch("/api/memory")).json();
+        const body = document.getElementById("memoryBody");
+        if (!data.soul && !data.memory) {
+          body.innerHTML = '<div class="dash-empty">NO MEMORY FILES YET<br>The agent creates SOUL.md and MEMORY.md as it learns about you</div>';
+          return;
+        }
+        let html = "";
+        if (data.soul) {
+          html += `<div style="font-size:10px; color:var(--amber); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; padding: 0 14px;">SOUL.md</div>
+                   <div class="memory-content">${escapeHtml(data.soul)}</div>`;
+        }
+        if (data.memory) {
+          html += `<div style="font-size:10px; color:var(--phosphor-dim); letter-spacing:1px; text-transform:uppercase; margin: 10px 0 4px; padding: 0 14px;">MEMORY.md</div>
+                   <div class="memory-content">${escapeHtml(data.memory)}</div>`;
+        }
+        if (data.has_user_profile) {
+          html += `<div style="font-size:10px; color:var(--text-muted); padding: 8px 14px 0; letter-spacing:0.5px;">USER.md profile active</div>`;
+        }
+        body.innerHTML = html;
+      } catch (e) {}
+    }
+
+    // ── Dashboard toggle ──
+    let dashLoaded = false;
+
+    function toggleDashboard() {
+      const section = document.getElementById("dashSection");
+      const btn = document.getElementById("cornerDash");
+      const isOpen = section.classList.toggle("open");
+      btn.classList.toggle("active", isOpen);
+      document.cookie = "dashOpen=" + (isOpen ? "1" : "0") + ";path=/;max-age=31536000";
+      if (isOpen && !dashLoaded) {
+        dashLoaded = true;
+        fetchInsights();
+        setInterval(fetchInsights, 60000);
+      }
+    }
+
+    // Restore state from cookie
+    (function() {
+      const match = document.cookie.match(/dashOpen=([^;]+)/);
+      if (match && match[1] === "1") {
+        document.getElementById("dashSection").classList.add("open");
+        document.getElementById("cornerDash").classList.add("active");
+        dashLoaded = true;
+        fetchInsights();
+        setInterval(fetchInsights, 60000);
+      }
+    })();
   </script>
 
   <!-- Import error overlay -->
