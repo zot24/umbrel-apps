@@ -14,11 +14,11 @@ HERMES_DIR="${1:-${HERMES_HOME:-$HOME/.hermes}}"
 BACKUP_FILE="hermes-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
 
 if [ ! -d "$HERMES_DIR" ]; then
-  echo "ERROR: Hermes directory not found at $HERMES_DIR"
-  echo ""
-  echo "Set HERMES_HOME or pass the path as an argument:"
-  echo "  HERMES_HOME=/path/to/.hermes bash hermes-export.sh"
-  echo "  bash hermes-export.sh /path/to/.hermes"
+  echo "ERROR: Hermes directory not found at $HERMES_DIR" >&2
+  echo "" >&2
+  echo "Set HERMES_HOME or pass the path as an argument:" >&2
+  echo "  HERMES_HOME=/path/to/.hermes bash hermes-export.sh" >&2
+  echo "  bash hermes-export.sh /path/to/.hermes" >&2
   exit 1
 fi
 
@@ -26,6 +26,14 @@ echo "=== Hermes Export ==="
 echo "Source: $HERMES_DIR"
 echo ""
 
+# Checkpoint SQLite WAL before backup (if sqlite3 is available)
+STATE_DB="$HERMES_DIR/state.db"
+if [ -f "$STATE_DB" ] && command -v sqlite3 &>/dev/null; then
+  echo "Checkpointing SQLite database..."
+  sqlite3 "$STATE_DB" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
+fi
+
+echo "Creating archive..."
 tar czf "$BACKUP_FILE" \
   -C "$(dirname "$HERMES_DIR")" \
   --exclude='*/logs' \
@@ -34,18 +42,25 @@ tar czf "$BACKUP_FILE" \
   --exclude='*/document_cache' \
   --exclude='*/browser_screenshots' \
   --exclude='*/gateway_state.json' \
-  "$(basename "$HERMES_DIR")"
+  --exclude='*/*-shm' \
+  --exclude='*/*-wal' \
+  "$(basename "$HERMES_DIR")" || {
+  rm -f "$BACKUP_FILE"
+  echo "ERROR: Failed to create backup archive." >&2
+  exit 1
+}
 
 SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 
+echo ""
 echo "Backup created: $BACKUP_FILE ($SIZE)"
 echo ""
 echo "To import into Umbrel Hermes:"
 echo "  1. Open the Hermes app in Umbrel"
-echo "  2. Go to the Backup panel on the status page"
+echo "  2. Click the floppy disk icon (bottom-right)"
 echo "  3. Click Import and select this file"
 echo ""
-echo "Contents include: config, secrets, sessions, memories,"
+echo "Contents: config, secrets, state.db, sessions, memories,"
 echo "skills, cron jobs, scripts, and platform auth state."
 echo ""
-echo "Excluded: logs, image/audio/document caches, runtime state."
+echo "Excluded: logs, caches, runtime state, SQLite WAL files."

@@ -687,48 +687,80 @@ async function handleRequest(req, res) {
 
   // ── API: Import backup ──
   if (req.method === "POST" && url.pathname === "/api/import") {
-    try {
-      const chunks = [];
-      let size = 0;
-      const MAX_SIZE = 2 * 1024 * 1024 * 1024; // 2GB limit
+    const tmpFile = `/tmp/hermes-import-${Date.now()}.tar.gz`;
+    const cleanup = () => { try { fs.unlinkSync(tmpFile); } catch (e) {} };
 
+    // Clean up if client aborts
+    req.on("aborted", cleanup);
+
+    try {
+      const MAX_SIZE = 2 * 1024 * 1024 * 1024; // 2GB limit
+      let size = 0;
+
+      // Stream upload to disk instead of buffering in memory
       await new Promise((resolve, reject) => {
+        const ws = fs.createWriteStream(tmpFile);
         req.on("data", (chunk) => {
           size += chunk.length;
           if (size > MAX_SIZE) {
+            ws.destroy();
             req.destroy();
-            reject(new Error("Upload too large (max 500MB)"));
+            reject(new Error("Upload too large (max 2GB)"));
             return;
           }
-          chunks.push(chunk);
+          if (!ws.write(chunk)) req.pause();
         });
-        req.on("end", resolve);
-        req.on("error", reject);
+        ws.on("drain", () => req.resume());
+        req.on("end", () => { ws.end(); resolve(); });
+        req.on("error", (e) => { ws.destroy(); reject(e); });
+        ws.on("error", reject);
       });
-
-      const tmpFile = `/tmp/hermes-import-${Date.now()}.tar.gz`;
-      fs.writeFileSync(tmpFile, Buffer.concat(chunks));
 
       // Validate: check it's a valid tar.gz containing .hermes
       try {
-        const listing = execSync(`tar tzf ${tmpFile} 2>&1 | head -5`, { encoding: "utf8" });
-        if (!listing.includes(".hermes")) {
-          fs.unlinkSync(tmpFile);
+        const listing = execSync(`tar tzf ${tmpFile}`, { encoding: "utf8", maxBuffer: 1024 * 1024 });
+        if (!listing.includes(".hermes/")) {
+          cleanup();
           sendJson(res, 400, { error: "Invalid backup: archive must contain a .hermes directory" });
           return;
         }
       } catch (e) {
-        fs.unlinkSync(tmpFile);
+        cleanup();
         sendJson(res, 400, { error: "Invalid archive format" });
         return;
       }
 
-      // Extract over existing data
-      execSync(`tar xzf ${tmpFile} -C ${VOLUME_DIR}`, { timeout: 120000 });
-      fs.unlinkSync(tmpFile);
+      // Stop the web container to release SQLite locks before replacing data
+      try {
+        execSync(
+          `curl -s --unix-socket /var/run/docker.sock -X POST "http://localhost/containers/${WEB_CONTAINER}/stop?t=10"`,
+          { timeout: 30000 }
+        );
+        console.log("Stopped web container for safe import");
+      } catch (e) {
+        console.warn("Could not stop web container (may not be running):", e.message);
+      }
+
+      // Remove existing .hermes to prevent directory merge (especially skills duplication)
+      const hermesDir = path.join(VOLUME_DIR, ".hermes");
+      if (fs.existsSync(hermesDir)) {
+        fs.rmSync(hermesDir, { recursive: true, force: true });
+        console.log("Cleared existing .hermes directory");
+      }
+
+      // Extract backup
+      execSync(`tar xzf ${tmpFile} -C ${VOLUME_DIR}`, { timeout: 300000 });
+      cleanup();
+
+      // Remove stale SQLite WAL files (they reference the old DB state)
+      const stateDb = path.join(CONFIG_DIR, "state.db");
+      try { fs.unlinkSync(stateDb + "-shm"); } catch (e) {}
+      try { fs.unlinkSync(stateDb + "-wal"); } catch (e) {}
+
+      // Clear gateway_state.json (excluded from export, stale if leftover)
+      try { fs.unlinkSync(STATE_FILE); } catch (e) {}
 
       // Remove HERMES_REGEN_CONFIG from .env so the imported config.yaml is preserved
-      // (the setup wizard sets this flag, which causes the entrypoint to overwrite config.yaml)
       try {
         if (fs.existsSync(ENV_FILE)) {
           const envContent = fs.readFileSync(ENV_FILE, "utf8");
@@ -737,6 +769,16 @@ async function handleRequest(req, res) {
         }
       } catch (e) {
         console.error("Warning: could not clean HERMES_REGEN_CONFIG from .env:", e.message);
+      }
+
+      // Fix permissions — backup may have been created by a different user
+      try {
+        execSync(`chmod -R u+rw "${hermesDir}"`, { timeout: 30000 });
+        if (fs.existsSync(ENV_FILE)) execSync(`chmod 600 "${ENV_FILE}"`, { timeout: 5000 });
+        const envLocal = path.join(CONFIG_DIR, ".env.local");
+        if (fs.existsSync(envLocal)) execSync(`chmod 600 "${envLocal}"`, { timeout: 5000 });
+      } catch (e) {
+        console.warn("Warning: could not fix permissions after import:", e.message);
       }
 
       // Mark as configured (import implies prior setup)
@@ -753,6 +795,7 @@ async function handleRequest(req, res) {
           : "Backup restored. Please restart the app manually.",
       });
     } catch (e) {
+      cleanup();
       console.error("Import error:", e.message);
       sendJson(res, 500, { error: e.message });
     }
@@ -776,6 +819,16 @@ const server = http.createServer((req, res) => {
 });
 
 ensureConfigDir();
+
+// Clean up stale temp files from interrupted imports/exports
+try {
+  for (const f of fs.readdirSync("/tmp")) {
+    if (/^hermes-(import|backup)-\d+\.tar\.gz$/.test(f)) {
+      fs.unlinkSync(path.join("/tmp", f));
+      console.log(`Cleaned up stale temp file: ${f}`);
+    }
+  }
+} catch (e) {}
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Hermes setup server listening on port ${PORT}`);
