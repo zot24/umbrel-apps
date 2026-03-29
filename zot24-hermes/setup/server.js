@@ -13,9 +13,10 @@ const ENV_FILE = path.join(CONFIG_DIR, ".env");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.yaml");
 const STATE_FILE = path.join(CONFIG_DIR, "gateway_state.json");
 
-// Pre-load static files
-const WIZARD_HTML = fs.readFileSync(path.join(__dirname, "wizard.html"), "utf8");
-const STATUS_HTML = fs.readFileSync(path.join(__dirname, "status.html"), "utf8");
+// Pre-load static files, injecting version from environment
+const APP_VERSION = process.env.APP_VERSION || "unknown";
+const WIZARD_HTML = fs.readFileSync(path.join(__dirname, "wizard.html"), "utf8").replace(/__APP_VERSION__/g, APP_VERSION);
+const STATUS_HTML = fs.readFileSync(path.join(__dirname, "status.html"), "utf8").replace(/__APP_VERSION__/g, APP_VERSION);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
