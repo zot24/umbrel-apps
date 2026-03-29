@@ -677,6 +677,108 @@
     }
     .corner-btn svg { width: 16px; height: 16px; }
 
+    /* Dashboard toggle button */
+    .corner-dash {
+      position: relative;
+    }
+    .corner-dash .corner-btn {
+      color: var(--amber-dim);
+      border-color: var(--amber-dim);
+    }
+    .corner-dash .corner-btn:hover {
+      color: var(--amber);
+      border-color: var(--amber);
+      box-shadow: 0 0 14px var(--amber-glow);
+      background: rgba(255,192,77,0.05);
+    }
+    .corner-dash .corner-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+    .corner-dash.active .corner-btn {
+      color: var(--amber);
+      border-color: var(--amber);
+      background: rgba(255,192,77,0.1);
+      box-shadow: 0 0 16px var(--amber-glow), inset 0 0 8px var(--amber-glow);
+    }
+    /* Pulse ring when active */
+    .corner-dash.active .corner-btn::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border: 1px solid var(--amber-dim);
+      opacity: 0;
+      animation: dashPulse 2s ease-out infinite;
+    }
+    @keyframes dashPulse {
+      0% { opacity: 0.6; inset: -3px; }
+      100% { opacity: 0; inset: -10px; }
+    }
+
+    /* Dashboard tooltip */
+    .corner-dash-tip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      right: 0;
+      background: var(--surface);
+      border: 1px solid var(--amber-dim);
+      padding: 10px 14px;
+      font-family: var(--body);
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      width: 220px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .corner-dash-tip::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--amber-dim), transparent);
+      opacity: 0.5;
+    }
+    .corner-dash-tip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      right: 10px;
+      border: 5px solid transparent;
+      border-top-color: var(--amber-dim);
+    }
+    .corner-dash-tip .tip-tag {
+      font-family: var(--display);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--amber);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid var(--amber-dim);
+      margin-bottom: 6px;
+    }
+    .corner-dash-tip .tip-text {
+      display: block;
+      text-align: left;
+      line-height: 1.6;
+    }
+    .corner-dash:hover .corner-dash-tip { display: block; }
+
+    /* Dashboard wrapper (hidden by default) */
+    .dash-section {
+      display: none;
+    }
+    .dash-section.open {
+      display: block;
+      animation: dashReveal 0.4s ease-out;
+    }
+    @keyframes dashReveal {
+      0% { opacity: 0; transform: translateY(6px); filter: blur(2px); }
+      50% { filter: blur(0); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
     /* Backup modal */
     .backup-modal .modal-box {
       border-color: var(--phosphor-dim);
@@ -1154,27 +1256,106 @@
       color: var(--border);
       font-size: 8px;
     }
-    /* ── Dashboard ── */
-    .dash-divider {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 18px 0;
+    /* ── Dashboard Nav ── */
+    .dash-nav-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      margin: 18px -16px 0;
+      padding: 0 16px;
+    }
+    .dash-nav-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: flex;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
       position: relative;
     }
-    .dash-divider::after {
-      content: attr(data-label);
+    .dash-nav-bar::-webkit-scrollbar { display: none; }
+    .dash-nav-bar::before {
+      content: '';
       position: absolute;
-      top: -8px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--bg);
-      padding: 0 12px;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 5%, var(--phosphor-dim) 50%, transparent 95%);
+      opacity: 0.4;
+    }
+    .dash-tab {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 9px 12px;
+      border: none;
+      background: none;
+      font-family: var(--body);
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-muted);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .dash-tab:hover {
+      color: var(--text);
+      background: rgba(80,255,168,0.03);
+    }
+    .dash-tab.active {
+      color: var(--phosphor);
+      background: rgba(80,255,168,0.06);
+    }
+    .dash-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 8px; right: 8px;
+      height: 2px;
+      background: var(--phosphor);
+      box-shadow: 0 0 8px var(--phosphor-glow);
+    }
+    .dash-tab .fkey {
+      font-family: var(--display);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--phosphor-dim);
+      padding: 1px 4px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+    .dash-tab.active .fkey {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+      background: rgba(80,255,168,0.1);
+      box-shadow: 0 0 4px var(--phosphor-glow);
+    }
+
+    /* Controls row (days selector + indicator) */
+    .dash-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0 10px;
+    }
+    .dash-view-label {
       font-family: var(--display);
       font-size: 10px;
       font-weight: 600;
       color: var(--phosphor-dim);
-      letter-spacing: 3px;
+      letter-spacing: 2px;
       text-transform: uppercase;
+    }
+
+    /* Tab content */
+    .dash-view { display: none; }
+    .dash-view.active { display: block; animation: viewIn 0.25s ease-out; }
+    @keyframes viewIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .stats-grid {
@@ -1575,10 +1756,30 @@
     </div>
 
     <!-- ═══════ DASHBOARD ═══════ -->
-    <hr class="dash-divider" data-label="DASHBOARD">
+    <div class="dash-section" id="dashSection">
+    <div class="dash-nav-wrap">
+      <div class="dash-nav-bar">
+        <button class="dash-tab active" data-view="metrics" onclick="switchView('metrics')">
+          <span class="fkey">F1</span> Metrics
+        </button>
+        <button class="dash-tab" data-view="activity" onclick="switchView('activity')">
+          <span class="fkey">F2</span> Activity
+        </button>
+        <button class="dash-tab" data-view="tools" onclick="switchView('tools')">
+          <span class="fkey">F3</span> Tools
+        </button>
+        <button class="dash-tab" data-view="sessions" onclick="switchView('sessions')">
+          <span class="fkey">F4</span> Sessions
+        </button>
+        <button class="dash-tab" data-view="memory" onclick="switchView('memory')">
+          <span class="fkey">F5</span> Memory
+        </button>
+      </div>
+    </div>
 
-    <!-- Days selector -->
-    <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+    <!-- Controls: view label + days selector -->
+    <div class="dash-controls">
+      <span class="dash-view-label" id="dashViewLabel">SYS.METRICS</span>
       <div class="days-select">
         <button class="days-btn" data-days="7" onclick="setDays(7)">7d</button>
         <button class="days-btn active" data-days="30" onclick="setDays(30)">30d</button>
@@ -1587,108 +1788,116 @@
       </div>
     </div>
 
-    <!-- Overview Stats -->
-    <div class="panel" id="overviewPanel">
-      <div class="panel-header">
-        <span class="panel-title">Overview</span>
-        <span class="panel-indicator">SYS.METRICS</span>
+    <!-- ── VIEW: Metrics ── -->
+    <div class="dash-view active" id="view-metrics">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Overview</span>
+          <span class="panel-indicator" id="metricsIndicator">SYS.METRICS</span>
+        </div>
+        <div class="panel-body">
+          <div id="overviewStats" class="stats-grid">
+            <div class="dash-empty">LOADING...</div>
+          </div>
+        </div>
       </div>
-      <div class="panel-body">
-        <div id="overviewStats" class="stats-grid">
-          <div class="dash-empty">LOADING...</div>
+
+      <div class="panel" id="modelsPanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Models</span>
+          <span class="panel-indicator">SYS.MODELS</span>
+        </div>
+        <div class="panel-body">
+          <div id="modelsList" class="dash-table"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="platformsPanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Platform Usage</span>
+          <span class="panel-indicator">SYS.PLATFORMS</span>
+        </div>
+        <div class="panel-body">
+          <div id="platformsList" class="dash-table"></div>
+        </div>
+      </div>
+
+      <div class="panel" id="notablePanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Notable Sessions</span>
+          <span class="panel-indicator">SYS.RECORDS</span>
+        </div>
+        <div class="panel-body">
+          <div id="notableList"></div>
         </div>
       </div>
     </div>
 
-    <!-- Activity -->
-    <div class="panel" id="activityPanel" style="display:none;">
-      <div class="panel-header">
-        <span class="panel-title">Activity</span>
-        <span class="panel-indicator">SYS.ACTIVITY</span>
-      </div>
-      <div class="panel-body">
-        <div id="activityDays" class="bar-chart" style="margin-bottom: 14px;"></div>
-        <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Hours (UTC)</div>
-        <div id="activityHours" class="hour-grid"></div>
-        <div id="activityMeta" style="margin-top: 10px; font-size: 11px; color: var(--text-muted);"></div>
-      </div>
-    </div>
-
-    <!-- Models -->
-    <div class="panel" id="modelsPanel" style="display:none;">
-      <div class="panel-header">
-        <span class="panel-title">Models</span>
-        <span class="panel-indicator">SYS.MODELS</span>
-      </div>
-      <div class="panel-body">
-        <div id="modelsList" class="dash-table"></div>
+    <!-- ── VIEW: Activity ── -->
+    <div class="dash-view" id="view-activity">
+      <div class="panel" id="activityPanel">
+        <div class="panel-header">
+          <span class="panel-title">Activity Patterns</span>
+          <span class="panel-indicator">SYS.ACTIVITY</span>
+        </div>
+        <div class="panel-body">
+          <div id="activityContent">
+            <div class="dash-empty">LOADING...</div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Platforms -->
-    <div class="panel" id="platformsPanel" style="display:none;">
-      <div class="panel-header">
-        <span class="panel-title">Platform Usage</span>
-        <span class="panel-indicator">SYS.PLATFORMS</span>
+    <!-- ── VIEW: Tools ── -->
+    <div class="dash-view" id="view-tools">
+      <div class="panel" id="toolsPanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Tool Usage</span>
+          <span class="panel-indicator">SYS.TOOLS</span>
+        </div>
+        <div class="panel-body">
+          <div id="toolsList" class="dash-table"></div>
+        </div>
       </div>
-      <div class="panel-body">
-        <div id="platformsList" class="dash-table"></div>
+
+      <div class="panel" id="skillsPanel" style="display:none;">
+        <div class="panel-header">
+          <span class="panel-title">Skills</span>
+          <span class="panel-indicator">SYS.SKILLS</span>
+        </div>
+        <div class="panel-body">
+          <div id="skillsGrid" class="skills-grid"></div>
+        </div>
       </div>
     </div>
 
-    <!-- Tools -->
-    <div class="panel" id="toolsPanel" style="display:none;">
-      <div class="panel-header">
-        <span class="panel-title">Tools</span>
-        <span class="panel-indicator">SYS.TOOLS</span>
-      </div>
-      <div class="panel-body">
-        <div id="toolsList" class="dash-table"></div>
-      </div>
-    </div>
-
-    <!-- Skills -->
-    <div class="panel" id="skillsPanel" style="display:none;">
-      <div class="panel-header">
-        <span class="panel-title">Skills</span>
-        <span class="panel-indicator">SYS.SKILLS</span>
-      </div>
-      <div class="panel-body">
-        <div id="skillsGrid" class="skills-grid"></div>
+    <!-- ── VIEW: Sessions ── -->
+    <div class="dash-view" id="view-sessions">
+      <div class="panel" id="sessionsPanel">
+        <div class="panel-header">
+          <span class="panel-title">Sessions</span>
+          <span class="panel-indicator" id="sessionsIndicator">SYS.HISTORY</span>
+        </div>
+        <div class="panel-body">
+          <div id="sessionsList"><div class="dash-empty">LOADING...</div></div>
+          <div id="sessionsPagination" class="pagination"></div>
+        </div>
       </div>
     </div>
 
-    <!-- Notable Sessions -->
-    <div class="panel" id="notablePanel" style="display:none;">
-      <div class="panel-header">
-        <span class="panel-title">Notable Sessions</span>
-        <span class="panel-indicator">SYS.RECORDS</span>
-      </div>
-      <div class="panel-body">
-        <div id="notableList"></div>
-      </div>
-    </div>
-
-    <!-- Sessions History -->
-    <div class="panel" id="sessionsPanel" style="display:none;">
-      <div class="panel-header">
-        <span class="panel-title">Sessions</span>
-        <span class="panel-indicator">SYS.HISTORY</span>
-      </div>
-      <div class="panel-body">
-        <div id="sessionsList"></div>
-        <div id="sessionsPagination" class="pagination"></div>
+    <!-- ── VIEW: Memory ── -->
+    <div class="dash-view" id="view-memory">
+      <div class="panel" id="memoryPanel">
+        <div class="panel-header">
+          <span class="panel-title">Memory</span>
+          <span class="panel-indicator">SYS.MEMORY</span>
+        </div>
+        <div class="panel-body" id="memoryBody">
+          <div class="dash-empty">LOADING...</div>
+        </div>
       </div>
     </div>
-
-    <!-- Memory -->
-    <div class="panel" id="memoryPanel" style="display:none;">
-      <div class="panel-header">
-        <span class="panel-title">Memory</span>
-        <span class="panel-indicator">SYS.MEMORY</span>
-      </div>
-      <div class="panel-body" id="memoryBody"></div>
-    </div>
+    </div><!-- /dash-section -->
 
     <div class="boot-footer">
       <div class="version">HERMES AGENT __APP_VERSION__ // UMBREL NODE</div>
@@ -1709,10 +1918,21 @@
 
   <!-- Corner buttons -->
   <div class="corner-buttons">
+    <div class="corner-dash" id="cornerDash" onclick="toggleDashboard()">
+      <div class="corner-dash-tip">
+        <div class="tip-tag">Experimental</div>
+        <span class="tip-text">Agent diagnostics &mdash; sessions, tokens, cost, tools, and memory. Data read from local state only.</span>
+      </div>
+      <div class="corner-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </div>
+    </div>
     <div class="corner-btn" onclick="openBackupModal()" title="Backup">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><rect x="4" y="2" width="16" height="20"/><rect x="7" y="2" width="10" height="7"/><rect x="7" y="14" width="10" height="4"/><line x1="13" y1="4" x2="13" y2="7"/></svg>
     </div>
-    <div class="corner-help" id="cornerHelp" onclick="this.classList.toggle('open')">
+    <div class="corner-help" id="cornerHelp" onclick="event.stopPropagation(); this.classList.toggle('open')">
       <div class="corner-help-tip">
         Need deeper configuration? Send <code>/hermes-agent-setup</code> from any connected channel (Telegram, WhatsApp, etc.) to configure models, providers, tools, voice, gateway, and more.<br><br>
         <a href="https://hermes-agent.nousresearch.com/docs/reference/skills-catalog" target="_blank" rel="noopener">View bundled skills catalog</a>
@@ -2013,6 +2233,14 @@
       );
     }
 
+    // Close tooltips on click-outside
+    document.addEventListener("click", (e) => {
+      const help = document.getElementById("cornerHelp");
+      if (help.classList.contains("open") && !help.contains(e.target)) {
+        help.classList.remove("open");
+      }
+    });
+
     // Easter egg: editable title, saved to cookie
     (function() {
       const el = document.getElementById("heroText");
@@ -2274,7 +2502,40 @@
 
     let dashDays = 30;
     let sessionsPage = 0;
+    let currentView = "metrics";
+    let insightsCache = null;
     const SESSIONS_PER_PAGE = 20;
+
+    const VIEW_LABELS = {
+      metrics: "SYS.METRICS",
+      activity: "SYS.ACTIVITY",
+      tools: "SYS.TOOLS",
+      sessions: "SYS.HISTORY",
+      memory: "SYS.MEMORY",
+    };
+
+    function switchView(view) {
+      currentView = view;
+      document.querySelectorAll(".dash-tab").forEach(t => t.classList.toggle("active", t.dataset.view === view));
+      document.querySelectorAll(".dash-view").forEach(v => v.classList.toggle("active", v.id === "view-" + view));
+      document.getElementById("dashViewLabel").textContent = VIEW_LABELS[view] || "";
+      // Lazy-load data for the view
+      if (view === "sessions") fetchSessions();
+      if (view === "memory") fetchMemory();
+      if (view === "tools") { fetchSkills(); if (insightsCache) renderTools(insightsCache); }
+    }
+
+    // Keyboard shortcuts: F1-F5
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.contentEditable === "true") return;
+      const views = ["metrics", "activity", "tools", "sessions", "memory"];
+      const fkey = e.key.match(/^F([1-5])$/);
+      if (fkey) { e.preventDefault(); switchView(views[parseInt(fkey[1]) - 1]); }
+      // Also support 1-5 number keys
+      if (e.key >= "1" && e.key <= "5" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        switchView(views[parseInt(e.key) - 1]);
+      }
+    });
 
     function setDays(d) {
       dashDays = d;
@@ -2300,6 +2561,7 @@
     async function fetchInsights() {
       try {
         const data = await (await fetch(`/api/insights?days=${dashDays}`)).json();
+        insightsCache = data;
         renderOverview(data);
         renderActivity(data);
         renderModels(data);
@@ -2307,10 +2569,6 @@
         renderTools(data);
         renderNotable(data);
       } catch (e) { console.error("Insights fetch failed:", e); }
-
-      fetchSkills();
-      fetchSessions();
-      fetchMemory();
     }
 
     function renderOverview(data) {
@@ -2355,14 +2613,16 @@
     }
 
     function renderActivity(data) {
-      const panel = document.getElementById("activityPanel");
-      if (data.empty || !data.activity?.by_day) { panel.style.display = "none"; return; }
-      panel.style.display = "block";
+      const el = document.getElementById("activityContent");
+      if (data.empty || !data.activity?.by_day) {
+        el.innerHTML = '<div class="dash-empty">NO ACTIVITY DATA YET</div>';
+        return;
+      }
       const act = data.activity;
 
       // Day of week bars
       const maxDay = Math.max(...act.by_day.map(d => d.count), 1);
-      document.getElementById("activityDays").innerHTML = act.by_day.map(d => {
+      const daysHtml = act.by_day.map(d => {
         const pct = Math.round(d.count / maxDay * 100);
         return `<div class="bar-row">
           <span class="bar-label">${d.day}</span>
@@ -2373,7 +2633,7 @@
 
       // Hour heatmap
       const maxHour = Math.max(...act.by_hour.map(h => h.count), 1);
-      document.getElementById("activityHours").innerHTML = act.by_hour.map(h => {
+      const hoursHtml = act.by_hour.map(h => {
         const ratio = h.count / maxHour;
         let cls = "";
         if (ratio > 0.75) cls = "h4";
@@ -2389,7 +2649,13 @@
       const parts = [];
       if (act.active_days) parts.push(`${act.active_days} active days`);
       if (act.max_streak > 1) parts.push(`${act.max_streak}-day streak`);
-      document.getElementById("activityMeta").textContent = parts.join(" / ");
+
+      el.innerHTML = `
+        <div class="bar-chart" style="margin-bottom: 14px;">${daysHtml}</div>
+        <div style="font-size: 10px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Hours (UTC)</div>
+        <div class="hour-grid">${hoursHtml}</div>
+        <div style="margin-top: 10px; font-size: 11px; color: var(--text-muted);">${parts.join(" / ")}</div>
+      `;
     }
 
     function renderModels(data) {
@@ -2473,12 +2739,15 @@
       try {
         const offset = sessionsPage * SESSIONS_PER_PAGE;
         const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}`)).json();
-        const panel = document.getElementById("sessionsPanel");
-        if (!data.total) { panel.style.display = "none"; return; }
-        panel.style.display = "block";
-        document.querySelector("#sessionsPanel .panel-indicator").textContent = `${data.total} TOTAL`;
+        document.getElementById("sessionsIndicator").textContent = data.total ? `${data.total} TOTAL` : "SYS.HISTORY";
 
         const list = document.getElementById("sessionsList");
+        if (!data.total) {
+          list.innerHTML = '<div class="dash-empty">NO SESSIONS YET</div>';
+          document.getElementById("sessionsPagination").innerHTML = "";
+          return;
+        }
+
         list.innerHTML = data.sessions.map(s => {
           const dur = s.started_at && s.ended_at ? fmtDuration(s.ended_at - s.started_at) : "-";
           const model = s.model ? (s.model.includes("/") ? s.model.split("/").pop() : s.model) : "?";
@@ -2516,7 +2785,6 @@
         detail.classList.remove("open");
         return;
       }
-      // Close other open details
       document.querySelectorAll(".session-detail.open").forEach(d => d.classList.remove("open"));
 
       detail.innerHTML = '<div class="dash-empty">LOADING...</div>';
@@ -2527,7 +2795,6 @@
           detail.innerHTML = '<div class="dash-empty">NO MESSAGES</div>';
           return;
         }
-        // Show first 30 messages
         detail.innerHTML = data.messages.slice(0, 30).map(m => {
           if (m.role === "tool" && !m.content) return "";
           const content = m.content || (m.tool_calls ? m.tool_calls.map(tc => `[${tc.function?.name || tc.name || "tool"}]`).join(" ") : "");
@@ -2548,9 +2815,11 @@
     async function fetchMemory() {
       try {
         const data = await (await fetch("/api/memory")).json();
-        const panel = document.getElementById("memoryPanel");
-        if (!data.soul && !data.memory) { panel.style.display = "none"; return; }
-        panel.style.display = "block";
+        const body = document.getElementById("memoryBody");
+        if (!data.soul && !data.memory) {
+          body.innerHTML = '<div class="dash-empty">NO MEMORY FILES YET<br>The agent creates SOUL.md and MEMORY.md as it learns about you</div>';
+          return;
+        }
         let html = "";
         if (data.soul) {
           html += `<div style="font-size:10px; color:var(--amber); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; padding: 0 14px;">SOUL.md</div>
@@ -2563,14 +2832,37 @@
         if (data.has_user_profile) {
           html += `<div style="font-size:10px; color:var(--text-muted); padding: 8px 14px 0; letter-spacing:0.5px;">USER.md profile active</div>`;
         }
-        document.getElementById("memoryBody").innerHTML = html;
+        body.innerHTML = html;
       } catch (e) {}
     }
 
-    // Initial dashboard load
-    fetchInsights();
-    // Refresh insights every 60s
-    setInterval(fetchInsights, 60000);
+    // ── Dashboard toggle ──
+    let dashLoaded = false;
+
+    function toggleDashboard() {
+      const section = document.getElementById("dashSection");
+      const btn = document.getElementById("cornerDash");
+      const isOpen = section.classList.toggle("open");
+      btn.classList.toggle("active", isOpen);
+      document.cookie = "dashOpen=" + (isOpen ? "1" : "0") + ";path=/;max-age=31536000";
+      if (isOpen && !dashLoaded) {
+        dashLoaded = true;
+        fetchInsights();
+        setInterval(fetchInsights, 60000);
+      }
+    }
+
+    // Restore state from cookie
+    (function() {
+      const match = document.cookie.match(/dashOpen=([^;]+)/);
+      if (match && match[1] === "1") {
+        document.getElementById("dashSection").classList.add("open");
+        document.getElementById("cornerDash").classList.add("active");
+        dashLoaded = true;
+        fetchInsights();
+        setInterval(fetchInsights, 60000);
+      }
+    })();
   </script>
 
   <!-- Import error overlay -->
