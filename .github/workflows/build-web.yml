@@ -1,4 +1,4 @@
-name: Build Web Image
+name: "Build: Hermes Agent"
 
 on:
   push:

@@ -1,4 +1,4 @@
-name: Build Setup Image
+name: "Build: Setup Wizard & Dashboard"
 
 on:
   push:
