@@ -7,34 +7,38 @@ version: "0.5.0"
 tagline: Self-improving AI agent with Telegram & WhatsApp
 description: >-
   Hermes Agent by Nous Research is a self-improving AI assistant that connects
-  to your favorite messaging platforms. Run your own AI-powered chatbot on
-  Umbrel and chat with it through Telegram, WhatsApp, or other platforms.
+  to your favorite messaging platforms. Run your own AI-powered agent on
+  Umbrel and chat with it through Telegram, WhatsApp, Discord, or other platforms.
 
 
   Features:
 
-  - Multi-Platform: Connect to Telegram, WhatsApp, Discord, Slack, Signal, and more
+  - Multi-Platform: Telegram, WhatsApp, Discord, Slack, Signal, Email, and more
 
-  - 200+ Models: OpenRouter, Anthropic Claude, OpenAI, or local Ollama
+  - 400+ Models: OpenRouter, Anthropic, OpenAI, DeepSeek, Kimi, MiniMax, Hugging Face, GitHub Copilot, Ollama, or any OpenAI-compatible endpoint (llama.cpp, LM Studio, vLLM)
 
-  - Tool Use: Web browsing, file management, code execution
+  - Tool Use: Web browsing, code execution, file management, browser automation
 
-  - Memory: Persistent memory across conversations
+  - Memory: Persistent memory with full-text search across conversations
 
-  - Skills: Extensible with custom skills and plugins
+  - Skills: Self-improving with autonomous skill creation, custom plugins, and MCP server integration
+
+  - Automation: Scheduled tasks, cron jobs, webhooks, and parallel subagent spawning
 
   - Privacy: All data stays on your Umbrel, no cloud required
+
+  - Backup: Export and import your agent state for easy migration
 
 
   Setup Instructions:
 
-  1. Get an API key from your preferred LLM provider
+  1. Get an API key from your preferred LLM provider (or use a local model)
 
   2. Create a Telegram bot via @BotFather and copy the token
 
-  3. Enter your credentials in the setup wizard
+  3. Enter your credentials in the setup wizard (or import an existing backup)
 
-  4. Start chatting with your bot!
+  4. Start chatting with your agent!
 releaseNotes: >-
   The hardening release — Hugging Face provider, /model command overhaul,
   Telegram Private Chat Topics, native Modal SDK, plugin lifecycle hooks,
