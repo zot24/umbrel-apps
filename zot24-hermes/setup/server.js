@@ -1354,9 +1354,20 @@ async function handleRequest(req, res) {
         else { curStreak = 1; }
       }
 
+      // Daily breakdown (last 14 days for sparkline)
+      const daily = [];
+      const now = new Date();
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        daily.push({ date: key, label: d.toLocaleDateString("en", { month: "short", day: "numeric" }), count: dailyCounts[key] || 0 });
+      }
+
       const activity = {
         by_day: byDay,
         by_hour: byHour,
+        daily: daily,
         active_days: sortedDates.length,
         max_streak: maxStreak,
       };
@@ -1484,11 +1495,45 @@ async function handleRequest(req, res) {
       if (fs.existsSync(skillsDir)) {
         const dirs = fs.readdirSync(skillsDir, { withFileTypes: true });
         for (const d of dirs) {
-          if (!d.isDirectory()) continue;
+          if (!d.isDirectory() || d.name.startsWith(".")) continue;
           const catPath = path.join(skillsDir, d.name);
-          const files = fs.readdirSync(catPath).filter(f => f.endsWith(".md"));
-          categories.push({ name: d.name, count: files.length, skills: files.map(f => f.replace(".md", "")) });
-          total += files.length;
+          // Look for skill subdirectories containing SKILL.md
+          const skillEntries = [];
+          const subDirs = fs.readdirSync(catPath, { withFileTypes: true });
+          for (const sd of subDirs) {
+            if (sd.isDirectory()) {
+              const skillFile = path.join(catPath, sd.name, "SKILL.md");
+              if (fs.existsSync(skillFile)) {
+                const content = fs.readFileSync(skillFile, "utf8");
+                // Parse YAML frontmatter
+                const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+                const meta = {};
+                if (fmMatch) {
+                  for (const line of fmMatch[1].split("\n")) {
+                    const kv = line.match(/^(\w[\w-]*):\s*(.+)/);
+                    if (kv) meta[kv[1]] = kv[2].trim();
+                  }
+                }
+                skillEntries.push({
+                  name: meta.name || sd.name,
+                  description: (meta.description || "").slice(0, 120),
+                  author: meta.author || null,
+                  platforms: meta.platforms ? meta.platforms.replace(/[\[\]]/g, "").split(",").map(s => s.trim()) : null,
+                  has_prerequisites: !!meta.prerequisites || content.includes("## Prerequisites"),
+                });
+                total++;
+              }
+            } else if (sd.isFile() && sd.name.endsWith(".md") && sd.name !== "DESCRIPTION.md") {
+              skillEntries.push({ name: sd.name.replace(".md", "") });
+              total++;
+            }
+          }
+          if (skillEntries.length > 0) {
+            // Get category description if available
+            const descFile = path.join(catPath, "DESCRIPTION.md");
+            const catDesc = fs.existsSync(descFile) ? fs.readFileSync(descFile, "utf8").split("\n")[0].slice(0, 100) : null;
+            categories.push({ name: d.name, count: skillEntries.length, skills: skillEntries, description: catDesc });
+          }
         }
         categories.sort((a, b) => b.count - a.count);
       }
@@ -1549,6 +1594,171 @@ async function handleRequest(req, res) {
       console.error("Memory read error:", e.message);
     }
     sendJson(res, 200, result);
+    return;
+  }
+
+  // ── API: Memory file browser — list all files ──
+  if (req.method === "GET" && url.pathname === "/api/memory/files") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    const memDir = profileFilter && profileFilter !== "all"
+      ? path.join(getProfileDir(profileFilter), "memories")
+      : MEMORIES_DIR;
+    const files = [];
+    try {
+      if (fs.existsSync(memDir)) {
+        const entries = fs.readdirSync(memDir, { withFileTypes: true });
+        for (const e of entries) {
+          if (e.isFile() && e.name.endsWith(".md")) {
+            const stat = fs.statSync(path.join(memDir, e.name));
+            files.push({ name: e.name, size: stat.size, modified: Math.floor(stat.mtimeMs / 1000) });
+          }
+        }
+        // Also check memory/ subdirectory (Claude-style memory)
+        const memSubDir = path.join(memDir, "memory");
+        if (fs.existsSync(memSubDir)) {
+          const subEntries = fs.readdirSync(memSubDir, { withFileTypes: true });
+          for (const e of subEntries) {
+            if (e.isFile() && e.name.endsWith(".md")) {
+              const stat = fs.statSync(path.join(memSubDir, e.name));
+              files.push({ name: "memory/" + e.name, size: stat.size, modified: Math.floor(stat.mtimeMs / 1000) });
+            }
+          }
+        }
+        files.sort((a, b) => b.modified - a.modified);
+      }
+    } catch (e) {
+      console.error("Memory list error:", e.message);
+    }
+    sendJson(res, 200, { files });
+    return;
+  }
+
+  // ── API: Memory read single file ──
+  if (req.method === "GET" && url.pathname === "/api/memory/read") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    const file = url.searchParams.get("file");
+    if (!file || file.includes("..")) {
+      sendJson(res, 400, { error: "Invalid file" });
+      return;
+    }
+    const memDir = profileFilter && profileFilter !== "all"
+      ? path.join(getProfileDir(profileFilter), "memories")
+      : MEMORIES_DIR;
+    const filePath = path.join(memDir, file);
+    try {
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, "utf8");
+        const stat = fs.statSync(filePath);
+        sendJson(res, 200, { file, content, size: stat.size, modified: Math.floor(stat.mtimeMs / 1000) });
+      } else {
+        sendJson(res, 404, { error: "File not found" });
+      }
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Memory write file ──
+  if (req.method === "POST" && url.pathname === "/api/memory/write") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    try {
+      const data = await parseBody(req);
+      if (!data.file || data.file.includes("..") || !data.file.endsWith(".md")) {
+        sendJson(res, 400, { error: "Invalid file name" });
+        return;
+      }
+      const memDir = profileFilter && profileFilter !== "all"
+        ? path.join(getProfileDir(profileFilter), "memories")
+        : MEMORIES_DIR;
+      const filePath = path.join(memDir, data.file);
+      // Ensure parent dir exists
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, data.content || "");
+      sendJson(res, 200, { success: true });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Memory search across files ──
+  if (req.method === "GET" && url.pathname === "/api/memory/search") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    const query = (url.searchParams.get("q") || "").toLowerCase();
+    if (!query) {
+      sendJson(res, 200, { results: [] });
+      return;
+    }
+    const memDir = profileFilter && profileFilter !== "all"
+      ? path.join(getProfileDir(profileFilter), "memories")
+      : MEMORIES_DIR;
+    const results = [];
+    try {
+      function searchDir(dir, prefix) {
+        if (!fs.existsSync(dir)) return;
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+          if (e.isDirectory() && !e.name.startsWith(".")) {
+            searchDir(path.join(dir, e.name), prefix ? prefix + "/" + e.name : e.name);
+          } else if (e.isFile() && e.name.endsWith(".md")) {
+            const content = fs.readFileSync(path.join(dir, e.name), "utf8");
+            const lines = content.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+              if (lines[i].toLowerCase().includes(query)) {
+                const fileName = prefix ? prefix + "/" + e.name : e.name;
+                results.push({ file: fileName, line: i + 1, text: lines[i].slice(0, 200) });
+                if (results.length >= 50) return;
+              }
+            }
+          }
+        }
+      }
+      searchDir(memDir, "");
+    } catch (e) {
+      console.error("Memory search error:", e.message);
+    }
+    sendJson(res, 200, { results });
+    return;
+  }
+
+  // ── API: Cron jobs ──
+  if (req.method === "GET" && url.pathname === "/api/cron") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    const cronDir = profileFilter && profileFilter !== "all"
+      ? path.join(getProfileDir(profileFilter), "cron")
+      : path.join(CONFIG_DIR, "cron");
+    const jobs = [];
+    try {
+      if (fs.existsSync(cronDir)) {
+        for (const file of fs.readdirSync(cronDir)) {
+          if (!file.endsWith(".json") && !file.endsWith(".yaml") && !file.endsWith(".yml")) continue;
+          try {
+            const content = fs.readFileSync(path.join(cronDir, file), "utf8");
+            const job = file.endsWith(".json") ? JSON.parse(content) : { raw: content };
+            job._file = file;
+            jobs.push(job);
+          } catch (e) {}
+        }
+        // Check for cron output files
+        const outputDir = path.join(cronDir, "output");
+        if (fs.existsSync(outputDir)) {
+          for (const job of jobs) {
+            const name = job.name || job._file.replace(/\.[^.]+$/, "");
+            const outFile = path.join(outputDir, name + ".log");
+            if (fs.existsSync(outFile)) {
+              const stat = fs.statSync(outFile);
+              const content = fs.readFileSync(outFile, "utf8");
+              const lastLines = content.split("\n").slice(-10).join("\n");
+              job._last_output = lastLines;
+              job._last_run_at = Math.floor(stat.mtimeMs / 1000);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Cron listing error:", e.message);
+    }
+    sendJson(res, 200, { jobs });
     return;
   }
 
