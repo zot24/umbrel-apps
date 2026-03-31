@@ -987,7 +987,7 @@
       </div>
       <div class="bk-body">
         <div class="bk-desc">
-          Have an existing Hermes installation? Import your backup to skip the setup wizard. All your config, sessions, memories, skills, and cron jobs will be restored.
+          Have an existing Hermes installation? Import your backup to skip the setup wizard. All your config, sessions, memories, skills, cron jobs, and profiles will be restored.
         </div>
         <button class="bk-btn" id="bkImportBtn" onclick="document.getElementById('bkFile').click()">Import Backup</button>
         <input type="file" id="bkFile" accept=".tar.gz,.tgz" style="display:none" onchange="wizardImport(this)">
@@ -1001,7 +1001,7 @@
         <hr style="border: none; border-top: 1px solid var(--border); margin: 16px 0 12px; opacity: 0.5;">
 
         <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; opacity: 0.7;">
-          Migrating from an existing Hermes install? Run this on your old machine to generate a backup file, then use Import above.
+          Migrating from an existing install? This script creates an optimized backup &mdash; excludes caches, logs, and binaries, checkpoints the database, and strips WAL files to prevent corruption.
         </div>
         <div style="border: 1px solid var(--border); background: #000; overflow: hidden;">
           <div style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border); font-family: 'Fira Code', monospace; font-size: 10px; color: var(--text-muted); letter-spacing: 0.5px;">
@@ -1017,7 +1017,7 @@
         </div>
       </div>
       <div class="bk-footer">
-        Restores config, secrets, state.db, sessions, memories, skills, and scripts.
+        Restores config, secrets, state.db, sessions, memories, skills, profiles, and scripts.
       </div>
     </div>
   </div>

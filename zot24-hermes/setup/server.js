@@ -724,16 +724,19 @@ async function handleRequest(req, res) {
       try {
         execSync(
           `tar czfh ${tmpFile} -C ${VOLUME_DIR}` +
-          ` --exclude='default/hermes-agent'` +
-          ` --exclude='default/checkpoints'` +
-          ` --exclude='default/bin'` +
-          ` --exclude='default/logs'` +
-          ` --exclude='default/image_cache'` +
-          ` --exclude='default/audio_cache'` +
-          ` --exclude='default/document_cache'` +
-          ` --exclude='default/browser_screenshots'` +
-          ` --exclude='default/pastes'` +
-          ` --exclude='default/gateway_state.json'` +
+          ` --exclude='*/hermes-agent'` +
+          ` --exclude='*/checkpoints'` +
+          ` --exclude='*/bin'` +
+          ` --exclude='*/logs'` +
+          ` --exclude='*/image_cache'` +
+          ` --exclude='*/audio_cache'` +
+          ` --exclude='*/document_cache'` +
+          ` --exclude='*/browser_screenshots'` +
+          ` --exclude='*/pastes'` +
+          ` --exclude='*/node_modules'` +
+          ` --exclude='*/gateway_state.json'` +
+          ` --exclude='*/*-shm'` +
+          ` --exclude='*/*-wal'` +
           ` default`,
           { timeout: 120000 }
         );
@@ -797,21 +800,40 @@ async function handleRequest(req, res) {
         ws.on("error", reject);
       });
 
-      // Detect archive format: expect "<profile>/" top-level dir with config.yaml
+      // Detect archive format: find the top-level profile directory
       let archivePrefix = null;
       try {
         const listing = execSync(`tar tzf ${tmpFile}`, { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
-        const firstEntry = listing.split("\n")[0] || "";
-        const topDir = firstEntry.split("/")[0];
+        const entries = listing.split("\n").filter(Boolean);
+        const firstEntry = entries[0] || "";
+        const topDir = firstEntry.replace(/\/$/, "").split("/")[0];
 
-        if (topDir && listing.includes(topDir + "/config.yaml")) {
-          archivePrefix = topDir;
-        } else {
+        if (!topDir) {
           cleanup();
-          sendJson(res, 400, { error: "Invalid backup: archive must be a Hermes profile export (use `hermes profile export default`)" });
+          sendJson(res, 400, { error: "Invalid backup: archive is empty" });
           return;
         }
-        console.log(`Import: detected profile "${archivePrefix}"`);
+
+        // Check if it looks like a hermes profile (has config.yaml, state.db, or sessions/)
+        const hasProfileData = entries.some(e =>
+          e.includes("/config.yaml") || e.includes("/state.db") ||
+          e.includes("/sessions/") || e.includes("/.env") ||
+          e.includes("/SOUL.md")
+        );
+
+        if (hasProfileData) {
+          archivePrefix = topDir;
+        } else if (entries.length === 1 && firstEntry.endsWith("/")) {
+          // Single empty directory (e.g. broken hermes profile export default)
+          cleanup();
+          sendJson(res, 400, { error: "Invalid backup: archive contains an empty profile directory. Use our export script instead: curl -fsSL https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-hermes/hermes-export.sh | bash" });
+          return;
+        } else {
+          cleanup();
+          sendJson(res, 400, { error: "Invalid backup: no Hermes profile data found in archive" });
+          return;
+        }
+        console.log(`Import: detected profile "${archivePrefix}" (${entries.length} entries)`);
       } catch (e) {
         cleanup();
         sendJson(res, 400, { error: "Invalid archive format" });
@@ -838,17 +860,33 @@ async function handleRequest(req, res) {
 
       // Extract and rename profile dir to .hermes/
       execSync(`tar xzf ${tmpFile} -C ${VOLUME_DIR}`, { timeout: 300000 });
-      const extractedDir = path.join(VOLUME_DIR, archivePrefix);
-      if (extractedDir !== hermesDir && fs.existsSync(extractedDir)) {
-        fs.renameSync(extractedDir, hermesDir);
-        console.log(`Renamed ${archivePrefix}/ to .hermes/`);
+      // Clean macOS resource fork files that can interfere with rename
+      execSync(`find ${VOLUME_DIR} -name '._*' -delete 2>/dev/null || true`, { timeout: 10000 });
+      if (archivePrefix !== ".hermes") {
+        const extractedDir = path.join(VOLUME_DIR, archivePrefix);
+        if (fs.existsSync(extractedDir)) {
+          execSync(`mv "${extractedDir}" "${hermesDir}"`, { timeout: 10000 });
+          console.log(`Renamed ${archivePrefix}/ to .hermes/`);
+        }
       }
       cleanup();
 
       // Remove stale SQLite WAL files (they reference the old DB state)
-      const stateDb = path.join(CONFIG_DIR, "state.db");
-      try { fs.unlinkSync(stateDb + "-shm"); } catch (e) {}
-      try { fs.unlinkSync(stateDb + "-wal"); } catch (e) {}
+      // Clean default profile and any imported named profiles
+      const walCleanDirs = [CONFIG_DIR];
+      const profilesDir = path.join(CONFIG_DIR, "profiles");
+      try {
+        if (fs.existsSync(profilesDir)) {
+          for (const p of fs.readdirSync(profilesDir)) {
+            walCleanDirs.push(path.join(profilesDir, p));
+          }
+        }
+      } catch (e) {}
+      for (const dir of walCleanDirs) {
+        const db = path.join(dir, "state.db");
+        try { fs.unlinkSync(db + "-shm"); } catch (e) {}
+        try { fs.unlinkSync(db + "-wal"); } catch (e) {}
+      }
 
       // Clear gateway_state.json (excluded from export, stale if leftover)
       try { fs.unlinkSync(STATE_FILE); } catch (e) {}

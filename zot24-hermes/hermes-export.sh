@@ -57,19 +57,19 @@ fi
 echo "Creating archive..."
 tar czfh "$BACKUP_FILE" \
   -C "$(dirname "$HERMES_DIR")" \
-  --exclude='default/hermes-agent' \
-  --exclude='default/checkpoints' \
-  --exclude='default/bin' \
-  --exclude='default/logs' \
-  --exclude='default/image_cache' \
-  --exclude='default/audio_cache' \
-  --exclude='default/document_cache' \
-  --exclude='default/browser_screenshots' \
-  --exclude='default/pastes' \
-  --exclude='default/node_modules' \
-  --exclude='default/gateway_state.json' \
-  --exclude='default/*-shm' \
-  --exclude='default/*-wal' \
+  --exclude='*/hermes-agent' \
+  --exclude='*/checkpoints' \
+  --exclude='*/bin' \
+  --exclude='*/logs' \
+  --exclude='*/image_cache' \
+  --exclude='*/audio_cache' \
+  --exclude='*/document_cache' \
+  --exclude='*/browser_screenshots' \
+  --exclude='*/pastes' \
+  --exclude='*/node_modules' \
+  --exclude='*/gateway_state.json' \
+  --exclude='*/*-shm' \
+  --exclude='*/*-wal' \
   default || {
   [ "$NEEDS_LINK" = true ] && rm -f "$LINK_DIR"
   rm -f "$BACKUP_FILE"
