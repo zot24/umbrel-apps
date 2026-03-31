@@ -1904,6 +1904,14 @@
       </div>
     </div>
 
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
+      <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart</button>
+    </div>
+
+    <!-- ═══════ DASHBOARD ═══════ -->
+    <div class="dash-section" id="dashSection">
+
     <div class="panel" id="profilesPanel">
       <div class="panel-header">
         <span class="panel-title">Profiles</span>
@@ -1917,13 +1925,6 @@
       </div>
     </div>
 
-    <div class="actions">
-      <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
-      <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart</button>
-    </div>
-
-    <!-- ═══════ DASHBOARD ═══════ -->
-    <div class="dash-section" id="dashSection">
     <div class="dash-nav-wrap">
       <div class="dash-nav-bar">
         <button class="dash-tab active" data-view="metrics" onclick="switchView('metrics')">
