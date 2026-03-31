@@ -15,6 +15,7 @@ const STATE_FILE = path.join(CONFIG_DIR, "gateway_state.json");
 const STATE_DB = path.join(CONFIG_DIR, "state.db");
 const SKILLS_DIR = path.join(CONFIG_DIR, "skills");
 const MEMORIES_DIR = path.join(CONFIG_DIR, "memories");
+const PROFILES_DIR = path.join(CONFIG_DIR, "profiles");
 
 // Pre-load static files with version injection
 const APP_VERSION = process.env.APP_VERSION || "dev";
@@ -217,6 +218,173 @@ function restartWebContainer() {
     console.error("Failed to restart web container:", e.message);
     return false;
   }
+}
+
+// ── Profile helpers ──────────────────────────────────────────────────────────
+
+const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+function getProfileDir(name) {
+  if (name === "default") return CONFIG_DIR;
+  return path.join(PROFILES_DIR, name);
+}
+
+function readProfileConfig(profileDir) {
+  const result = { model: null, provider: null, platforms: [] };
+  try {
+    const envFile = path.join(profileDir, ".env");
+    if (fs.existsSync(envFile)) {
+      const content = fs.readFileSync(envFile, "utf8");
+      const env = {};
+      content.split("\n").forEach(l => {
+        const m = l.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+        if (m) env[m[1]] = m[2];
+      });
+      if (env.HERMES_MODEL) result.model = env.HERMES_MODEL;
+      if (env.HERMES_PROVIDER) result.provider = env.HERMES_PROVIDER;
+      if (env.TELEGRAM_BOT_TOKEN) result.platforms.push("telegram");
+      if (env.WHATSAPP_ENABLED === "true") result.platforms.push("whatsapp");
+      if (env.DISCORD_BOT_TOKEN) result.platforms.push("discord");
+      if (env.SLACK_BOT_TOKEN) result.platforms.push("slack");
+    }
+    // Fallback to config.yaml for model
+    if (!result.model) {
+      const cfgFile = path.join(profileDir, "config.yaml");
+      if (fs.existsSync(cfgFile)) {
+        const yaml = fs.readFileSync(cfgFile, "utf8");
+        const modelMatch = yaml.match(/default:\s*"?([^"\n]+)"?/);
+        if (modelMatch) result.model = modelMatch[1].trim();
+        const provMatch = yaml.match(/provider:\s*"?([^"\n]+)"?/);
+        if (provMatch && !result.provider) result.provider = provMatch[1].trim();
+      }
+    }
+  } catch (e) {}
+  return result;
+}
+
+function readProfileGatewayState(profileDir) {
+  try {
+    const stateFile = path.join(profileDir, "gateway_state.json");
+    if (fs.existsSync(stateFile)) {
+      return JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    }
+  } catch (e) {}
+  return null;
+}
+
+function listProfiles() {
+  const profiles = [];
+
+  // Default profile
+  const defaultConfig = readProfileConfig(CONFIG_DIR);
+  const defaultState = readProfileGatewayState(CONFIG_DIR);
+  profiles.push({
+    name: "default",
+    ...defaultConfig,
+    gateway: defaultState?.gateway_state || "unknown",
+    pid: defaultState?.pid || null,
+  });
+
+  // Named profiles
+  try {
+    if (fs.existsSync(PROFILES_DIR)) {
+      for (const name of fs.readdirSync(PROFILES_DIR)) {
+        const dir = path.join(PROFILES_DIR, name);
+        if (!fs.statSync(dir).isDirectory()) continue;
+        const config = readProfileConfig(dir);
+        const state = readProfileGatewayState(dir);
+        profiles.push({
+          name,
+          ...config,
+          gateway: state?.gateway_state || "stopped",
+          pid: state?.pid || null,
+        });
+      }
+    }
+  } catch (e) {}
+
+  return profiles;
+}
+
+function execInWebContainer(cmd) {
+  const socketPath = "/var/run/docker.sock";
+  if (!fs.existsSync(socketPath)) throw new Error("Docker socket not available");
+  // Use docker exec via curl to the Docker API
+  const payload = JSON.stringify({
+    AttachStdout: false, AttachStderr: false, Detach: true,
+    Cmd: ["sh", "-c", cmd],
+  });
+  execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '${payload.replace(/'/g, "'\\''")}' ` +
+    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    { timeout: 10000 }
+  );
+}
+
+function startProfileGateway(name) {
+  const profileDir = getProfileDir(name);
+  const cmd = `HERMES_HOME=${profileDir} /app/venv/bin/hermes gateway run &`;
+  // Create exec instance and start it
+  const socketPath = "/var/run/docker.sock";
+  const createPayload = JSON.stringify({
+    AttachStdout: false, AttachStderr: false, Detach: true, Tty: false,
+    Cmd: ["sh", "-c", cmd],
+  });
+  const createResp = execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '${createPayload.replace(/'/g, "'\\''")}' ` +
+    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    { encoding: "utf8", timeout: 10000 }
+  );
+  const execId = JSON.parse(createResp).Id;
+  if (!execId) throw new Error("Failed to create exec instance");
+  execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '{"Detach":true}' ` +
+    `"http://localhost/exec/${execId}/start"`,
+    { timeout: 10000 }
+  );
+  console.log(`Started gateway for profile: ${name}`);
+}
+
+function stopProfileGateway(name) {
+  const profileDir = getProfileDir(name);
+  if (name === "default") {
+    // Don't kill the default gateway (PID 1)
+    throw new Error("Cannot stop the default profile gateway");
+  }
+  // Kill the gateway process for this profile
+  const cmd = `pkill -f "HERMES_HOME=${profileDir}.*gateway" || true`;
+  const socketPath = "/var/run/docker.sock";
+  const createPayload = JSON.stringify({
+    AttachStdout: true, AttachStderr: true, Detach: false, Tty: false,
+    Cmd: ["sh", "-c", cmd],
+  });
+  const createResp = execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '${createPayload.replace(/'/g, "'\\''")}' ` +
+    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    { encoding: "utf8", timeout: 10000 }
+  );
+  const execId = JSON.parse(createResp).Id;
+  if (execId) {
+    execSync(
+      `curl -s --unix-socket ${socketPath} -X POST ` +
+      `-H "Content-Type: application/json" ` +
+      `-d '{"Detach":false}' ` +
+      `"http://localhost/exec/${execId}/start"`,
+      { timeout: 10000 }
+    );
+  }
+  // Clear gateway state
+  const stateFile = path.join(profileDir, "gateway_state.json");
+  try { fs.unlinkSync(stateFile); } catch (e) {}
+  console.log(`Stopped gateway for profile: ${name}`);
 }
 
 // ── Telegram API helpers ─────────────────────────────────────────────────────
@@ -1270,6 +1438,116 @@ async function handleRequest(req, res) {
       console.error("Memory read error:", e.message);
     }
     sendJson(res, 200, result);
+    return;
+  }
+
+  // ── API: List profiles ──
+  if (req.method === "GET" && url.pathname === "/api/profiles") {
+    sendJson(res, 200, { profiles: listProfiles() });
+    return;
+  }
+
+  // ── API: Create profile ──
+  if (req.method === "POST" && url.pathname === "/api/profiles") {
+    try {
+      const data = await parseBody(req);
+      const name = (data.name || "").trim().toLowerCase();
+
+      if (!name || !PROFILE_NAME_RE.test(name)) {
+        sendJson(res, 400, { error: "Invalid profile name. Use lowercase letters, numbers, hyphens." });
+        return;
+      }
+      if (name === "default") {
+        sendJson(res, 400, { error: "Cannot create a profile named 'default'." });
+        return;
+      }
+
+      const profileDir = getProfileDir(name);
+      if (fs.existsSync(profileDir)) {
+        sendJson(res, 409, { error: `Profile '${name}' already exists.` });
+        return;
+      }
+
+      fs.mkdirSync(profileDir, { recursive: true });
+
+      // Create required subdirs
+      for (const dir of ["sessions", "logs", "pairing", "hooks", "image_cache", "audio_cache", "memories", "skills", "whatsapp", "cron"]) {
+        fs.mkdirSync(path.join(profileDir, dir), { recursive: true });
+      }
+
+      // Clone from default if requested
+      if (data.clone) {
+        for (const file of ["config.yaml", ".env", "SOUL.md", "USER.md", "instructions.md"]) {
+          const src = path.join(CONFIG_DIR, file);
+          if (fs.existsSync(src)) {
+            fs.copyFileSync(src, path.join(profileDir, file));
+          }
+        }
+        console.log(`Created profile '${name}' (cloned from default)`);
+      } else {
+        console.log(`Created profile '${name}' (blank)`);
+      }
+
+      sendJson(res, 201, { success: true, name });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Profile actions (start/stop/restart/delete) ──
+  const profileMatch = url.pathname.match(/^\/api\/profiles\/([a-z0-9][a-z0-9_-]*)\/(start|stop|restart)$/);
+  if (req.method === "POST" && profileMatch) {
+    const [, name, action] = profileMatch;
+    try {
+      const profileDir = getProfileDir(name);
+      if (!fs.existsSync(profileDir)) {
+        sendJson(res, 404, { error: `Profile '${name}' not found.` });
+        return;
+      }
+
+      if (action === "start") {
+        startProfileGateway(name);
+        sendJson(res, 200, { success: true, message: `Gateway starting for ${name}...` });
+      } else if (action === "stop") {
+        stopProfileGateway(name);
+        sendJson(res, 200, { success: true, message: `Gateway stopped for ${name}.` });
+      } else if (action === "restart") {
+        try { stopProfileGateway(name); } catch (e) {}
+        setTimeout(() => {
+          try { startProfileGateway(name); } catch (e) { console.error(`Restart failed for ${name}:`, e.message); }
+        }, 2000);
+        sendJson(res, 200, { success: true, message: `Gateway restarting for ${name}...` });
+      }
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Delete profile ──
+  const deleteMatch = url.pathname.match(/^\/api\/profiles\/([a-z0-9][a-z0-9_-]*)$/);
+  if (req.method === "DELETE" && deleteMatch) {
+    const name = deleteMatch[1];
+    try {
+      if (name === "default") {
+        sendJson(res, 400, { error: "Cannot delete the default profile." });
+        return;
+      }
+      const profileDir = getProfileDir(name);
+      if (!fs.existsSync(profileDir)) {
+        sendJson(res, 404, { error: `Profile '${name}' not found.` });
+        return;
+      }
+      // Stop gateway if running
+      try { stopProfileGateway(name); } catch (e) {}
+      // Remove profile directory
+      fs.rmSync(profileDir, { recursive: true, force: true });
+      console.log(`Deleted profile: ${name}`);
+      sendJson(res, 200, { success: true });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
     return;
   }
 

@@ -379,6 +379,97 @@
       font-size: 13px; font-weight: 500; color: var(--phosphor-dim);
     }
 
+    /* ── Profiles ── */
+    .profile-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+    }
+    .profile-item + .profile-item { border-top: 1px solid var(--border); }
+    .profile-dot {
+      width: 8px; height: 8px;
+      flex-shrink: 0;
+    }
+    .profile-dot.running { background: var(--phosphor); box-shadow: 0 0 6px var(--phosphor-glow); }
+    .profile-dot.stopped { background: var(--text-muted); opacity: 0.4; }
+    .profile-dot.starting { background: var(--amber); animation: dotPulse 1.5s ease-in-out infinite; }
+    .profile-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      min-width: 80px;
+    }
+    .profile-model {
+      font-size: 11px;
+      color: var(--text-muted);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .profile-platforms {
+      display: flex;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+    .profile-platforms span {
+      padding: 1px 4px;
+      border: 1px solid var(--border);
+      font-family: var(--body);
+    }
+    .profile-state {
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-family: var(--body);
+      min-width: 55px;
+      text-align: right;
+    }
+    .profile-state.running { color: var(--phosphor); }
+    .profile-state.stopped { color: var(--text-muted); }
+    .profile-state.starting { color: var(--amber); }
+    .profile-actions {
+      display: flex;
+      gap: 4px;
+      margin-left: 4px;
+    }
+    .profile-action-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--body);
+      font-size: 9px;
+      padding: 2px 6px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: all 0.15s;
+    }
+    .profile-action-btn:hover {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+    }
+    .profile-action-btn.danger:hover {
+      color: var(--red);
+      border-color: var(--red-dim);
+    }
+
+    /* ── Create profile modal ── */
+    .create-profile-modal .modal-box {
+      border-color: var(--phosphor-dim);
+      max-width: 380px;
+    }
+    .create-profile-modal .modal-box::before {
+      background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+    }
+    .create-profile-modal .modal-header {
+      background: rgba(80,255,168,0.02);
+    }
+    .create-profile-modal .modal-icon { color: var(--phosphor); }
+    .create-profile-modal .modal-title { color: var(--phosphor); }
+
     /* ── Actions ── */
     .actions { display: flex; gap: 8px; margin-top: 6px; }
 
@@ -1750,6 +1841,19 @@
       </div>
     </div>
 
+    <div class="panel" id="profilesPanel">
+      <div class="panel-header">
+        <span class="panel-title">Profiles</span>
+        <span class="panel-indicator">SYS.AGENTS</span>
+      </div>
+      <div class="panel-body">
+        <div id="profilesList">
+          <div class="empty-state">LOADING...</div>
+        </div>
+        <button class="btn btn-secondary" style="margin-top: 8px; width: 100%;" onclick="openCreateProfile()">+ New Profile</button>
+      </div>
+    </div>
+
     <div class="actions">
       <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
       <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart</button>
@@ -1993,6 +2097,38 @@
       <div class="backup-footer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         Includes config, secrets, state.db, sessions, memories, skills, profiles, and scripts. Excludes caches and logs.
+      </div>
+    </div>
+  </div>
+
+  <!-- Create profile modal -->
+  <div class="modal-backdrop create-profile-modal" id="createProfileModal" onclick="if(event.target===this)this.classList.remove('show')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span class="modal-icon">+</span>
+        <span class="modal-title">New Profile</span>
+      </div>
+      <div class="modal-body">
+        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
+          Create an isolated agent with its own config, API keys, personality, memory, and gateway.
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Profile Name</label>
+          <input type="text" id="newProfileName" placeholder="e.g. coder, research, assistant" style="width: 100%; box-sizing: border-box; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-family: var(--body); font-size: 13px;">
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Lowercase letters, numbers, and hyphens only</div>
+        </div>
+        <div style="margin-bottom: 14px;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text);">
+            <input type="checkbox" id="cloneProfile" checked>
+            Clone config from default profile
+          </label>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; margin-left: 24px;">Copies API keys, model, and personality. Fresh sessions and memory.</div>
+        </div>
+        <div id="createProfileError" style="display: none; font-size: 12px; color: var(--red); padding: 8px 10px; border: 1px solid var(--red-dim); margin-bottom: 10px;"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="document.getElementById('createProfileModal').classList.remove('show')">Cancel</button>
+        <button class="btn btn-primary" id="createProfileBtn" onclick="createProfile()">Create</button>
       </div>
     </div>
   </div>
@@ -2497,6 +2633,126 @@
     setInterval(fetchStatus, 5000);
     setInterval(fetchPairing, 5000);
     fetchPairing();
+
+    // ═══════ PROFILES ═══════
+
+    const platformAbbr = { telegram: "TG", whatsapp: "WA", discord: "DC", slack: "SL" };
+
+    async function fetchProfiles() {
+      try {
+        const data = await (await fetch("/api/profiles")).json();
+        renderProfiles(data.profiles || []);
+      } catch (e) {
+        console.error("Profiles fetch failed:", e);
+      }
+    }
+
+    function renderProfiles(profiles) {
+      const el = document.getElementById("profilesList");
+      if (!profiles.length) {
+        el.innerHTML = '<div class="empty-state">NO PROFILES</div>';
+        return;
+      }
+
+      el.innerHTML = profiles.map(p => {
+        const state = p.gateway === "running" ? "running" : (p.gateway === "starting" ? "starting" : "stopped");
+        const stateLabel = state === "running" ? "ONLINE" : (state === "starting" ? "INIT..." : "STOPPED");
+        const platforms = (p.platforms || []).map(pl => `<span>${platformAbbr[pl] || pl}</span>`).join("");
+        const modelShort = (p.model || "not configured").split("/").pop().slice(0, 20);
+
+        const isDefault = p.name === "default";
+        let actions = "";
+        if (!isDefault && state === "stopped") {
+          actions = `<button class="profile-action-btn" onclick="profileAction('${p.name}','start')">START</button>` +
+                    `<button class="profile-action-btn danger" onclick="deleteProfile('${p.name}')">DEL</button>`;
+        } else if (!isDefault && state === "running") {
+          actions = `<button class="profile-action-btn" onclick="profileAction('${p.name}','stop')">STOP</button>`;
+        }
+
+        return `<div class="profile-item">
+          <div class="profile-dot ${state}"></div>
+          <div class="profile-name">${p.name}</div>
+          <div class="profile-model">${modelShort}</div>
+          <div class="profile-platforms">${platforms}</div>
+          <div class="profile-state ${state}">${stateLabel}</div>
+          <div class="profile-actions">${actions}</div>
+        </div>`;
+      }).join("");
+    }
+
+    async function profileAction(name, action) {
+      try {
+        await fetch(`/api/profiles/${name}/${action}`, { method: "POST" });
+        setTimeout(fetchProfiles, 2000);
+      } catch (e) {
+        alert("Failed: " + e.message);
+      }
+    }
+
+    function openCreateProfile() {
+      document.getElementById("newProfileName").value = "";
+      document.getElementById("cloneProfile").checked = true;
+      document.getElementById("createProfileError").style.display = "none";
+      document.getElementById("createProfileModal").classList.add("show");
+      setTimeout(() => document.getElementById("newProfileName").focus(), 100);
+    }
+
+    async function createProfile() {
+      const name = document.getElementById("newProfileName").value.trim().toLowerCase();
+      const clone = document.getElementById("cloneProfile").checked;
+      const errEl = document.getElementById("createProfileError");
+
+      if (!name) {
+        errEl.textContent = "Profile name is required.";
+        errEl.style.display = "block";
+        return;
+      }
+
+      const btn = document.getElementById("createProfileBtn");
+      btn.disabled = true; btn.textContent = "CREATING...";
+      errEl.style.display = "none";
+
+      try {
+        const resp = await fetch("/api/profiles", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, clone }),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          document.getElementById("createProfileModal").classList.remove("show");
+          fetchProfiles();
+        } else {
+          errEl.textContent = data.error || "Failed to create profile.";
+          errEl.style.display = "block";
+        }
+      } catch (e) {
+        errEl.textContent = e.message;
+        errEl.style.display = "block";
+      }
+      btn.disabled = false; btn.textContent = "Create";
+    }
+
+    function deleteProfile(name) {
+      showConfirm(
+        "Delete Profile",
+        `This will permanently delete the '${name}' profile and all its data (sessions, memories, skills). This cannot be undone.`,
+        "Delete",
+        async () => {
+          try {
+            const resp = await fetch(`/api/profiles/${name}`, { method: "DELETE" });
+            const data = await resp.json();
+            if (data.success) fetchProfiles();
+            else alert("Failed: " + (data.error || "Unknown error"));
+          } catch (e) {
+            alert("Failed: " + e.message);
+          }
+        }
+      );
+    }
+
+    fetchProfiles();
+    setInterval(fetchProfiles, 10000);
 
     // ═══════ DASHBOARD ═══════
 
