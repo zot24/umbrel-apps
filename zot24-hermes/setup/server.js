@@ -515,6 +515,11 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/dashboard") {
+    sendHtml(res, DASHBOARD_HTML.replace('/*__AUTOOPEN__*/', 'window.__DASHBOARD_AUTOOPEN__=true;'));
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/setup") {
     sendHtml(res, WIZARD_HTML);
     return;

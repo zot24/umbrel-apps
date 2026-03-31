@@ -1862,6 +1862,7 @@
       </div>
     </div>
 
+    <div id="mainStatusSection">
     <div class="panel">
       <div class="panel-header">
         <span class="panel-title">Channels</span>
@@ -1908,6 +1909,7 @@
       <button class="btn btn-secondary" onclick="window.location.href='/setup'">Reconfigure</button>
       <button class="btn btn-primary" id="restartBtn" onclick="restartGateway()">Restart</button>
     </div>
+    </div><!-- /mainStatusSection -->
 
     <!-- ═══════ DASHBOARD ═══════ -->
     <div class="dash-section" id="dashSection">
@@ -2111,7 +2113,7 @@
 
   <!-- Corner buttons -->
   <div class="corner-buttons">
-    <div class="corner-dash" id="cornerDash" onclick="toggleDashboard()">
+    <div class="corner-dash" id="cornerDash" onclick="window.location.href='/dashboard'">
       <div class="corner-dash-tip">
         <div class="tip-tag">Classified</div>
         <span class="tip-text">What lies beneath the surface? Agents, metrics, memories, and things that prefer to remain unseen.</span>
@@ -2243,6 +2245,7 @@
   </div>
 
   <script>
+    /*__AUTOOPEN__*/
     let lastQrImage = null;
     let modalCallback = null;
 
@@ -3311,30 +3314,27 @@
     // ── Dashboard toggle ──
     let dashLoaded = false;
 
-    function toggleDashboard() {
+    function openDashboard() {
       const section = document.getElementById("dashSection");
       const btn = document.getElementById("cornerDash");
-      const isOpen = section.classList.toggle("open");
-      btn.classList.toggle("active", isOpen);
-      document.cookie = "dashOpen=" + (isOpen ? "1" : "0") + ";path=/;max-age=31536000";
-      if (isOpen && !dashLoaded) {
+      section.classList.add("open");
+      btn.classList.add("active");
+      if (!dashLoaded) {
         dashLoaded = true;
         fetchInsights();
         setInterval(fetchInsights, 60000);
       }
     }
 
-    // Restore state from cookie
-    (function() {
-      const match = document.cookie.match(/dashOpen=([^;]+)/);
-      if (match && match[1] === "1") {
-        document.getElementById("dashSection").classList.add("open");
-        document.getElementById("cornerDash").classList.add("active");
-        dashLoaded = true;
-        fetchInsights();
-        setInterval(fetchInsights, 60000);
-      }
-    })();
+    function toggleDashboard() {
+      window.location.href = window.location.pathname === "/dashboard" ? "/" : "/dashboard";
+    }
+
+    // Auto-open on /dashboard route — hide main status, show dashboard
+    if (window.__DASHBOARD_AUTOOPEN__ || window.location.pathname === "/dashboard") {
+      document.getElementById("mainStatusSection").style.display = "none";
+      openDashboard();
+    }
   </script>
 
   <!-- Import error overlay -->
