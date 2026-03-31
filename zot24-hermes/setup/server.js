@@ -860,10 +860,14 @@ async function handleRequest(req, res) {
 
       // Extract and rename profile dir to .hermes/
       execSync(`tar xzf ${tmpFile} -C ${VOLUME_DIR}`, { timeout: 300000 });
-      const extractedDir = path.join(VOLUME_DIR, archivePrefix);
-      if (extractedDir !== hermesDir && fs.existsSync(extractedDir)) {
-        fs.renameSync(extractedDir, hermesDir);
-        console.log(`Renamed ${archivePrefix}/ to .hermes/`);
+      // Clean macOS resource fork files that can interfere with rename
+      execSync(`find ${VOLUME_DIR} -name '._*' -delete 2>/dev/null || true`, { timeout: 10000 });
+      if (archivePrefix !== ".hermes") {
+        const extractedDir = path.join(VOLUME_DIR, archivePrefix);
+        if (fs.existsSync(extractedDir)) {
+          execSync(`mv "${extractedDir}" "${hermesDir}"`, { timeout: 10000 });
+          console.log(`Renamed ${archivePrefix}/ to .hermes/`);
+        }
       }
       cleanup();
 
