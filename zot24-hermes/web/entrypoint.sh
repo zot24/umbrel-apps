@@ -162,6 +162,12 @@ fi
 # shellcheck disable=SC1091
 source /app/venv/bin/activate
 
+# ── Enable the OpenAI-compatible API server on all gateway instances ──────────
+# This allows the dashboard (setup container) to chat with profiles and enables
+# inter-agent communication via the ask-agent skill.
+export API_SERVER_ENABLED=true
+export API_SERVER_HOST=0.0.0.0
+
 case "${1:-gateway}" in
     gateway)
         # Auto-start any profile gateways that were previously running
