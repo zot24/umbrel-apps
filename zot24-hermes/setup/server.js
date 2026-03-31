@@ -391,10 +391,30 @@ async function sendMessageToProfile(name, input, fromName) {
   return { response: responseText, duration_ms: duration };
 }
 
+// Translate a path from the setup container's view (/config/...) to the web container's view (/data/...)
+function webContainerPath(localPath) {
+  return localPath.replace(/^\/config\//, "/data/");
+}
+
 function startProfileGateway(name) {
   const profileDir = getProfileDir(name);
+  const webProfileDir = webContainerPath(profileDir);
   const { apiPort, webhookPort } = assignProfilePorts(name);
-  const cmd = `HERMES_HOME=${profileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run &`;
+
+  // Persist port assignments in the profile's .env so getProfileApiPort() can find them
+  const envFile = path.join(profileDir, ".env");
+  let envContent = "";
+  try { if (fs.existsSync(envFile)) envContent = fs.readFileSync(envFile, "utf8"); } catch (e) {}
+  // Update or append port settings
+  const setEnvVar = (content, key, val) => {
+    const re = new RegExp(`^${key}=.*$`, "m");
+    return re.test(content) ? content.replace(re, `${key}=${val}`) : content.trimEnd() + `\n${key}=${val}`;
+  };
+  envContent = setEnvVar(envContent, "API_SERVER_PORT", apiPort);
+  envContent = setEnvVar(envContent, "WEBHOOK_PORT", webhookPort);
+  fs.writeFileSync(envFile, envContent.trim() + "\n");
+
+  const cmd = `HERMES_HOME=${webProfileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run --replace &`;
   // Create exec instance and start it
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
@@ -427,7 +447,8 @@ function stopProfileGateway(name) {
     throw new Error("Cannot stop the default profile gateway");
   }
   // Kill the gateway process for this profile
-  const cmd = `pkill -f "HERMES_HOME=${profileDir}.*gateway" || true`;
+  const webProfileDir = webContainerPath(profileDir);
+  const cmd = `pkill -f "HERMES_HOME=${webProfileDir}.*gateway" || true`;
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
     AttachStdout: true, AttachStderr: true, Detach: false, Tty: false,
@@ -1816,10 +1837,32 @@ async function handleRequest(req, res) {
 
       // Clone from default if requested
       if (data.clone) {
-        for (const file of ["config.yaml", ".env", "SOUL.md", "USER.md", "instructions.md"]) {
+        // Copy config.yaml (strip platform-specific settings for clean profile)
+        const cfgSrc = path.join(CONFIG_DIR, "config.yaml");
+        if (fs.existsSync(cfgSrc)) {
+          let yaml = fs.readFileSync(cfgSrc, "utf8");
+          // Remove platform sections — new profile starts without messaging channels
+          yaml = yaml.replace(/gateway:[\s\S]*?(?=\n\w|\n$|$)/, "gateway:\n  streaming: true\n  platforms:\n    # Configure platforms for this profile\n");
+          fs.writeFileSync(path.join(profileDir, "config.yaml"), yaml);
+        }
+        // Copy .env but strip platform tokens (keep model + provider + API keys)
+        const envSrc = path.join(CONFIG_DIR, ".env");
+        if (fs.existsSync(envSrc)) {
+          const envContent = fs.readFileSync(envSrc, "utf8");
+          const skipKeys = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID", "WHATSAPP_ENABLED", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "HERMES_REGEN_CONFIG"];
+          const filtered = envContent.split("\n").filter(line => {
+            const key = line.split("=")[0].trim();
+            return !skipKeys.includes(key);
+          }).join("\n");
+          fs.writeFileSync(path.join(profileDir, ".env"), filtered);
+        }
+        // Copy personality/instruction files
+        for (const file of ["SOUL.md", "USER.md", "instructions.md"]) {
           const src = path.join(CONFIG_DIR, file);
           if (fs.existsSync(src)) {
-            fs.copyFileSync(src, path.join(profileDir, file));
+            try { fs.copyFileSync(src, path.join(profileDir, file)); } catch (e) {
+              console.error(`Failed to copy ${file} to profile ${name}:`, e.message);
+            }
           }
         }
         console.log(`Created profile '${name}' (cloned from default)`);

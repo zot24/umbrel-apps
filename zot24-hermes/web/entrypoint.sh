@@ -180,7 +180,15 @@ case "${1:-gateway}" in
                     prev_state=$(python3 -c "import json; print(json.load(open('$state_file')).get('gateway_state',''))" 2>/dev/null)
                     if [ "$prev_state" = "running" ]; then
                         echo "Auto-starting profile gateway: $profile_name"
-                        HERMES_HOME="$profile_dir" hermes gateway run &
+                        # Clear parent platform tokens so the profile doesn't conflict
+                        # with the default gateway, then source the profile's own .env
+                        (
+                            unset TELEGRAM_BOT_TOKEN TELEGRAM_HOME_CHAT_ID
+                            unset WHATSAPP_ENABLED DISCORD_BOT_TOKEN SLACK_BOT_TOKEN
+                            unset HERMES_REGEN_CONFIG
+                            [ -f "$profile_dir/.env" ] && set -a && source "$profile_dir/.env" && set +a
+                            HERMES_HOME="$profile_dir" exec hermes gateway run
+                        ) &
                         sleep 1
                     fi
                 fi

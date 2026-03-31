@@ -388,7 +388,7 @@
     }
     .profile-item + .profile-item { border-top: 1px solid var(--border); }
     .profile-avatar {
-      width: 64px; height: 64px;
+      width: 72px; height: 72px;
       flex-shrink: 0;
       border: 2px solid var(--border);
       position: relative;
@@ -1579,12 +1579,8 @@
       background: var(--surface);
       border: 1px solid var(--border);
       display: flex;
-      overflow-x: auto;
-      scrollbar-width: none;
-      -ms-overflow-style: none;
       position: relative;
     }
-    .dash-nav-bar::-webkit-scrollbar { display: none; }
     .dash-nav-bar::before {
       content: '';
       position: absolute;
@@ -1595,9 +1591,11 @@
     .dash-tab {
       display: flex;
       align-items: center;
-      gap: 5px;
-      padding: 9px 12px;
+      justify-content: center;
+      gap: 6px;
+      padding: 11px 8px;
       border: none;
+      border-right: 1px solid var(--border);
       background: none;
       font-family: var(--body);
       font-size: 10px;
@@ -1609,8 +1607,9 @@
       white-space: nowrap;
       transition: all 0.15s;
       position: relative;
-      flex-shrink: 0;
+      flex: 1;
     }
+    .dash-tab:last-child { border-right: none; }
     .dash-tab:hover {
       color: var(--text);
       background: rgba(80,255,168,0.03);
@@ -1622,7 +1621,7 @@
     .dash-tab.active::after {
       content: '';
       position: absolute;
-      bottom: 0; left: 8px; right: 8px;
+      bottom: 0; left: 0; right: 0;
       height: 2px;
       background: var(--phosphor);
       box-shadow: 0 0 8px var(--phosphor-glow);
@@ -1632,7 +1631,7 @@
       font-size: 9px;
       font-weight: 700;
       color: var(--phosphor-dim);
-      padding: 1px 4px;
+      padding: 2px 5px;
       border: 1px solid var(--border);
       background: var(--surface-2);
       line-height: 1;
@@ -2371,24 +2370,74 @@
     .mem-unsaved { color: var(--amber); }
 
     /* ── Enhanced skills ── */
-    .skill-detail {
-      background: var(--surface-2);
-      padding: 10px 14px;
-      margin-bottom: 2px;
-      border-left: 2px solid transparent;
-      transition: all 0.15s;
+    .skill-cat {
+      margin-bottom: 3px;
     }
-    .skill-detail:hover { border-left-color: var(--amber-dim); background: rgba(255,192,77,0.02); }
-    .skill-detail-header {
+    .skill-cat-header {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 4px;
+      padding: 8px 14px;
+      background: var(--surface-2);
+      cursor: pointer;
+      transition: all 0.15s;
+      border-left: 2px solid transparent;
     }
-    .skill-detail-name { font-size: 12px; color: var(--text); font-weight: 500; }
-    .skill-badge {
-      font-size: 8px;
+    .skill-cat-header:hover { border-left-color: var(--amber-dim); background: rgba(255,192,77,0.02); }
+    .skill-cat-name {
+      font-family: var(--display);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--amber);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .skill-cat-count {
+      font-family: var(--body);
+      font-size: 9px;
+      color: var(--text-muted);
       padding: 1px 5px;
+      border: 1px solid var(--border);
+    }
+    .skill-cat-arrow {
+      margin-left: auto;
+      color: var(--text-muted);
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+    .skill-cat.open .skill-cat-arrow { transform: rotate(90deg); }
+    .skill-cat-body {
+      display: none;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2px;
+      padding: 2px 0;
+    }
+    .skill-cat.open .skill-cat-body { display: grid; }
+    .skill-detail {
+      background: var(--surface-2);
+      padding: 8px 12px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+      overflow: hidden;
+    }
+    .skill-detail:hover { border-left-color: var(--amber-dim); background: rgba(255,192,77,0.02); }
+    .skill-detail-name {
+      font-size: 11px;
+      color: var(--text);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .skill-detail-badges {
+      display: flex;
+      gap: 3px;
+      margin-top: 3px;
+      flex-wrap: wrap;
+    }
+    .skill-badge {
+      font-size: 7px;
+      padding: 1px 4px;
       border: 1px solid;
       letter-spacing: 0.5px;
       text-transform: uppercase;
@@ -2396,8 +2445,16 @@
     }
     .skill-badge.platform { color: var(--phosphor-dim); border-color: var(--phosphor-dim); }
     .skill-badge.prereq { color: var(--amber); border-color: var(--amber-dim); }
-    .skill-detail-desc { font-size: 10px; color: var(--text-muted); line-height: 1.5; }
-    .skill-detail-author { font-size: 9px; color: var(--text-muted); opacity: 0.6; margin-top: 2px; }
+    .skill-detail-desc {
+      font-size: 9px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin-top: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .skill-detail-author { font-size: 8px; color: var(--text-muted); opacity: 0.5; margin-top: 2px; }
 
     /* ── Cron jobs ── */
     .job-card {
@@ -2439,6 +2496,288 @@
       white-space: pre-wrap;
       word-break: break-word;
       border-left: 2px solid var(--border);
+    }
+
+    /* ── Floating profiles strip ── */
+    .profiles-float {
+      display: none;
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      z-index: 190;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 1px var(--phosphor-dim);
+    }
+    .profiles-float.visible { display: flex; animation: chatFloatIn 0.25s ease-out; }
+    .profiles-float::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 5%, var(--phosphor-dim) 50%, transparent 95%);
+      opacity: 0.4;
+      z-index: 1;
+    }
+    .profiles-float.dock-left { right: auto; left: 16px; }
+    .profiles-float.dock-right { left: auto; right: 16px; }
+    .profiles-float.dragging { transition: none; user-select: none; }
+
+    .profiles-float-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(80,255,168,0.015);
+      cursor: grab;
+      user-select: none;
+    }
+    .profiles-float-header:active { cursor: grabbing; }
+    .profiles-float-title {
+      font-family: var(--display);
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--phosphor-dim);
+      letter-spacing: 2px;
+    }
+    .profiles-float-controls {
+      margin-left: auto;
+      display: flex;
+      gap: 2px;
+    }
+
+    /* Minimized: horizontal avatar strip */
+    .profiles-float-strip {
+      display: flex;
+      gap: 4px;
+      padding: 6px 10px;
+      align-items: center;
+    }
+    .profiles-float-strip .pf-avatar {
+      position: relative;
+      cursor: pointer;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .profiles-float-strip .pf-avatar:hover {
+      transform: scale(1.1);
+    }
+    .profiles-float-strip .pf-avatar img {
+      width: 64px;
+      height: 64px;
+      border: 2px solid var(--border);
+      display: block;
+    }
+    .profiles-float-strip .pf-avatar.running img {
+      border-color: var(--phosphor-dim);
+      box-shadow: 0 0 8px var(--phosphor-glow);
+    }
+    .profiles-float-strip .pf-avatar.stopped img {
+      opacity: 0.4;
+    }
+    .profiles-float-strip .pf-avatar.selected img {
+      border-color: var(--amber);
+      box-shadow: 0 0 8px var(--amber-glow);
+    }
+    .profiles-float-strip .pf-dot {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 8px;
+      height: 8px;
+      border: 2px solid var(--surface);
+    }
+    .profiles-float-strip .pf-dot.running {
+      background: var(--phosphor);
+      box-shadow: 0 0 4px var(--phosphor-glow);
+    }
+    .profiles-float-strip .pf-dot.stopped {
+      background: var(--text-muted);
+      opacity: 0.5;
+    }
+    .profiles-float-strip .pf-dot.starting {
+      background: var(--amber);
+      animation: dotPulse 1.5s ease-in-out infinite;
+    }
+    .profiles-float-strip .pf-name {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      font-family: var(--body);
+      font-size: 9px;
+      color: var(--text);
+      white-space: nowrap;
+      letter-spacing: 0.5px;
+      z-index: 10;
+    }
+    .profiles-float-strip .pf-avatar:hover .pf-name { display: block; }
+
+    .profiles-float-strip .pf-add {
+      width: 64px;
+      height: 64px;
+      border: 1px dashed var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .profiles-float-strip .pf-add:hover {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+    }
+
+    /* Expanded detail view */
+    .profiles-float-detail {
+      padding: 8px 10px;
+      max-height: 400px;
+      overflow-y: auto;
+      min-width: 320px;
+    }
+    .profiles-float.expanded { min-width: 360px; }
+
+    /* ── Floating chat panel ── */
+    .chat-float {
+      display: none;
+      position: fixed;
+      bottom: 56px;
+      right: 16px;
+      width: 380px;
+      max-height: 520px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      z-index: 200;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 0 1px var(--phosphor-dim);
+    }
+    .chat-float.open {
+      display: flex;
+      animation: chatFloatIn 0.25s ease-out;
+    }
+    @keyframes chatFloatIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .chat-float::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 5%, var(--phosphor-dim) 50%, transparent 95%);
+      opacity: 0.4;
+      z-index: 1;
+    }
+    .chat-float.dock-left { right: auto; left: 16px; }
+    .chat-float.dock-right { left: auto; right: 16px; }
+    .chat-float.dragging { transition: none; user-select: none; }
+
+    .chat-float-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(80,255,168,0.015);
+      cursor: grab;
+      user-select: none;
+    }
+    .chat-float-header:active { cursor: grabbing; }
+    .chat-float-title {
+      font-family: var(--display);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--phosphor-dim);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chat-float-indicator {
+      font-family: var(--body);
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .chat-float-controls {
+      margin-left: auto;
+      display: flex;
+      gap: 2px;
+    }
+    .chat-float-ctrl {
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-muted);
+      font-size: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .chat-float-ctrl:hover {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+    }
+
+    .chat-float-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 8px;
+    }
+    .chat-float-body .chat-profile-tabs { margin-bottom: 6px; }
+    .chat-float-body .chat-log {
+      flex: 1;
+      min-height: 200px;
+      max-height: 300px;
+    }
+    .chat-float-body .chat-input-bar { padding-top: 6px; }
+
+    /* Inter-agent comms inside float */
+    .chat-float-comms {
+      border-top: 1px solid var(--border);
+      margin-top: 6px;
+    }
+    .chat-float-comms-toggle {
+      padding: 6px 8px;
+      font-family: var(--body);
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .chat-float-comms-toggle:hover { color: var(--phosphor-dim); }
+    .chat-float-comms-body {
+      display: none;
+      padding: 0 8px 8px;
+    }
+    .chat-float-comms.open .chat-float-comms-body { display: block; }
+
+    /* Active state for corner chat button */
+    #cornerChat { display: none; }
+    #cornerChat.visible { display: flex; }
+    #cornerChat.active {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+      background: rgba(80,255,168,0.06);
+      box-shadow: 0 0 12px var(--phosphor-glow);
     }
 
     /* ── Improved session detail (retro chat log) ── */
@@ -2488,9 +2827,6 @@
     <div class="header">
       <div class="header-sub">Nous Research</div>
       <h1 id="heroTitle"><span id="heroText">HERMES</span><span class="cursor"></span></h1>
-      <div id="gatewayStatus">
-        <span class="status-pill starting"><span class="dot"></span> INIT...</span>
-      </div>
     </div>
 
     <div id="mainStatusSection">
@@ -2545,17 +2881,11 @@
     <!-- ═══════ DASHBOARD ═══════ -->
     <div class="dash-section" id="dashSection">
 
-    <div class="panel" id="profilesPanel">
-      <div class="panel-header">
-        <span class="panel-title">Profiles</span>
-        <span class="panel-indicator">SYS.AGENTS</span>
-      </div>
-      <div class="panel-body">
-        <div id="profilesList">
-          <div class="empty-state">LOADING...</div>
-        </div>
-        <button class="btn btn-secondary" style="margin-top: 8px; width: 100%;" onclick="openCreateProfile()">+ New Profile</button>
-      </div>
+    <!-- Profile filter indicator -->
+    <div class="profile-filter-bar" id="profileFilterBar">
+      <span class="profile-filter-label">VIEWING:</span>
+      <span class="profile-filter-name" id="profileFilterName">ALL</span>
+      <button class="profile-filter-clear" onclick="clearProfileFilter()">CLEAR</button>
     </div>
 
     <!-- Glance bar -->
@@ -2578,13 +2908,6 @@
       <span class="glance-val" id="glanceTime">-</span>
     </div>
 
-    <!-- Profile filter indicator -->
-    <div class="profile-filter-bar" id="profileFilterBar">
-      <span class="profile-filter-label">VIEWING:</span>
-      <span class="profile-filter-name" id="profileFilterName">ALL</span>
-      <button class="profile-filter-clear" onclick="clearProfileFilter()">CLEAR</button>
-    </div>
-
     <div class="dash-nav-wrap">
       <div class="dash-nav-bar">
         <button class="dash-tab active" data-view="metrics" onclick="switchView('metrics')">
@@ -2602,11 +2925,8 @@
         <button class="dash-tab" data-view="memory" onclick="switchView('memory')">
           <span class="fkey">F5</span> Memory
         </button>
-        <button class="dash-tab" data-view="agents" onclick="switchView('agents')">
-          <span class="fkey">F6</span> Agents
-        </button>
         <button class="dash-tab" data-view="jobs" onclick="switchView('jobs')">
-          <span class="fkey">F7</span> Jobs
+          <span class="fkey">F6</span> Jobs
         </button>
       </div>
     </div>
@@ -2748,50 +3068,6 @@
         </div>
       </div>
     </div>
-    <!-- ── VIEW: Agents (Chat interface) ── -->
-    <div class="dash-view" id="view-agents">
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title">Agent Chat</span>
-          <span class="panel-indicator" id="chatIndicator">SYS.COMMS</span>
-        </div>
-        <div class="panel-body">
-          <div class="chat-container">
-            <div class="chat-profile-tabs" id="chatProfileTabs">
-              <div class="empty-state" style="width:100%">LOADING PROFILES...</div>
-            </div>
-            <div class="chat-log" id="chatLog">
-              <div class="empty-state">SELECT A PROFILE TO START CHATTING</div>
-            </div>
-            <div class="chat-typing" id="chatTyping" style="display:none;">THINKING...</div>
-            <div class="chat-input-bar">
-              <input type="text" class="chat-input" id="chatInput" placeholder="Type a message to the agent..." disabled>
-              <button class="btn btn-primary" style="padding: 8px 14px; flex-shrink: 0;" onclick="sendChatMessage()" id="chatSendBtn" disabled>Send</button>
-            </div>
-            <div class="ctx-meter" id="ctxMeter" style="display:none;">
-              <span class="ctx-meter-label">CTX</span>
-              <div class="ctx-meter-track"><div class="ctx-meter-bar" id="ctxMeterBar" style="width:0%"></div></div>
-              <span class="ctx-meter-val" id="ctxMeterVal">0 / 128K</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- Inter-agent comms log (collapsed) -->
-      <div class="panel" style="margin-top: 10px;">
-        <div class="panel-header" style="cursor: pointer;" onclick="document.getElementById('commsLogWrap').classList.toggle('open')">
-          <span class="panel-title">Inter-Agent Comms</span>
-          <span class="panel-indicator">LOG</span>
-        </div>
-        <div id="commsLogWrap" class="dash-section">
-          <div class="panel-body">
-            <div id="commsLog" style="max-height: 300px; overflow-y: auto;">
-              <div class="empty-state">NO MESSAGES YET</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- ── VIEW: Jobs ── -->
     <div class="dash-view" id="view-jobs">
       <div class="panel" id="jobsPanel">
@@ -2824,8 +3100,74 @@
     </div>
   </div>
 
+  <!-- Floating Profiles Strip -->
+  <div class="profiles-float" id="profilesFloat">
+    <div class="profiles-float-header" id="profilesFloatHeader">
+      <span class="profiles-float-title">AGENTS</span>
+      <div class="profiles-float-controls">
+        <button class="chat-float-ctrl" onclick="toggleProfilesExpand()" id="profilesExpandBtn" title="Expand">+</button>
+        <button class="chat-float-ctrl" onclick="dockProfiles('left')" title="Dock left">&#9664;</button>
+        <button class="chat-float-ctrl" onclick="dockProfiles('right')" title="Dock right">&#9654;</button>
+      </div>
+    </div>
+    <div class="profiles-float-strip" id="profilesStrip">
+      <!-- Minimized: avatar row -->
+    </div>
+    <div class="profiles-float-detail" id="profilesDetail" style="display:none;">
+      <div id="profilesList"></div>
+      <button class="btn btn-secondary" style="margin-top: 6px; width: 100%; padding: 8px 12px; font-size: 10px;" onclick="openCreateProfile()">+ New Profile</button>
+    </div>
+  </div>
+
+  <!-- Floating Chat Panel -->
+  <div class="chat-float" id="chatFloat">
+    <div class="chat-float-header" id="chatFloatHeader">
+      <span class="chat-float-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        AGENT CHAT
+      </span>
+      <span class="chat-float-indicator" id="chatFloatIndicator"></span>
+      <div class="chat-float-controls">
+        <button class="chat-float-ctrl" onclick="dockChat('left')" title="Dock left">&#9664;</button>
+        <button class="chat-float-ctrl" onclick="dockChat('right')" title="Dock right">&#9654;</button>
+        <button class="chat-float-ctrl" onclick="toggleChatFloat()" title="Close">&#10005;</button>
+      </div>
+    </div>
+    <div class="chat-float-body">
+      <div class="chat-profile-tabs" id="chatProfileTabs">
+        <div class="empty-state" style="width:100%">LOADING PROFILES...</div>
+      </div>
+      <div class="chat-log" id="chatLog">
+        <div class="empty-state">SELECT A PROFILE TO START CHATTING</div>
+      </div>
+      <div class="chat-typing" id="chatTyping" style="display:none;">THINKING...</div>
+      <div class="chat-input-bar">
+        <input type="text" class="chat-input" id="chatInput" placeholder="Type a message to the agent..." disabled>
+        <button class="btn btn-primary" style="padding: 8px 14px; flex-shrink: 0;" onclick="sendChatMessage()" id="chatSendBtn" disabled>Send</button>
+      </div>
+      <div class="ctx-meter" id="ctxMeter" style="display:none;">
+        <span class="ctx-meter-label">CTX</span>
+        <div class="ctx-meter-track"><div class="ctx-meter-bar" id="ctxMeterBar" style="width:0%"></div></div>
+        <span class="ctx-meter-val" id="ctxMeterVal">0 / 128K</span>
+      </div>
+      <div class="chat-float-comms">
+        <div class="chat-float-comms-toggle" onclick="this.parentElement.classList.toggle('open')">
+          INTER-AGENT LOG <span id="commsCount"></span>
+        </div>
+        <div class="chat-float-comms-body">
+          <div id="commsLog" style="max-height: 200px; overflow-y: auto;">
+            <div class="empty-state">NO MESSAGES YET</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Corner buttons -->
   <div class="corner-buttons">
+    <div class="corner-btn" id="cornerChat" onclick="toggleChatFloat()" title="Agent Chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    </div>
     <div class="corner-dash" id="cornerDash" onclick="toggleDashboard()">
       <div class="corner-dash-tip" id="cornerDashTip">
         <div class="tip-tag" id="dashTipTag">Classified</div>
@@ -3006,14 +3348,6 @@
 
     function updateUI(data) {
       const gwState = data.gateway?.gateway_state || "unknown";
-      const statusEl = document.getElementById("gatewayStatus");
-
-      let cls, txt;
-      if (gwState === "running") { cls = "running"; txt = "ONLINE"; }
-      else if (gwState === "starting") { cls = "starting"; txt = "INIT..."; }
-      else { cls = "stopped"; txt = gwState === "unknown" ? "STANDBY" : "OFFLINE"; }
-
-      statusEl.innerHTML = `<span class="status-pill ${cls}"><span class="dot"></span> ${txt}</span>`;
 
       // Update glance bar status
       const glanceStatus = document.getElementById("glanceStatus");
@@ -3038,8 +3372,8 @@
           else { sc = "pending"; st = "WAITING"; }
         } else {
           const pg = data.gateway?.platforms?.[p.name.toLowerCase()];
-          if (pg?.error_message) { sc = "disconnected"; st = "ERROR"; }
-          else if (gwState === "running") { sc = "connected"; st = "ACTIVE"; }
+          if (pg?.error_message && pg?.state !== "connected") { sc = "disconnected"; st = "ERROR"; }
+          else if (gwState === "running" || pg?.state === "connected") { sc = "connected"; st = "ACTIVE"; }
           else { sc = "pending"; st = "SYNC..."; }
         }
         const inner = `<div class="platform-item">
@@ -3484,6 +3818,15 @@
       return `<img src="${getProfileAvatarUrl(name)}" width="${s}" height="${s}" alt="${name}">`;
     }
 
+    function profileDisplayName(name) {
+      if (name === "default") return `Commander <span style="opacity:0.35;font-size:0.85em">(default)</span>`;
+      return name;
+    }
+
+    function profileDisplayNamePlain(name) {
+      return name === "default" ? "Commander" : name;
+    }
+
     const platformAbbr = { telegram: "TG", whatsapp: "WA", discord: "DC", slack: "SL" };
 
     async function fetchProfiles() {
@@ -3497,8 +3840,28 @@
 
     let cachedProfiles = [];
 
+    let profilesExpanded = false;
+
+    function renderProfilesStrip(profiles) {
+      const strip = document.getElementById("profilesStrip");
+      if (!profiles.length) {
+        strip.innerHTML = '<div style="font-size:9px;color:var(--text-muted);padding:4px;">NO AGENTS</div>';
+        return;
+      }
+      strip.innerHTML = profiles.map(p => {
+        const state = p.gateway === "running" ? "running" : (p.gateway === "starting" ? "starting" : "stopped");
+        const sel = selectedProfile === p.name ? " selected" : "";
+        return `<div class="pf-avatar ${state}${sel}" onclick="selectProfile('${p.name}')" title="${profileDisplayNamePlain(p.name)}">
+          <img src="${getProfileAvatarUrl(p.name)}" width="64" height="64" alt="${p.name}">
+          <div class="pf-dot ${state}"></div>
+          <div class="pf-name">${profileDisplayNamePlain(p.name)}</div>
+        </div>`;
+      }).join("") + `<div class="pf-add" onclick="openCreateProfile()" title="New profile">+</div>`;
+    }
+
     function renderProfiles(profiles) {
       cachedProfiles = profiles;
+      renderProfilesStrip(profiles);
       const el = document.getElementById("profilesList");
       if (!profiles.length) {
         el.innerHTML = '<div class="empty-state">NO PROFILES</div>';
@@ -3536,7 +3899,7 @@
           </div>
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:8px;">
-              <div class="profile-name">${p.name}</div>
+              <div class="profile-name">${profileDisplayName(p.name)}</div>
               <div class="profile-model">${modelShort}</div>
               <div class="profile-platforms">${platforms}</div>
               <div class="profile-state ${state}">${stateLabel}</div>
@@ -3725,8 +4088,8 @@
       el.innerHTML = running.map(p => {
         const active = chatProfile === p.name ? " active" : "";
         return `<button class="chat-profile-tab${active}" onclick="switchChatProfile('${p.name}')">
-          <img src="${getProfileAvatarUrl(p.name)}" width="18" height="18">
-          ${p.name}
+          <img src="${getProfileAvatarUrl(p.name)}" width="28" height="28">
+          ${profileDisplayNamePlain(p.name)}
         </button>`;
       }).join("");
     }
@@ -3738,8 +4101,8 @@
       });
       document.getElementById("chatInput").disabled = false;
       document.getElementById("chatSendBtn").disabled = false;
-      document.getElementById("chatInput").placeholder = `Message ${name}...`;
-      document.getElementById("chatIndicator").textContent = name.toUpperCase();
+      document.getElementById("chatInput").placeholder = `Message ${profileDisplayNamePlain(name)}...`;
+      document.getElementById("chatFloatIndicator").textContent = profileDisplayNamePlain(name).toUpperCase();
       renderChatLog();
       document.getElementById("chatInput").focus();
     }
@@ -3748,12 +4111,12 @@
       const el = document.getElementById("chatLog");
       const history = chatHistory[chatProfile] || [];
       if (!history.length) {
-        el.innerHTML = `<div class="empty-state">START A CONVERSATION WITH ${(chatProfile || "").toUpperCase()}</div>`;
+        el.innerHTML = `<div class="empty-state">START A CONVERSATION WITH ${profileDisplayNamePlain(chatProfile || "").toUpperCase()}</div>`;
         return;
       }
       el.innerHTML = history.map(m => `
         <div class="chat-msg ${m.role}">
-          <div class="chat-msg-role">${m.role === "user" ? "YOU" : chatProfile.toUpperCase()}</div>
+          <div class="chat-msg-role">${m.role === "user" ? "YOU" : profileDisplayNamePlain(chatProfile).toUpperCase()}</div>
           <div class="chat-msg-text">${escapeHtml(m.text)}</div>
           ${m.duration ? `<div class="chat-msg-meta">${(m.duration / 1000).toFixed(1)}s</div>` : ""}
         </div>
@@ -3816,7 +4179,6 @@
       tools: "SYS.TOOLS",
       sessions: "SYS.HISTORY",
       memory: "SYS.MEMORY",
-      agents: "SYS.COMMS",
       jobs: "SYS.CRON",
     };
 
@@ -3829,17 +4191,16 @@
       if (view === "sessions") fetchSessions();
       if (view === "memory") fetchMemoryFiles();
       if (view === "tools") { fetchSkills(); if (insightsCache) renderTools(insightsCache); }
-      if (view === "agents") fetchComms();
       if (view === "jobs") fetchJobs();
     }
 
     // Keyboard shortcuts: F1-F5
     document.addEventListener("keydown", (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.contentEditable === "true") return;
-      const views = ["metrics", "activity", "tools", "sessions", "memory", "agents", "jobs"];
-      const fkey = e.key.match(/^F([1-7])$/);
+      const views = ["metrics", "activity", "tools", "sessions", "memory", "jobs"];
+      const fkey = e.key.match(/^F([1-6])$/);
       if (fkey) { e.preventDefault(); switchView(views[parseInt(fkey[1]) - 1]); }
-      if (e.key >= "1" && e.key <= "7" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key >= "1" && e.key <= "6" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         switchView(views[parseInt(e.key) - 1]);
       }
     });
@@ -3880,14 +4241,20 @@
 
     function updateGlanceBar(data) {
       const bar = document.getElementById("glanceBar");
-      if (data.empty) { bar.classList.remove("active"); return; }
       bar.classList.add("active");
-      const o = data.overview;
       document.getElementById("glanceModel").textContent = document.getElementById("configModel").textContent || "...";
-      document.getElementById("glanceSessions").textContent = fmtNum(o.total_sessions);
-      document.getElementById("glanceTokens").textContent = fmtNum(o.total_tokens);
-      document.getElementById("glanceCost").textContent = "$" + o.estimated_cost_usd.toFixed(2);
-      document.getElementById("glanceTime").textContent = o.total_hours > 0 ? o.total_hours + "h" : "-";
+      if (data.empty) {
+        document.getElementById("glanceSessions").textContent = "0";
+        document.getElementById("glanceTokens").textContent = "0";
+        document.getElementById("glanceCost").textContent = "$0.00";
+        document.getElementById("glanceTime").textContent = "-";
+      } else {
+        const o = data.overview;
+        document.getElementById("glanceSessions").textContent = fmtNum(o.total_sessions);
+        document.getElementById("glanceTokens").textContent = fmtNum(o.total_tokens);
+        document.getElementById("glanceCost").textContent = "$" + o.estimated_cost_usd.toFixed(2);
+        document.getElementById("glanceTime").textContent = o.total_hours > 0 ? o.total_hours + "h" : "-";
+      }
     }
 
     function renderOverview(data) {
@@ -4067,9 +4434,6 @@
         panel.style.display = "block";
         document.getElementById("skillsIndicator").textContent = `${data.total} SKILLS`;
         document.getElementById("skillsGrid").innerHTML = data.categories.map(c => {
-          const catHeader = `<div style="font-size:10px; color:var(--amber); letter-spacing:1.5px; text-transform:uppercase; margin: 10px 0 4px; font-family:var(--display); font-weight:600;">
-            ${escapeHtml(c.name)} <span style="color:var(--text-muted); font-size:9px;">[${c.count}]</span>
-          </div>`;
           const skillCards = c.skills.map(s => {
             const name = typeof s === "string" ? s : s.name;
             const desc = s.description || "";
@@ -4082,15 +4446,22 @@
               badges.push(`<span class="skill-badge prereq">PREREQS</span>`);
             }
             return `<div class="skill-detail">
-              <div class="skill-detail-header">
-                <span class="skill-detail-name">${escapeHtml(name)}</span>
-                ${badges.join("")}
-              </div>
+              <div class="skill-detail-name" title="${escapeHtml(desc)}">${escapeHtml(name)}</div>
+              ${badges.length ? `<div class="skill-detail-badges">${badges.join("")}</div>` : ""}
               ${desc ? `<div class="skill-detail-desc">${escapeHtml(desc)}</div>` : ""}
-              ${author ? `<div class="skill-detail-author">by ${escapeHtml(author)}</div>` : ""}
+              ${author ? `<div class="skill-detail-author">${escapeHtml(author)}</div>` : ""}
             </div>`;
           }).join("");
-          return catHeader + skillCards;
+          return `<div class="skill-cat" onclick="this.classList.toggle('open')">
+            <div class="skill-cat-header">
+              <span class="skill-cat-name">${escapeHtml(c.name)}</span>
+              <span class="skill-cat-count">${c.count}</span>
+              <span class="skill-cat-arrow">&#9654;</span>
+            </div>
+            <div class="skill-cat-body" onclick="event.stopPropagation()">
+              ${skillCards}
+            </div>
+          </div>`;
         }).join("");
       } catch (e) {}
     }
@@ -4384,6 +4755,149 @@
       }
     }
 
+    // ═══════ FLOATING PROFILES STRIP ═══════
+
+    function toggleProfilesExpand() {
+      profilesExpanded = !profilesExpanded;
+      const panel = document.getElementById("profilesFloat");
+      const detail = document.getElementById("profilesDetail");
+      const strip = document.getElementById("profilesStrip");
+      const btn = document.getElementById("profilesExpandBtn");
+      panel.classList.toggle("expanded", profilesExpanded);
+      detail.style.display = profilesExpanded ? "block" : "none";
+      strip.style.display = profilesExpanded ? "none" : "flex";
+      btn.textContent = profilesExpanded ? "-" : "+";
+    }
+
+    function dockProfiles(side) {
+      const panel = document.getElementById("profilesFloat");
+      panel.classList.remove("dock-left", "dock-right", "detached");
+      panel.classList.add("dock-" + side);
+      panel.style.bottom = "";
+      panel.style.top = "16px";
+      if (side === "left") {
+        panel.style.left = "16px";
+        panel.style.right = "auto";
+      } else {
+        panel.style.right = "16px";
+        panel.style.left = "auto";
+      }
+    }
+
+    // Drag profiles strip
+    (function() {
+      const header = document.getElementById("profilesFloatHeader");
+      const panel = document.getElementById("profilesFloat");
+      let isDragging = false;
+      let startX, startY, startLeft, startTop;
+
+      header.addEventListener("mousedown", (e) => {
+        if (e.target.closest(".chat-float-ctrl")) return;
+        isDragging = true;
+        panel.classList.add("dragging");
+        const rect = panel.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        e.preventDefault();
+      });
+
+      document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        panel.classList.remove("dock-left", "dock-right");
+        panel.classList.add("detached");
+        panel.style.left = Math.max(0, startLeft + dx) + "px";
+        panel.style.top = Math.max(0, startTop + dy) + "px";
+        panel.style.right = "auto";
+        panel.style.bottom = "auto";
+      });
+
+      document.addEventListener("mouseup", () => {
+        if (!isDragging) return;
+        isDragging = false;
+        panel.classList.remove("dragging");
+        const rect = panel.getBoundingClientRect();
+        if (rect.left < 50) dockProfiles("left");
+        else if (rect.right > window.innerWidth - 50) dockProfiles("right");
+      });
+    })();
+
+    // ═══════ FLOATING CHAT PANEL ═══════
+
+    function toggleChatFloat() {
+      if (window.location.pathname !== "/dashboard") return;
+      const panel = document.getElementById("chatFloat");
+      const btn = document.getElementById("cornerChat");
+      const isOpen = panel.classList.contains("open");
+      panel.classList.toggle("open");
+      btn.classList.toggle("active");
+      if (!isOpen) {
+        fetchComms();
+        if (cachedProfiles.length) updateChatTabs(cachedProfiles);
+        setTimeout(() => document.getElementById("chatInput").focus(), 100);
+      }
+    }
+
+    function dockChat(side) {
+      const panel = document.getElementById("chatFloat");
+      panel.classList.remove("dock-left", "dock-right", "detached");
+      panel.classList.add("dock-" + side);
+      panel.style.top = "";
+      panel.style.bottom = "56px";
+      if (side === "left") {
+        panel.style.left = "16px";
+        panel.style.right = "auto";
+      } else {
+        panel.style.right = "16px";
+        panel.style.left = "auto";
+      }
+    }
+
+    // Drag to detach
+    (function() {
+      const header = document.getElementById("chatFloatHeader");
+      const panel = document.getElementById("chatFloat");
+      let isDragging = false;
+      let startX, startY, startLeft, startTop;
+
+      header.addEventListener("mousedown", (e) => {
+        if (e.target.closest(".chat-float-ctrl")) return;
+        isDragging = true;
+        panel.classList.add("dragging");
+        const rect = panel.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = rect.left;
+        startTop = rect.top;
+        e.preventDefault();
+      });
+
+      document.addEventListener("mousemove", (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        panel.classList.remove("dock-left", "dock-right");
+        panel.classList.add("detached");
+        panel.style.left = Math.max(0, startLeft + dx) + "px";
+        panel.style.top = Math.max(0, startTop + dy) + "px";
+        panel.style.right = "auto";
+        panel.style.bottom = "auto";
+      });
+
+      document.addEventListener("mouseup", () => {
+        if (!isDragging) return;
+        isDragging = false;
+        panel.classList.remove("dragging");
+        // Snap to dock if near edges
+        const rect = panel.getBoundingClientRect();
+        if (rect.left < 50) dockChat("left");
+        else if (rect.right > window.innerWidth - 50) dockChat("right");
+      });
+    })();
+
     // ── Dashboard toggle ──
     let dashLoaded = false;
 
@@ -4392,6 +4906,8 @@
       const btn = document.getElementById("cornerDash");
       section.classList.add("open");
       btn.classList.add("active");
+      document.getElementById("cornerChat").classList.add("visible");
+      document.getElementById("profilesFloat").classList.add("visible");
       if (!dashLoaded) {
         dashLoaded = true;
         fetchInsights();
