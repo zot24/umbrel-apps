@@ -800,21 +800,40 @@ async function handleRequest(req, res) {
         ws.on("error", reject);
       });
 
-      // Detect archive format: expect "<profile>/" top-level dir with config.yaml
+      // Detect archive format: find the top-level profile directory
       let archivePrefix = null;
       try {
         const listing = execSync(`tar tzf ${tmpFile}`, { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
-        const firstEntry = listing.split("\n")[0] || "";
-        const topDir = firstEntry.split("/")[0];
+        const entries = listing.split("\n").filter(Boolean);
+        const firstEntry = entries[0] || "";
+        const topDir = firstEntry.replace(/\/$/, "").split("/")[0];
 
-        if (topDir && listing.includes(topDir + "/config.yaml")) {
-          archivePrefix = topDir;
-        } else {
+        if (!topDir) {
           cleanup();
-          sendJson(res, 400, { error: "Invalid backup: archive must be a Hermes profile export (use `hermes profile export default`)" });
+          sendJson(res, 400, { error: "Invalid backup: archive is empty" });
           return;
         }
-        console.log(`Import: detected profile "${archivePrefix}"`);
+
+        // Check if it looks like a hermes profile (has config.yaml, state.db, or sessions/)
+        const hasProfileData = entries.some(e =>
+          e.includes("/config.yaml") || e.includes("/state.db") ||
+          e.includes("/sessions/") || e.includes("/.env") ||
+          e.includes("/SOUL.md")
+        );
+
+        if (hasProfileData) {
+          archivePrefix = topDir;
+        } else if (entries.length === 1 && firstEntry.endsWith("/")) {
+          // Single empty directory (e.g. broken hermes profile export default)
+          cleanup();
+          sendJson(res, 400, { error: "Invalid backup: archive contains an empty profile directory. Use our export script instead: curl -fsSL https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-hermes/hermes-export.sh | bash" });
+          return;
+        } else {
+          cleanup();
+          sendJson(res, 400, { error: "Invalid backup: no Hermes profile data found in archive" });
+          return;
+        }
+        console.log(`Import: detected profile "${archivePrefix}" (${entries.length} entries)`);
       } catch (e) {
         cleanup();
         sendJson(res, 400, { error: "Invalid archive format" });
