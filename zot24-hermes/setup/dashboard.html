@@ -1887,6 +1887,234 @@
       padding: 12px 14px;
       background: var(--surface-2);
     }
+
+    /* ── Profile filter indicator ── */
+    .profile-filter-bar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: rgba(255,192,77,0.04);
+      border: 1px solid var(--amber-dim);
+      margin-bottom: 10px;
+      animation: viewIn 0.25s ease-out;
+    }
+    .profile-filter-bar.active { display: flex; }
+    .profile-filter-label {
+      font-family: var(--body);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .profile-filter-name {
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--amber);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .profile-filter-clear {
+      margin-left: auto;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--body);
+      font-size: 9px;
+      padding: 3px 8px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: all 0.15s;
+    }
+    .profile-filter-clear:hover {
+      color: var(--amber);
+      border-color: var(--amber-dim);
+    }
+
+    /* Clickable profile items */
+    .profile-item { cursor: pointer; transition: all 0.15s; }
+    .profile-item:hover { background: rgba(80,255,168,0.025); }
+    .profile-item.selected {
+      background: rgba(255,192,77,0.04);
+      border-left: 2px solid var(--amber);
+      padding-left: 8px;
+    }
+
+    /* ── Profile live stats ── */
+    .profile-stats {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+    .profile-stat {
+      padding: 1px 5px;
+      border: 1px solid var(--border);
+      font-family: var(--body);
+    }
+    .profile-stat.healthy {
+      border-color: var(--phosphor-dim);
+      color: var(--phosphor);
+    }
+
+    /* ── PNG avatars ── */
+    .profile-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      image-rendering: auto;
+    }
+
+    /* ── Chat interface (F6) ── */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 500px;
+    }
+    .chat-profile-tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .chat-profile-tabs::-webkit-scrollbar { display: none; }
+    .chat-profile-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      font-family: var(--body);
+      font-size: 10px;
+      color: var(--text-muted);
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      transition: all 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .chat-profile-tab:hover {
+      color: var(--text);
+      border-color: var(--phosphor-dim);
+    }
+    .chat-profile-tab.active {
+      color: var(--phosphor);
+      border-color: var(--phosphor-dim);
+      background: rgba(80,255,168,0.06);
+    }
+    .chat-profile-tab img {
+      width: 18px;
+      height: 18px;
+      border: 1px solid var(--border);
+    }
+    .chat-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .chat-msg {
+      padding: 8px 12px;
+      font-size: 12px;
+      line-height: 1.6;
+      animation: viewIn 0.2s ease-out;
+    }
+    .chat-msg.user {
+      border-left: 2px solid var(--amber);
+      background: rgba(255,192,77,0.03);
+    }
+    .chat-msg.assistant {
+      border-left: 2px solid var(--phosphor-dim);
+      background: rgba(80,255,168,0.02);
+    }
+    .chat-msg-role {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+    .chat-msg.user .chat-msg-role { color: var(--amber); }
+    .chat-msg.assistant .chat-msg-role { color: var(--phosphor); }
+    .chat-msg-text {
+      color: var(--text);
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .chat-msg.assistant .chat-msg-text { color: var(--text-muted); }
+    .chat-msg-meta {
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      opacity: 0.6;
+    }
+    .chat-input-bar {
+      display: flex;
+      gap: 6px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .chat-input {
+      flex: 1;
+      padding: 10px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--body);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .chat-input:focus { border-color: var(--phosphor-dim); }
+    .chat-input::placeholder { color: var(--text-muted); opacity: 0.5; }
+    .chat-typing {
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--amber);
+      letter-spacing: 1px;
+      animation: statusBlink 1.5s ease-in-out infinite;
+    }
+
+    /* ── Improved session detail (retro chat log) ── */
+    .session-detail .session-msg {
+      padding: 8px 12px;
+      border-bottom: none;
+      margin-bottom: 2px;
+    }
+    .session-detail .session-msg.role-user {
+      border-left: 2px solid var(--amber);
+      background: rgba(255,192,77,0.03);
+    }
+    .session-detail .session-msg.role-assistant {
+      border-left: 2px solid var(--phosphor-dim);
+      background: rgba(80,255,168,0.02);
+    }
+    .session-detail .session-msg.role-tool {
+      border-left: 2px solid var(--border);
+      background: var(--surface);
+      opacity: 0.6;
+    }
+    .session-detail .session-msg-content {
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .session-msg-expand {
+      font-size: 9px;
+      color: var(--phosphor-dim);
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+    .session-msg-expand:hover { color: var(--phosphor); }
   </style>
 </head>
 <body>
@@ -1970,6 +2198,13 @@
         </div>
         <button class="btn btn-secondary" style="margin-top: 8px; width: 100%;" onclick="openCreateProfile()">+ New Profile</button>
       </div>
+    </div>
+
+    <!-- Profile filter indicator -->
+    <div class="profile-filter-bar" id="profileFilterBar">
+      <span class="profile-filter-label">VIEWING:</span>
+      <span class="profile-filter-name" id="profileFilterName">ALL</span>
+      <button class="profile-filter-clear" onclick="clearProfileFilter()">CLEAR</button>
     </div>
 
     <div class="dash-nav-wrap">
@@ -2115,6 +2350,45 @@
         </div>
       </div>
     </div>
+    <!-- ── VIEW: Agents (Chat interface) ── -->
+    <div class="dash-view" id="view-agents">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Agent Chat</span>
+          <span class="panel-indicator" id="chatIndicator">SYS.COMMS</span>
+        </div>
+        <div class="panel-body">
+          <div class="chat-container">
+            <div class="chat-profile-tabs" id="chatProfileTabs">
+              <div class="empty-state" style="width:100%">LOADING PROFILES...</div>
+            </div>
+            <div class="chat-log" id="chatLog">
+              <div class="empty-state">SELECT A PROFILE TO START CHATTING</div>
+            </div>
+            <div class="chat-typing" id="chatTyping" style="display:none;">THINKING...</div>
+            <div class="chat-input-bar">
+              <input type="text" class="chat-input" id="chatInput" placeholder="Type a message to the agent..." disabled>
+              <button class="btn btn-primary" style="padding: 8px 14px; flex-shrink: 0;" onclick="sendChatMessage()" id="chatSendBtn" disabled>Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Inter-agent comms log (collapsed) -->
+      <div class="panel" style="margin-top: 10px;">
+        <div class="panel-header" style="cursor: pointer;" onclick="document.getElementById('commsLogWrap').classList.toggle('open')">
+          <span class="panel-title">Inter-Agent Comms</span>
+          <span class="panel-indicator">LOG</span>
+        </div>
+        <div id="commsLogWrap" class="dash-section">
+          <div class="panel-body">
+            <div id="commsLog" style="max-height: 300px; overflow-y: auto;">
+              <div class="empty-state">NO MESSAGES YET</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     </div><!-- /dash-section -->
 
     <div class="boot-footer">
@@ -2133,28 +2407,6 @@
       </div>
     </div>
   </div>
-
-    <!-- ── VIEW: Agents ── -->
-    <div class="dash-view" id="view-agents">
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title">Agent Comms</span>
-          <span class="panel-indicator">SYS.COMMS</span>
-        </div>
-        <div class="panel-body">
-          <div id="commsLog" style="max-height: 400px; overflow-y: auto; margin-bottom: 12px;">
-            <div class="empty-state">NO MESSAGES YET</div>
-          </div>
-          <div style="border-top: 1px solid var(--border); padding-top: 10px; display: flex; gap: 8px; align-items: center;">
-            <select id="commsSendTo" style="padding: 8px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-family: var(--body); font-size: 12px;">
-              <option value="">Send to...</option>
-            </select>
-            <input type="text" id="commsInput" placeholder="Type a message..." style="flex: 1; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-family: var(--body); font-size: 12px;">
-            <button class="btn btn-primary" style="padding: 8px 14px; flex-shrink: 0;" onclick="sendCommsMessage()" id="commsSendBtn">Send</button>
-          </div>
-        </div>
-      </div>
-    </div>
 
   <!-- Corner buttons -->
   <div class="corner-buttons">
@@ -2790,39 +3042,24 @@
 
     // ═══════ PROFILES ═══════
 
-    // Pixel art avatars — CryptoPunk-style retro-futuristic faces (24x24, phosphor palette)
-    const AVATARS = {
-      // Commander — default profile, gold visor helmet
-      crown: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="7" y="1" width="10" height="1" fill="#ffc04d"/><rect x="6" y="2" width="12" height="2" fill="#ffc04d"/><rect x="5" y="4" width="14" height="1" fill="#50ffa8"/><rect x="5" y="5" width="14" height="1" fill="#28b870"/><rect x="6" y="6" width="12" height="2" fill="#c4a882"/><rect x="6" y="8" width="12" height="1" fill="#c4a882"/><rect x="7" y="9" width="3" height="2" fill="#1a5a3a"/><rect x="14" y="9" width="3" height="2" fill="#1a5a3a"/><rect x="8" y="9" width="2" height="1" fill="#50ffa8"/><rect x="14" y="9" width="2" height="1" fill="#50ffa8"/><rect x="10" y="9" width="4" height="1" fill="#c4a882"/><rect x="6" y="11" width="12" height="1" fill="#c4a882"/><rect x="7" y="12" width="10" height="1" fill="#c4a882"/><rect x="9" y="13" width="6" height="1" fill="#c4a882"/><rect x="10" y="13" width="4" height="1" fill="#28b870"/><rect x="7" y="14" width="10" height="2" fill="#50ffa8"/><rect x="6" y="16" width="12" height="2" fill="#28b870"/><rect x="5" y="18" width="14" height="3" fill="#1a5a3a"/><rect x="4" y="21" width="7" height="3" fill="#28b870"/><rect x="13" y="21" width="7" height="3" fill="#28b870"/></svg>`,
-      // Astronaut — bubble helmet with visor reflection
-      astronaut: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="8" y="0" width="8" height="1" fill="#50ffa8"/><rect x="6" y="1" width="12" height="1" fill="#50ffa8"/><rect x="5" y="2" width="14" height="1" fill="#50ffa8"/><rect x="4" y="3" width="16" height="2" fill="#50ffa8"/><rect x="5" y="5" width="14" height="1" fill="#28b870"/><rect x="5" y="6" width="1" height="5" fill="#50ffa8"/><rect x="18" y="6" width="1" height="5" fill="#50ffa8"/><rect x="6" y="6" width="12" height="2" fill="#1a5a3a"/><rect x="7" y="7" width="4" height="1" fill="#28b870"/><rect x="6" y="8" width="12" height="3" fill="#c4a882"/><rect x="8" y="8" width="3" height="2" fill="#3a2a1a"/><rect x="14" y="8" width="3" height="2" fill="#3a2a1a"/><rect x="9" y="9" width="1" height="1" fill="#50ffa8"/><rect x="15" y="9" width="1" height="1" fill="#50ffa8"/><rect x="5" y="11" width="14" height="1" fill="#50ffa8"/><rect x="6" y="12" width="12" height="1" fill="#50ffa8"/><rect x="7" y="13" width="10" height="1" fill="#c4a882"/><rect x="10" y="14" width="4" height="1" fill="#c4a882"/><rect x="7" y="15" width="10" height="2" fill="#50ffa8"/><rect x="6" y="17" width="12" height="3" fill="#50ffa8"/><rect x="4" y="20" width="7" height="4" fill="#28b870"/><rect x="13" y="20" width="7" height="4" fill="#28b870"/></svg>`,
-      // Hacker — Neo shades, slicked hair, long coat collar
-      hacker: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="7" y="0" width="10" height="2" fill="#1a1a1a"/><rect x="6" y="2" width="12" height="2" fill="#1a1a1a"/><rect x="6" y="4" width="12" height="2" fill="#c4a882"/><rect x="5" y="6" width="5" height="2" fill="#1a1a1a"/><rect x="14" y="6" width="5" height="2" fill="#1a1a1a"/><rect x="10" y="6" width="4" height="1" fill="#c4a882"/><rect x="6" y="8" width="12" height="2" fill="#c4a882"/><rect x="8" y="10" width="8" height="1" fill="#c4a882"/><rect x="10" y="11" width="4" height="1" fill="#c4a882"/><rect x="11" y="11" width="2" height="1" fill="#28b870"/><rect x="8" y="12" width="8" height="1" fill="#c4a882"/><rect x="7" y="13" width="10" height="2" fill="#1a1a1a"/><rect x="6" y="15" width="12" height="2" fill="#1a1a1a"/><rect x="5" y="17" width="14" height="3" fill="#1a1a1a"/><rect x="4" y="20" width="7" height="4" fill="#1a1a1a"/><rect x="13" y="20" width="7" height="4" fill="#1a1a1a"/></svg>`,
-      // Alien — green skin, huge black eyes, small mouth
-      alien: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="9" y="0" width="6" height="1" fill="#50ffa8"/><rect x="7" y="1" width="10" height="2" fill="#50ffa8"/><rect x="6" y="3" width="12" height="3" fill="#50ffa8"/><rect x="5" y="6" width="14" height="2" fill="#50ffa8"/><rect x="6" y="7" width="4" height="3" fill="#1a1a1a"/><rect x="14" y="7" width="4" height="3" fill="#1a1a1a"/><rect x="7" y="8" width="2" height="1" fill="#ffc04d"/><rect x="15" y="8" width="2" height="1" fill="#ffc04d"/><rect x="10" y="7" width="4" height="2" fill="#50ffa8"/><rect x="5" y="10" width="14" height="2" fill="#50ffa8"/><rect x="6" y="12" width="12" height="1" fill="#50ffa8"/><rect x="10" y="13" width="4" height="1" fill="#28b870"/><rect x="7" y="14" width="10" height="1" fill="#50ffa8"/><rect x="8" y="15" width="8" height="1" fill="#50ffa8"/><rect x="9" y="16" width="6" height="2" fill="#28b870"/><rect x="7" y="18" width="3" height="4" fill="#50ffa8"/><rect x="14" y="18" width="3" height="4" fill="#50ffa8"/><rect x="6" y="22" width="4" height="2" fill="#28b870"/><rect x="14" y="22" width="4" height="2" fill="#28b870"/></svg>`,
-      // Robot — chrome face, LED eyes, antenna
-      robot: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="11" y="0" width="2" height="2" fill="#50ffa8"/><rect x="12" y="0" width="1" height="1" fill="#ffc04d"/><rect x="6" y="2" width="12" height="1" fill="#7a8e82"/><rect x="5" y="3" width="14" height="2" fill="#7a8e82"/><rect x="5" y="5" width="14" height="1" fill="#50ffa8"/><rect x="5" y="6" width="1" height="6" fill="#7a8e82"/><rect x="18" y="6" width="1" height="6" fill="#7a8e82"/><rect x="6" y="6" width="12" height="2" fill="#3a4a42"/><rect x="7" y="8" width="3" height="2" fill="#ffc04d"/><rect x="14" y="8" width="3" height="2" fill="#ffc04d"/><rect x="8" y="9" width="1" height="1" fill="#1a1a1a"/><rect x="15" y="9" width="1" height="1" fill="#1a1a1a"/><rect x="10" y="8" width="4" height="2" fill="#7a8e82"/><rect x="6" y="10" width="12" height="2" fill="#7a8e82"/><rect x="8" y="12" width="8" height="1" fill="#3a4a42"/><rect x="9" y="12" width="2" height="1" fill="#50ffa8"/><rect x="13" y="12" width="2" height="1" fill="#50ffa8"/><rect x="7" y="13" width="10" height="2" fill="#7a8e82"/><rect x="6" y="15" width="12" height="3" fill="#3a4a42"/><rect x="5" y="18" width="14" height="2" fill="#7a8e82"/><rect x="4" y="20" width="7" height="4" fill="#3a4a42"/><rect x="13" y="20" width="7" height="4" fill="#3a4a42"/></svg>`,
-      // Ghost — glowing translucent specter
-      ghost: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="8" y="0" width="8" height="2" fill="#50ffa8" opacity="0.7"/><rect x="6" y="2" width="12" height="3" fill="#50ffa8" opacity="0.8"/><rect x="5" y="5" width="14" height="3" fill="#50ffa8" opacity="0.9"/><rect x="7" y="6" width="3" height="2" fill="#1a5a3a"/><rect x="14" y="6" width="3" height="2" fill="#1a5a3a"/><rect x="8" y="7" width="1" height="1" fill="#ffc04d"/><rect x="15" y="7" width="1" height="1" fill="#ffc04d"/><rect x="5" y="8" width="14" height="3" fill="#50ffa8" opacity="0.8"/><rect x="10" y="11" width="4" height="1" fill="#28b870"/><rect x="5" y="11" width="14" height="4" fill="#50ffa8" opacity="0.7"/><rect x="5" y="15" width="14" height="3" fill="#50ffa8" opacity="0.6"/><rect x="5" y="18" width="4" height="3" fill="#50ffa8" opacity="0.5"/><rect x="10" y="18" width="4" height="3" fill="#50ffa8" opacity="0.5"/><rect x="15" y="18" width="4" height="3" fill="#50ffa8" opacity="0.5"/><rect x="5" y="21" width="3" height="3" fill="#28b870" opacity="0.4"/><rect x="10" y="21" width="4" height="3" fill="#28b870" opacity="0.4"/><rect x="16" y="21" width="3" height="3" fill="#28b870" opacity="0.4"/></svg>`,
-      // Samurai — kabuto with crescent moon
-      samurai: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="11" y="0" width="2" height="2" fill="#ffc04d"/><rect x="10" y="2" width="4" height="1" fill="#ffc04d"/><rect x="7" y="3" width="10" height="1" fill="#50ffa8"/><rect x="5" y="4" width="14" height="1" fill="#50ffa8"/><rect x="3" y="5" width="18" height="1" fill="#28b870"/><rect x="4" y="6" width="16" height="1" fill="#50ffa8"/><rect x="5" y="7" width="14" height="1" fill="#28b870"/><rect x="6" y="8" width="12" height="2" fill="#c4a882"/><rect x="7" y="10" width="3" height="2" fill="#3a2a1a"/><rect x="14" y="10" width="3" height="2" fill="#3a2a1a"/><rect x="8" y="10" width="2" height="1" fill="#c4a882"/><rect x="14" y="10" width="2" height="1" fill="#c4a882"/><rect x="10" y="10" width="4" height="1" fill="#c4a882"/><rect x="6" y="12" width="12" height="1" fill="#c4a882"/><rect x="9" y="13" width="6" height="1" fill="#c4a882"/><rect x="7" y="14" width="10" height="1" fill="#28b870"/><rect x="6" y="15" width="12" height="3" fill="#50ffa8"/><rect x="5" y="18" width="14" height="2" fill="#28b870"/><rect x="4" y="20" width="7" height="4" fill="#50ffa8"/><rect x="13" y="20" width="7" height="4" fill="#50ffa8"/></svg>`,
-      // Skull — cyber-skull with glowing eyes
-      skull: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="8" y="1" width="8" height="1" fill="#d4e0d8"/><rect x="6" y="2" width="12" height="2" fill="#d4e0d8"/><rect x="5" y="4" width="14" height="3" fill="#d4e0d8"/><rect x="5" y="7" width="14" height="1" fill="#d4e0d8"/><rect x="7" y="7" width="3" height="3" fill="#1a1a1a"/><rect x="14" y="7" width="3" height="3" fill="#1a1a1a"/><rect x="8" y="8" width="1" height="1" fill="#ff6060"/><rect x="15" y="8" width="1" height="1" fill="#ff6060"/><rect x="10" y="7" width="4" height="2" fill="#d4e0d8"/><rect x="5" y="10" width="14" height="2" fill="#d4e0d8"/><rect x="6" y="12" width="12" height="1" fill="#d4e0d8"/><rect x="8" y="13" width="8" height="1" fill="#d4e0d8"/><rect x="8" y="14" width="2" height="1" fill="#d4e0d8"/><rect x="11" y="14" width="2" height="1" fill="#d4e0d8"/><rect x="14" y="14" width="2" height="1" fill="#d4e0d8"/><rect x="9" y="14" width="1" height="1" fill="#1a1a1a"/><rect x="12" y="14" width="1" height="1" fill="#1a1a1a"/><rect x="15" y="14" width="1" height="1" fill="#1a1a1a"/></svg>`,
-      // Cat — cyber cat with glowing eyes
-      cat: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="5" y="1" width="3" height="3" fill="#7a8e82"/><rect x="16" y="1" width="3" height="3" fill="#7a8e82"/><rect x="6" y="3" width="3" height="1" fill="#7a8e82"/><rect x="15" y="3" width="3" height="1" fill="#7a8e82"/><rect x="5" y="4" width="14" height="3" fill="#7a8e82"/><rect x="5" y="7" width="14" height="3" fill="#7a8e82"/><rect x="7" y="7" width="3" height="2" fill="#ffc04d"/><rect x="14" y="7" width="3" height="2" fill="#ffc04d"/><rect x="8" y="8" width="1" height="1" fill="#1a1a1a"/><rect x="15" y="8" width="1" height="1" fill="#1a1a1a"/><rect x="10" y="9" width="4" height="1" fill="#28b870"/><rect x="11" y="10" width="2" height="1" fill="#28b870"/><rect x="6" y="10" width="12" height="2" fill="#7a8e82"/><rect x="7" y="12" width="10" height="1" fill="#7a8e82"/><rect x="2" y="11" width="4" height="1" fill="#7a8e82"/><rect x="18" y="11" width="4" height="1" fill="#7a8e82"/><rect x="1" y="12" width="3" height="1" fill="#7a8e82"/><rect x="20" y="12" width="3" height="1" fill="#7a8e82"/><rect x="7" y="13" width="10" height="2" fill="#28b870"/><rect x="6" y="15" width="4" height="4" fill="#7a8e82"/><rect x="14" y="15" width="4" height="4" fill="#7a8e82"/><rect x="5" y="19" width="5" height="3" fill="#28b870"/><rect x="14" y="19" width="5" height="3" fill="#28b870"/></svg>`,
-      // Wizard — pointy hat, long beard, glowing staff
-      wizard: `<svg viewBox="0 0 24 24" shape-rendering="crispEdges"><rect x="11" y="0" width="2" height="1" fill="#ffc04d"/><rect x="10" y="1" width="4" height="1" fill="#50ffa8"/><rect x="9" y="2" width="6" height="1" fill="#50ffa8"/><rect x="8" y="3" width="8" height="1" fill="#50ffa8"/><rect x="7" y="4" width="10" height="1" fill="#50ffa8"/><rect x="6" y="5" width="12" height="1" fill="#28b870"/><rect x="4" y="6" width="16" height="1" fill="#50ffa8"/><rect x="6" y="7" width="12" height="2" fill="#c4a882"/><rect x="7" y="9" width="3" height="2" fill="#3a2a1a"/><rect x="14" y="9" width="3" height="2" fill="#3a2a1a"/><rect x="8" y="9" width="2" height="1" fill="#ffc04d"/><rect x="14" y="9" width="2" height="1" fill="#ffc04d"/><rect x="10" y="9" width="4" height="1" fill="#c4a882"/><rect x="6" y="11" width="12" height="1" fill="#c4a882"/><rect x="9" y="12" width="6" height="1" fill="#c4a882"/><rect x="8" y="13" width="8" height="3" fill="#d4e0d8"/><rect x="9" y="16" width="6" height="2" fill="#d4e0d8"/><rect x="10" y="18" width="4" height="2" fill="#d4e0d8"/><rect x="6" y="14" width="12" height="3" fill="#50ffa8"/><rect x="5" y="17" width="14" height="3" fill="#28b870"/><rect x="4" y="20" width="7" height="4" fill="#50ffa8"/><rect x="13" y="20" width="7" height="4" fill="#50ffa8"/></svg>`,
-    };
+    // PNG avatar keys — served from /avatars/*.png
+    const AVATAR_KEYS = ["crown", "astronaut", "hacker", "alien", "robot", "ghost", "samurai", "skull", "cat", "wizard"];
 
-    const AVATAR_KEYS = Object.keys(AVATARS);
-
-    function getProfileAvatar(name) {
-      if (name === "default") return AVATARS.crown;
-      // Deterministic hash based on name
+    function getProfileAvatarKey(name) {
+      if (name === "default") return "crown";
       let hash = 0;
       for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
       const idx = Math.abs(hash) % (AVATAR_KEYS.length - 1) + 1; // skip crown (index 0 reserved for default)
-      return AVATARS[AVATAR_KEYS[idx]];
+      return AVATAR_KEYS[idx];
+    }
+
+    function getProfileAvatarUrl(name) {
+      return `/avatars/${getProfileAvatarKey(name)}.png`;
+    }
+
+    function getProfileAvatarImg(name, size) {
+      const s = size || 48;
+      return `<img src="${getProfileAvatarUrl(name)}" width="${s}" height="${s}" alt="${name}">`;
     }
 
     const platformAbbr = { telegram: "TG", whatsapp: "WA", discord: "DC", slack: "SL" };
@@ -2836,7 +3073,10 @@
       }
     }
 
+    let cachedProfiles = [];
+
     function renderProfiles(profiles) {
+      cachedProfiles = profiles;
       const el = document.getElementById("profilesList");
       if (!profiles.length) {
         el.innerHTML = '<div class="empty-state">NO PROFILES</div>';
@@ -2848,29 +3088,45 @@
         const stateLabel = state === "running" ? "ONLINE" : (state === "starting" ? "INIT..." : "STOPPED");
         const platforms = (p.platforms || []).map(pl => `<span>${platformAbbr[pl] || pl}</span>`).join("");
         const modelShort = (p.model || "not configured").split("/").pop().slice(0, 20);
-        const avatar = getProfileAvatar(p.name);
+        const avatarImg = getProfileAvatarImg(p.name);
+        const selected = selectedProfile === p.name ? " selected" : "";
 
         const isDefault = p.name === "default";
         let actions = "";
         if (!isDefault && state === "stopped") {
-          actions = `<button class="profile-action-btn" onclick="profileAction('${p.name}','start')">START</button>` +
-                    `<button class="profile-action-btn danger" onclick="deleteProfile('${p.name}')">DEL</button>`;
+          actions = `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','start')">START</button>` +
+                    `<button class="profile-action-btn danger" onclick="event.stopPropagation();deleteProfile('${p.name}')">DEL</button>`;
         } else if (!isDefault && state === "running") {
-          actions = `<button class="profile-action-btn" onclick="profileAction('${p.name}','stop')">STOP</button>`;
+          actions = `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','stop')">STOP</button>`;
         }
 
-        return `<div class="profile-item">
+        // Live stats
+        const statsHtml = `<div class="profile-stats">
+          <span class="profile-stat">${(p.platforms || []).length} CH</span>
+          <span class="profile-stat">${p.activeSessions || 0} ACTIVE</span>
+          <span class="profile-stat">${p.totalSessions || 0} TOTAL</span>
+        </div>`;
+
+        return `<div class="profile-item${selected}" onclick="selectProfile('${p.name}')">
           <div class="profile-avatar ${state}">
-            ${avatar}
+            ${avatarImg}
             <div class="status-dot ${state}"></div>
           </div>
-          <div class="profile-name">${p.name}</div>
-          <div class="profile-model">${modelShort}</div>
-          <div class="profile-platforms">${platforms}</div>
-          <div class="profile-state ${state}">${stateLabel}</div>
-          <div class="profile-actions">${actions}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="profile-name">${p.name}</div>
+              <div class="profile-model">${modelShort}</div>
+              <div class="profile-platforms">${platforms}</div>
+              <div class="profile-state ${state}">${stateLabel}</div>
+              <div class="profile-actions">${actions}</div>
+            </div>
+            ${statsHtml}
+          </div>
         </div>`;
       }).join("");
+
+      // Update chat profile tabs
+      updateChatTabs(profiles);
     }
 
     async function profileAction(name, action) {
@@ -2965,15 +3221,15 @@
       }
 
       el.innerHTML = messages.map(m => {
-        const fromAvatar = getProfileAvatar(m.from);
-        const toAvatar = getProfileAvatar(m.to);
+        const fromAvatar = getProfileAvatarImg(m.from, 24);
+        const toAvatar = getProfileAvatarImg(m.to, 24);
         const time = new Date(m.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         const dur = m.duration_ms ? `${(m.duration_ms / 1000).toFixed(1)}s` : "";
         return `<div class="comms-msg">
           <div class="comms-header">
             <div class="comms-avatar">${fromAvatar}</div>
             <span class="comms-name">${m.from}</span>
-            <span class="comms-arrow">→</span>
+            <span class="comms-arrow">-></span>
             <div class="comms-avatar">${toAvatar}</div>
             <span class="comms-name">${m.to}</span>
             <span class="comms-time">${time}</span>
@@ -2990,46 +3246,141 @@
       return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    function updateCommsSendTo() {
-      const sel = document.getElementById("commsSendTo");
-      const current = sel.value;
-      const profiles = Array.from(document.querySelectorAll(".profile-name")).map(el => el.textContent);
-      sel.innerHTML = '<option value="">Send to...</option>' +
-        profiles.map(p => `<option value="${p}" ${p === current ? "selected" : ""}>${p}</option>`).join("");
-    }
-
-    async function sendCommsMessage() {
-      const to = document.getElementById("commsSendTo").value;
-      const input = document.getElementById("commsInput").value.trim();
-      if (!to || !input) return;
-
-      const btn = document.getElementById("commsSendBtn");
-      btn.disabled = true; btn.textContent = "...";
-      document.getElementById("commsInput").value = "";
-
-      try {
-        await fetch(`/api/profiles/${to}/message`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input, from: "dashboard" }),
-        });
-        fetchComms();
-      } catch (e) {
-        alert("Failed: " + e.message);
-      }
-      btn.disabled = false; btn.textContent = "Send";
-    }
-
-    // Enter key sends message
-    document.getElementById("commsInput").addEventListener("keydown", e => {
-      if (e.key === "Enter") sendCommsMessage();
-    });
-
     fetchComms();
-    setInterval(fetchComms, 5000);
+    setInterval(fetchComms, 10000);
 
     // ═══════ DASHBOARD ═══════
 
+    // ═══════ PROFILE FILTERING ═══════
+    let selectedProfile = null;
+
+    function selectProfile(name) {
+      if (selectedProfile === name) {
+        clearProfileFilter();
+        return;
+      }
+      selectedProfile = name;
+      document.getElementById("profileFilterBar").classList.add("active");
+      document.getElementById("profileFilterName").textContent = name;
+      // Highlight selected profile
+      document.querySelectorAll(".profile-item").forEach(el => {
+        el.classList.toggle("selected", el.onclick?.toString().includes(`'${name}'`));
+      });
+      // Refresh all filtered data
+      refreshFilteredData();
+    }
+
+    function clearProfileFilter() {
+      selectedProfile = null;
+      document.getElementById("profileFilterBar").classList.remove("active");
+      document.querySelectorAll(".profile-item").forEach(el => el.classList.remove("selected"));
+      refreshFilteredData();
+    }
+
+    function profileParam() {
+      return selectedProfile ? `&profile=${selectedProfile}` : "";
+    }
+
+    function refreshFilteredData() {
+      fetchInsights();
+      if (currentView === "sessions") fetchSessions();
+      if (currentView === "memory") fetchMemory();
+      if (currentView === "tools") fetchSkills();
+    }
+
+    // ═══════ CHAT INTERFACE ═══════
+    let chatProfile = null;
+    let chatHistory = {}; // per-profile chat history
+
+    function updateChatTabs(profiles) {
+      const el = document.getElementById("chatProfileTabs");
+      const running = profiles.filter(p => p.gateway === "running");
+      if (!running.length) {
+        el.innerHTML = '<div class="empty-state" style="width:100%;">NO RUNNING PROFILES</div>';
+        return;
+      }
+      el.innerHTML = running.map(p => {
+        const active = chatProfile === p.name ? " active" : "";
+        return `<button class="chat-profile-tab${active}" onclick="switchChatProfile('${p.name}')">
+          <img src="${getProfileAvatarUrl(p.name)}" width="18" height="18">
+          ${p.name}
+        </button>`;
+      }).join("");
+    }
+
+    function switchChatProfile(name) {
+      chatProfile = name;
+      document.querySelectorAll(".chat-profile-tab").forEach(t => {
+        t.classList.toggle("active", t.textContent.trim() === name);
+      });
+      document.getElementById("chatInput").disabled = false;
+      document.getElementById("chatSendBtn").disabled = false;
+      document.getElementById("chatInput").placeholder = `Message ${name}...`;
+      document.getElementById("chatIndicator").textContent = name.toUpperCase();
+      renderChatLog();
+      document.getElementById("chatInput").focus();
+    }
+
+    function renderChatLog() {
+      const el = document.getElementById("chatLog");
+      const history = chatHistory[chatProfile] || [];
+      if (!history.length) {
+        el.innerHTML = `<div class="empty-state">START A CONVERSATION WITH ${(chatProfile || "").toUpperCase()}</div>`;
+        return;
+      }
+      el.innerHTML = history.map(m => `
+        <div class="chat-msg ${m.role}">
+          <div class="chat-msg-role">${m.role === "user" ? "YOU" : chatProfile.toUpperCase()}</div>
+          <div class="chat-msg-text">${escapeHtml(m.text)}</div>
+          ${m.duration ? `<div class="chat-msg-meta">${(m.duration / 1000).toFixed(1)}s</div>` : ""}
+        </div>
+      `).join("");
+      el.scrollTop = el.scrollHeight;
+    }
+
+    async function sendChatMessage() {
+      if (!chatProfile) return;
+      const input = document.getElementById("chatInput");
+      const msg = input.value.trim();
+      if (!msg) return;
+      input.value = "";
+
+      // Add user message
+      if (!chatHistory[chatProfile]) chatHistory[chatProfile] = [];
+      chatHistory[chatProfile].push({ role: "user", text: msg });
+      renderChatLog();
+
+      // Show typing indicator
+      document.getElementById("chatTyping").style.display = "block";
+      document.getElementById("chatSendBtn").disabled = true;
+
+      try {
+        const resp = await fetch(`/api/profiles/${chatProfile}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: msg }),
+        });
+        const data = await resp.json();
+        if (data.error) {
+          chatHistory[chatProfile].push({ role: "assistant", text: `[ERROR] ${data.error}` });
+        } else {
+          chatHistory[chatProfile].push({ role: "assistant", text: data.response, duration: data.duration_ms });
+        }
+      } catch (e) {
+        chatHistory[chatProfile].push({ role: "assistant", text: `[ERROR] ${e.message}` });
+      }
+
+      document.getElementById("chatTyping").style.display = "none";
+      document.getElementById("chatSendBtn").disabled = false;
+      renderChatLog();
+      input.focus();
+    }
+
+    document.getElementById("chatInput").addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+    });
+
+    // ═══════ DASHBOARD ═══════
     let dashDays = 30;
     let sessionsPage = 0;
     let currentView = "metrics";
@@ -3060,11 +3411,10 @@
     // Keyboard shortcuts: F1-F5
     document.addEventListener("keydown", (e) => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.contentEditable === "true") return;
-      const views = ["metrics", "activity", "tools", "sessions", "memory"];
-      const fkey = e.key.match(/^F([1-5])$/);
+      const views = ["metrics", "activity", "tools", "sessions", "memory", "agents"];
+      const fkey = e.key.match(/^F([1-6])$/);
       if (fkey) { e.preventDefault(); switchView(views[parseInt(fkey[1]) - 1]); }
-      // Also support 1-5 number keys
-      if (e.key >= "1" && e.key <= "5" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key >= "1" && e.key <= "6" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         switchView(views[parseInt(e.key) - 1]);
       }
     });
@@ -3092,7 +3442,7 @@
 
     async function fetchInsights() {
       try {
-        const data = await (await fetch(`/api/insights?days=${dashDays}`)).json();
+        const data = await (await fetch(`/api/insights?days=${dashDays}${profileParam()}`)).json();
         insightsCache = data;
         renderOverview(data);
         renderActivity(data);
@@ -3253,7 +3603,7 @@
 
     async function fetchSkills() {
       try {
-        const data = await (await fetch("/api/skills")).json();
+        const data = await (await fetch(`/api/skills?x=1${profileParam()}`)).json();
         const panel = document.getElementById("skillsPanel");
         if (!data.categories?.length) { panel.style.display = "none"; return; }
         panel.style.display = "block";
@@ -3270,7 +3620,7 @@
     async function fetchSessions() {
       try {
         const offset = sessionsPage * SESSIONS_PER_PAGE;
-        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}`)).json();
+        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}${profileParam()}`)).json();
         document.getElementById("sessionsIndicator").textContent = data.total ? `${data.total} TOTAL` : "SYS.HISTORY";
 
         const list = document.getElementById("sessionsList");
@@ -3322,17 +3672,23 @@
       detail.innerHTML = '<div class="dash-empty">LOADING...</div>';
       detail.classList.add("open");
       try {
-        const data = await (await fetch(`/api/sessions/${sessionId}/messages`)).json();
+        const data = await (await fetch(`/api/sessions/${sessionId}/messages?x=1${profileParam()}`)).json();
         if (!data.messages?.length) {
           detail.innerHTML = '<div class="dash-empty">NO MESSAGES</div>';
           return;
         }
-        detail.innerHTML = data.messages.slice(0, 30).map(m => {
+        detail.innerHTML = data.messages.slice(0, 50).map(m => {
           if (m.role === "tool" && !m.content) return "";
           const content = m.content || (m.tool_calls ? m.tool_calls.map(tc => `[${tc.function?.name || tc.name || "tool"}]`).join(" ") : "");
-          return `<div class="session-msg">
-            <div class="session-msg-role ${m.role}">${m.role}${m.tool_name ? " :: " + m.tool_name : ""}</div>
-            <div class="session-msg-content">${escapeHtml(content.slice(0, 500))}</div>
+          const roleLabel = m.role === "user" ? "USER" :
+                           m.role === "assistant" ? "AGENT" :
+                           m.role === "tool" ? `TOOL :: ${m.tool_name || "?"}` : m.role.toUpperCase();
+          const truncated = content.length > 800;
+          const displayContent = truncated ? content.slice(0, 800) : content;
+          return `<div class="session-msg role-${m.role}">
+            <div class="session-msg-role ${m.role}">${roleLabel}</div>
+            <div class="session-msg-content">${escapeHtml(displayContent)}${truncated ? "..." : ""}</div>
+            ${truncated ? `<div class="session-msg-expand" onclick="this.previousElementSibling.textContent=atob('${btoa(content.slice(0, 4000))}');this.remove();">SHOW MORE</div>` : ""}
           </div>`;
         }).filter(Boolean).join("") || '<div class="dash-empty">NO VISIBLE MESSAGES</div>';
       } catch (e) {
@@ -3346,7 +3702,7 @@
 
     async function fetchMemory() {
       try {
-        const data = await (await fetch("/api/memory")).json();
+        const data = await (await fetch(`/api/memory?x=1${profileParam()}`)).json();
         const body = document.getElementById("memoryBody");
         if (!data.soul && !data.memory) {
           body.innerHTML = '<div class="dash-empty">NO MEMORY FILES YET<br>The agent creates SOUL.md and MEMORY.md as it learns about you</div>';
@@ -3394,6 +3750,27 @@
       document.getElementById("dashTipText").textContent = "Back to the surface. Gateway status, channels, and configuration.";
       openDashboard();
     }
+
+    // ═══════ LIVE HEALTH STATUS ═══════
+    async function pollProfileHealth() {
+      for (const p of cachedProfiles) {
+        if (p.gateway !== "running") continue;
+        try {
+          const data = await (await fetch(`/api/profiles/${p.name}/health`)).json();
+          // Update the health indicator in the profile stats
+          const items = document.querySelectorAll(".profile-item");
+          items.forEach(item => {
+            if (item.onclick?.toString().includes(`'${p.name}'`)) {
+              const stats = item.querySelectorAll(".profile-stat");
+              if (stats.length > 0) {
+                stats[0].classList.toggle("healthy", data.healthy);
+              }
+            }
+          });
+        } catch (e) {}
+      }
+    }
+    setInterval(pollProfileHealth, 15000);
   </script>
 
   <!-- Import error overlay -->

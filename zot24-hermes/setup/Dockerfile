@@ -10,6 +10,7 @@ WORKDIR /app
 RUN npm init -y && npm install qrcode@1.5.4 better-sqlite3@11.9.1
 
 COPY server.js wizard.html dashboard.html ./
+COPY avatars/ ./avatars/
 
 EXPOSE 8080
 
