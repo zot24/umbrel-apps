@@ -831,16 +831,14 @@
     }
     .corner-btn svg { width: 16px; height: 16px; }
 
-    /* Dashboard toggle button with flip */
+    /* Dashboard toggle button — morph transition */
     .corner-dash {
       position: relative;
-      perspective: 600px;
     }
     .corner-dash .corner-btn {
       color: var(--amber-dim);
       border-color: var(--amber-dim);
-      transition: transform 0.5s ease, color 0.2s, border-color 0.2s, background 0.2s, box-shadow 0.2s;
-      transform-style: preserve-3d;
+      overflow: hidden;
     }
     .corner-dash .corner-btn:hover {
       color: var(--amber);
@@ -859,29 +857,48 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      backface-visibility: hidden;
-      transition: transform 0.5s ease;
+      transition: opacity 0.4s ease, transform 0.4s ease, filter 0.4s ease;
+    }
+    .corner-dash .corner-btn .icon-front {
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+      filter: blur(0px);
     }
     .corner-dash .corner-btn .icon-back {
-      transform: rotateY(180deg);
+      opacity: 0;
+      transform: scale(0.3) rotate(-90deg);
+      filter: blur(4px);
     }
+    /* Active state — on dashboard page */
     .corner-dash.active .corner-btn {
       color: var(--phosphor);
       border-color: var(--phosphor-dim);
-      background: rgba(80,255,168,0.08);
-      box-shadow: 0 0 14px var(--phosphor-glow);
+      background: rgba(80,255,168,0.06);
+      box-shadow: 0 0 12px var(--phosphor-glow);
     }
     .corner-dash.active .corner-btn:hover {
       color: var(--phosphor);
       border-color: var(--phosphor);
-      box-shadow: 0 0 16px var(--phosphor-glow);
+      box-shadow: 0 0 18px var(--phosphor-glow);
       background: rgba(80,255,168,0.1);
     }
     .corner-dash.active .corner-btn .icon-front {
-      transform: rotateY(180deg);
+      opacity: 0;
+      transform: scale(0.3) rotate(90deg);
+      filter: blur(4px);
     }
     .corner-dash.active .corner-btn .icon-back {
-      transform: rotateY(0deg);
+      opacity: 1;
+      transform: scale(1) rotate(0deg);
+      filter: blur(0px);
+    }
+    /* Slow radar spin on main page */
+    .corner-dash:not(.active) .corner-btn .icon-front svg {
+      animation: radarSpin 8s linear infinite;
+    }
+    @keyframes radarSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
     /* Pulse ring when active */
     .corner-dash.active .corner-btn::after {
@@ -2159,8 +2176,12 @@
         </div>
         <div class="icon-back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
+            <rect x="2" y="3" width="20" height="18" rx="1"/>
+            <line x1="2" y1="8" x2="22" y2="8"/>
+            <line x1="6" y1="5.5" x2="6" y2="5.5" stroke-width="3" stroke-linecap="round"/>
+            <line x1="10" y1="5.5" x2="10" y2="5.5" stroke-width="3" stroke-linecap="round"/>
+            <polyline points="6 13 8 15 12 11"/>
+            <line x1="6" y1="18" x2="18" y2="18" stroke-dasharray="2 2"/>
           </svg>
         </div>
       </div>
