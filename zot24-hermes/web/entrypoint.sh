@@ -164,7 +164,24 @@ source /app/venv/bin/activate
 
 case "${1:-gateway}" in
     gateway)
-        echo "Starting Hermes gateway..."
+        # Auto-start any profile gateways that were previously running
+        if [ -d "$HERMES_HOME/profiles" ]; then
+            for profile_dir in "$HERMES_HOME/profiles"/*/; do
+                [ ! -d "$profile_dir" ] && continue
+                profile_name=$(basename "$profile_dir")
+                state_file="$profile_dir/gateway_state.json"
+                if [ -f "$state_file" ]; then
+                    prev_state=$(python3 -c "import json; print(json.load(open('$state_file')).get('gateway_state',''))" 2>/dev/null)
+                    if [ "$prev_state" = "running" ]; then
+                        echo "Auto-starting profile gateway: $profile_name"
+                        HERMES_HOME="$profile_dir" hermes gateway run &
+                        sleep 1
+                    fi
+                fi
+            done
+        fi
+
+        echo "Starting Hermes gateway (default)..."
         # Use 'run' (foreground) not 'start' (systemctl) — no systemd in Docker
         exec hermes gateway run
         ;;

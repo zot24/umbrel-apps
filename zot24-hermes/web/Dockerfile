@@ -102,6 +102,9 @@ RUN printf '#!/bin/bash\necho "Error: apt is not available. Please use brew inst
 COPY --chown=hermes:hermes entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Copy bundled Umbrel skills
+COPY --chown=hermes:hermes skills/ /data/.hermes/skills/
+
 # Move home contents to skeleton for first-run init
 RUN sudo mv /data /home-skeleton \
     && sudo mv /home/linuxbrew /home-skeleton/linuxbrew

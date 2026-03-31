@@ -15,11 +15,13 @@ const STATE_FILE = path.join(CONFIG_DIR, "gateway_state.json");
 const STATE_DB = path.join(CONFIG_DIR, "state.db");
 const SKILLS_DIR = path.join(CONFIG_DIR, "skills");
 const MEMORIES_DIR = path.join(CONFIG_DIR, "memories");
+const PROFILES_DIR = path.join(CONFIG_DIR, "profiles");
 
 // Pre-load static files with version injection
 const APP_VERSION = process.env.APP_VERSION || "dev";
 const WIZARD_HTML = fs.readFileSync(path.join(__dirname, "wizard.html"), "utf8").replaceAll("__APP_VERSION__", APP_VERSION);
 const DASHBOARD_HTML = fs.readFileSync(path.join(__dirname, "dashboard.html"), "utf8").replaceAll("__APP_VERSION__", APP_VERSION);
+const AVATARS_DIR = path.join(__dirname, "avatars");
 
 // ── SQLite helpers ──────────────────────────────────────────────────────────
 
@@ -30,10 +32,13 @@ try {
   console.warn("better-sqlite3 not available, dashboard endpoints will return empty data");
 }
 
-function openStateDb() {
-  if (!Database || !fs.existsSync(STATE_DB)) return null;
+function openStateDb(profileName) {
+  const dbPath = profileName && profileName !== "all"
+    ? path.join(getProfileDir(profileName), "state.db")
+    : STATE_DB;
+  if (!Database || !fs.existsSync(dbPath)) return null;
   try {
-    const db = new Database(STATE_DB, { readonly: true, fileMustExist: true });
+    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
     db.pragma("journal_mode = WAL");
     return db;
   } catch (e) {
@@ -219,6 +224,238 @@ function restartWebContainer() {
   }
 }
 
+// ── Profile helpers ──────────────────────────────────────────────────────────
+
+const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const COMMS_FILE = path.join(CONFIG_DIR, "agent-comms.json");
+const BASE_API_PORT = 8642;
+const BASE_WEBHOOK_PORT = 8644;
+
+function getProfileDir(name) {
+  if (name === "default") return CONFIG_DIR;
+  return path.join(PROFILES_DIR, name);
+}
+
+function readProfileEnv(profileDir) {
+  const env = {};
+  try {
+    const envFile = path.join(profileDir, ".env");
+    if (fs.existsSync(envFile)) {
+      fs.readFileSync(envFile, "utf8").split("\n").forEach(l => {
+        const m = l.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+        if (m) env[m[1]] = m[2];
+      });
+    }
+  } catch (e) {}
+  return env;
+}
+
+function readProfileConfig(profileDir) {
+  const result = { model: null, provider: null, platforms: [], apiPort: null, webhookPort: null };
+  try {
+    const env = readProfileEnv(profileDir);
+    if (env.HERMES_MODEL) result.model = env.HERMES_MODEL;
+    if (env.HERMES_PROVIDER) result.provider = env.HERMES_PROVIDER;
+    if (env.TELEGRAM_BOT_TOKEN) result.platforms.push("telegram");
+    if (env.WHATSAPP_ENABLED === "true") result.platforms.push("whatsapp");
+    if (env.DISCORD_BOT_TOKEN) result.platforms.push("discord");
+    if (env.SLACK_BOT_TOKEN) result.platforms.push("slack");
+    if (env.API_SERVER_PORT) result.apiPort = parseInt(env.API_SERVER_PORT);
+    if (env.WEBHOOK_PORT) result.webhookPort = parseInt(env.WEBHOOK_PORT);
+    // Fallback to config.yaml for model
+    if (!result.model) {
+      const cfgFile = path.join(profileDir, "config.yaml");
+      if (fs.existsSync(cfgFile)) {
+        const yaml = fs.readFileSync(cfgFile, "utf8");
+        const modelMatch = yaml.match(/default:\s*"?([^"\n]+)"?/);
+        if (modelMatch) result.model = modelMatch[1].trim();
+        const provMatch = yaml.match(/provider:\s*"?([^"\n]+)"?/);
+        if (provMatch && !result.provider) result.provider = provMatch[1].trim();
+      }
+    }
+  } catch (e) {}
+  return result;
+}
+
+function readProfileGatewayState(profileDir) {
+  try {
+    const stateFile = path.join(profileDir, "gateway_state.json");
+    if (fs.existsSync(stateFile)) {
+      return JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    }
+  } catch (e) {}
+  return null;
+}
+
+function listProfiles() {
+  const profiles = [];
+
+  // Default profile
+  const defaultConfig = readProfileConfig(CONFIG_DIR);
+  const defaultState = readProfileGatewayState(CONFIG_DIR);
+  profiles.push({
+    name: "default",
+    ...defaultConfig,
+    gateway: defaultState?.gateway_state || "unknown",
+    pid: defaultState?.pid || null,
+  });
+
+  // Named profiles
+  try {
+    if (fs.existsSync(PROFILES_DIR)) {
+      for (const name of fs.readdirSync(PROFILES_DIR)) {
+        const dir = path.join(PROFILES_DIR, name);
+        if (!fs.statSync(dir).isDirectory()) continue;
+        const config = readProfileConfig(dir);
+        const state = readProfileGatewayState(dir);
+        profiles.push({
+          name,
+          ...config,
+          gateway: state?.gateway_state || "stopped",
+          pid: state?.pid || null,
+        });
+      }
+    }
+  } catch (e) {}
+
+  return profiles;
+}
+
+function execInWebContainer(cmd) {
+  const socketPath = "/var/run/docker.sock";
+  if (!fs.existsSync(socketPath)) throw new Error("Docker socket not available");
+  // Use docker exec via curl to the Docker API
+  const payload = JSON.stringify({
+    AttachStdout: false, AttachStderr: false, Detach: true,
+    Cmd: ["sh", "-c", cmd],
+  });
+  execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '${payload.replace(/'/g, "'\\''")}' ` +
+    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    { timeout: 10000 }
+  );
+}
+
+function assignProfilePorts(name) {
+  const profiles = listProfiles();
+  const idx = profiles.findIndex(p => p.name === name);
+  const offset = (idx < 0 ? profiles.length : idx) * 10;
+  return { apiPort: BASE_API_PORT + offset, webhookPort: BASE_WEBHOOK_PORT + offset };
+}
+
+function getProfileApiPort(name) {
+  const profileDir = getProfileDir(name);
+  const env = readProfileEnv(profileDir);
+  return parseInt(env.API_SERVER_PORT || BASE_API_PORT);
+}
+
+function readCommsLog() {
+  try {
+    if (fs.existsSync(COMMS_FILE)) return JSON.parse(fs.readFileSync(COMMS_FILE, "utf8"));
+  } catch (e) {}
+  return [];
+}
+
+function appendCommsLog(entry) {
+  const log = readCommsLog();
+  log.push(entry);
+  // Keep last 200 entries
+  const trimmed = log.slice(-200);
+  fs.writeFileSync(COMMS_FILE, JSON.stringify(trimmed, null, 2));
+}
+
+async function sendMessageToProfile(name, input, fromName) {
+  const port = getProfileApiPort(name);
+  const start = Date.now();
+  const resp = await fetch(`http://${WEB_CONTAINER}:${port}/v1/responses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input }),
+  });
+  const data = await resp.json();
+  const duration = Date.now() - start;
+  const responseText = data.output?.[0]?.content?.[0]?.text || data.output || JSON.stringify(data);
+
+  appendCommsLog({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    from: fromName || "dashboard",
+    to: name,
+    input,
+    response: typeof responseText === "string" ? responseText.slice(0, 2000) : String(responseText).slice(0, 2000),
+    timestamp: Math.floor(Date.now() / 1000),
+    duration_ms: duration,
+  });
+
+  return { response: responseText, duration_ms: duration };
+}
+
+function startProfileGateway(name) {
+  const profileDir = getProfileDir(name);
+  const { apiPort, webhookPort } = assignProfilePorts(name);
+  const cmd = `HERMES_HOME=${profileDir} API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run &`;
+  // Create exec instance and start it
+  const socketPath = "/var/run/docker.sock";
+  const createPayload = JSON.stringify({
+    AttachStdout: false, AttachStderr: false, Detach: true, Tty: false,
+    Cmd: ["sh", "-c", cmd],
+  });
+  const createResp = execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '${createPayload.replace(/'/g, "'\\''")}' ` +
+    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    { encoding: "utf8", timeout: 10000 }
+  );
+  const execId = JSON.parse(createResp).Id;
+  if (!execId) throw new Error("Failed to create exec instance");
+  execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '{"Detach":true}' ` +
+    `"http://localhost/exec/${execId}/start"`,
+    { timeout: 10000 }
+  );
+  console.log(`Started gateway for profile: ${name}`);
+}
+
+function stopProfileGateway(name) {
+  const profileDir = getProfileDir(name);
+  if (name === "default") {
+    // Don't kill the default gateway (PID 1)
+    throw new Error("Cannot stop the default profile gateway");
+  }
+  // Kill the gateway process for this profile
+  const cmd = `pkill -f "HERMES_HOME=${profileDir}.*gateway" || true`;
+  const socketPath = "/var/run/docker.sock";
+  const createPayload = JSON.stringify({
+    AttachStdout: true, AttachStderr: true, Detach: false, Tty: false,
+    Cmd: ["sh", "-c", cmd],
+  });
+  const createResp = execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '${createPayload.replace(/'/g, "'\\''")}' ` +
+    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    { encoding: "utf8", timeout: 10000 }
+  );
+  const execId = JSON.parse(createResp).Id;
+  if (execId) {
+    execSync(
+      `curl -s --unix-socket ${socketPath} -X POST ` +
+      `-H "Content-Type: application/json" ` +
+      `-d '{"Detach":false}' ` +
+      `"http://localhost/exec/${execId}/start"`,
+      { timeout: 10000 }
+    );
+  }
+  // Clear gateway state
+  const stateFile = path.join(profileDir, "gateway_state.json");
+  try { fs.unlinkSync(stateFile); } catch (e) {}
+  console.log(`Stopped gateway for profile: ${name}`);
+}
+
 // ── Telegram API helpers ─────────────────────────────────────────────────────
 
 async function telegramGetMe(token) {
@@ -282,8 +519,38 @@ async function handleRequest(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/dashboard") {
+    sendHtml(res, DASHBOARD_HTML.replace('/*__AUTOOPEN__*/', 'window.__DASHBOARD_AUTOOPEN__=true;'));
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/setup") {
     sendHtml(res, WIZARD_HTML);
+    return;
+  }
+
+  // ── Static: Serve avatar PNGs ──
+  if (req.method === "GET" && url.pathname.startsWith("/avatars/")) {
+    const filename = url.pathname.replace("/avatars/", "");
+    if (!/^[a-z0-9_-]+\.png$/.test(filename)) {
+      res.writeHead(404); res.end("Not Found"); return;
+    }
+    const filePath = path.join(AVATARS_DIR, filename);
+    try {
+      if (fs.existsSync(filePath)) {
+        const data = fs.readFileSync(filePath);
+        res.writeHead(200, {
+          "Content-Type": "image/png",
+          "Cache-Control": "public, max-age=86400",
+          "Content-Length": data.length,
+        });
+        res.end(data);
+      } else {
+        res.writeHead(404); res.end("Not Found");
+      }
+    } catch (e) {
+      res.writeHead(500); res.end("Error");
+    }
     return;
   }
 
@@ -937,9 +1204,10 @@ async function handleRequest(req, res) {
   if (req.method === "GET" && url.pathname === "/api/insights") {
     const days = parseInt(url.searchParams.get("days") || "30");
     const sourceFilter = url.searchParams.get("source") || null;
+    const profileFilter = url.searchParams.get("profile") || null;
     const cutoff = Date.now() / 1000 - days * 86400;
 
-    const db = openStateDb();
+    const db = openStateDb(profileFilter);
     if (!db) {
       sendJson(res, 200, { empty: true, days, overview: {}, models: [], platforms: [], tools: [], activity: {}, top_sessions: [] });
       return;
@@ -1130,8 +1398,9 @@ async function handleRequest(req, res) {
     const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 200);
     const offset = parseInt(url.searchParams.get("offset") || "0");
     const sourceFilter = url.searchParams.get("source") || null;
+    const profileFilter = url.searchParams.get("profile") || null;
 
-    const db = openStateDb();
+    const db = openStateDb(profileFilter);
     if (!db) {
       sendJson(res, 200, { sessions: [], total: 0 });
       return;
@@ -1173,8 +1442,10 @@ async function handleRequest(req, res) {
 
   // ── API: Session messages ──
   if (req.method === "GET" && url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/messages")) {
-    const sessionId = url.pathname.replace("/api/sessions/", "").replace("/messages", "");
-    const db = openStateDb();
+    const parts = url.pathname.replace("/api/sessions/", "").replace("/messages", "").split("?");
+    const sessionId = parts[0];
+    const profileFilter = url.searchParams.get("profile") || null;
+    const db = openStateDb(profileFilter);
     if (!db) { sendJson(res, 200, { messages: [] }); return; }
 
     try {
@@ -1203,14 +1474,18 @@ async function handleRequest(req, res) {
 
   // ── API: Skills listing ──
   if (req.method === "GET" && url.pathname === "/api/skills") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    const skillsDir = profileFilter && profileFilter !== "all"
+      ? path.join(getProfileDir(profileFilter), "skills")
+      : SKILLS_DIR;
     const categories = [];
     let total = 0;
     try {
-      if (fs.existsSync(SKILLS_DIR)) {
-        const dirs = fs.readdirSync(SKILLS_DIR, { withFileTypes: true });
+      if (fs.existsSync(skillsDir)) {
+        const dirs = fs.readdirSync(skillsDir, { withFileTypes: true });
         for (const d of dirs) {
           if (!d.isDirectory()) continue;
-          const catPath = path.join(SKILLS_DIR, d.name);
+          const catPath = path.join(skillsDir, d.name);
           const files = fs.readdirSync(catPath).filter(f => f.endsWith(".md"));
           categories.push({ name: d.name, count: files.length, skills: files.map(f => f.replace(".md", "")) });
           total += files.length;
@@ -1258,11 +1533,15 @@ async function handleRequest(req, res) {
 
   // ── API: Memory files ──
   if (req.method === "GET" && url.pathname === "/api/memory") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    const memDir = profileFilter && profileFilter !== "all"
+      ? path.join(getProfileDir(profileFilter), "memories")
+      : MEMORIES_DIR;
     const result = { soul: null, memory: null, has_user_profile: false };
     try {
-      const soulFile = path.join(MEMORIES_DIR, "SOUL.md");
-      const memoryFile = path.join(MEMORIES_DIR, "MEMORY.md");
-      const userFile = path.join(MEMORIES_DIR, "USER.md");
+      const soulFile = path.join(memDir, "SOUL.md");
+      const memoryFile = path.join(memDir, "MEMORY.md");
+      const userFile = path.join(memDir, "USER.md");
       if (fs.existsSync(soulFile)) result.soul = fs.readFileSync(soulFile, "utf8");
       if (fs.existsSync(memoryFile)) result.memory = fs.readFileSync(memoryFile, "utf8");
       result.has_user_profile = fs.existsSync(userFile);
@@ -1270,6 +1549,215 @@ async function handleRequest(req, res) {
       console.error("Memory read error:", e.message);
     }
     sendJson(res, 200, result);
+    return;
+  }
+
+  // ── API: List profiles ──
+  if (req.method === "GET" && url.pathname === "/api/profiles") {
+    const profiles = listProfiles();
+    // Enrich with session counts from each profile's state.db
+    for (const p of profiles) {
+      const profileDir = getProfileDir(p.name);
+      const stateDb = path.join(profileDir, "state.db");
+      p.activeSessions = 0;
+      p.totalSessions = 0;
+      try {
+        if (Database && fs.existsSync(stateDb)) {
+          const db = new Database(stateDb, { readonly: true, fileMustExist: true });
+          db.pragma("journal_mode = WAL");
+          const cutoff24h = Date.now() / 1000 - 86400;
+          p.activeSessions = db.prepare("SELECT COUNT(*) as c FROM sessions WHERE ended_at IS NULL OR ended_at > ?").get(cutoff24h).c;
+          p.totalSessions = db.prepare("SELECT COUNT(*) as c FROM sessions").get().c;
+          db.close();
+        }
+      } catch (e) {}
+    }
+    sendJson(res, 200, { profiles });
+    return;
+  }
+
+  // ── API: Create profile ──
+  if (req.method === "POST" && url.pathname === "/api/profiles") {
+    try {
+      const data = await parseBody(req);
+      const name = (data.name || "").trim().toLowerCase();
+
+      if (!name || !PROFILE_NAME_RE.test(name)) {
+        sendJson(res, 400, { error: "Invalid profile name. Use lowercase letters, numbers, hyphens." });
+        return;
+      }
+      if (name === "default") {
+        sendJson(res, 400, { error: "Cannot create a profile named 'default'." });
+        return;
+      }
+
+      const profileDir = getProfileDir(name);
+      if (fs.existsSync(profileDir)) {
+        sendJson(res, 409, { error: `Profile '${name}' already exists.` });
+        return;
+      }
+
+      fs.mkdirSync(profileDir, { recursive: true });
+
+      // Create required subdirs
+      for (const dir of ["sessions", "logs", "pairing", "hooks", "image_cache", "audio_cache", "memories", "skills", "whatsapp", "cron"]) {
+        fs.mkdirSync(path.join(profileDir, dir), { recursive: true });
+      }
+
+      // Clone from default if requested
+      if (data.clone) {
+        for (const file of ["config.yaml", ".env", "SOUL.md", "USER.md", "instructions.md"]) {
+          const src = path.join(CONFIG_DIR, file);
+          if (fs.existsSync(src)) {
+            fs.copyFileSync(src, path.join(profileDir, file));
+          }
+        }
+        console.log(`Created profile '${name}' (cloned from default)`);
+      } else {
+        console.log(`Created profile '${name}' (blank)`);
+      }
+
+      sendJson(res, 201, { success: true, name });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Profile actions (start/stop/restart/delete) ──
+  const profileMatch = url.pathname.match(/^\/api\/profiles\/([a-z0-9][a-z0-9_-]*)\/(start|stop|restart)$/);
+  if (req.method === "POST" && profileMatch) {
+    const [, name, action] = profileMatch;
+    try {
+      const profileDir = getProfileDir(name);
+      if (!fs.existsSync(profileDir)) {
+        sendJson(res, 404, { error: `Profile '${name}' not found.` });
+        return;
+      }
+
+      if (action === "start") {
+        startProfileGateway(name);
+        sendJson(res, 200, { success: true, message: `Gateway starting for ${name}...` });
+      } else if (action === "stop") {
+        stopProfileGateway(name);
+        sendJson(res, 200, { success: true, message: `Gateway stopped for ${name}.` });
+      } else if (action === "restart") {
+        try { stopProfileGateway(name); } catch (e) {}
+        setTimeout(() => {
+          try { startProfileGateway(name); } catch (e) { console.error(`Restart failed for ${name}:`, e.message); }
+        }, 2000);
+        sendJson(res, 200, { success: true, message: `Gateway restarting for ${name}...` });
+      }
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Delete profile ──
+  const deleteMatch = url.pathname.match(/^\/api\/profiles\/([a-z0-9][a-z0-9_-]*)$/);
+  if (req.method === "DELETE" && deleteMatch) {
+    const name = deleteMatch[1];
+    try {
+      if (name === "default") {
+        sendJson(res, 400, { error: "Cannot delete the default profile." });
+        return;
+      }
+      const profileDir = getProfileDir(name);
+      if (!fs.existsSync(profileDir)) {
+        sendJson(res, 404, { error: `Profile '${name}' not found.` });
+        return;
+      }
+      // Stop gateway if running
+      try { stopProfileGateway(name); } catch (e) {}
+      // Remove profile directory
+      fs.rmSync(profileDir, { recursive: true, force: true });
+      console.log(`Deleted profile: ${name}`);
+      sendJson(res, 200, { success: true });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Send message to profile agent ──
+  const messageMatch = url.pathname.match(/^\/api\/profiles\/([a-z0-9][a-z0-9_-]*)\/message$/);
+  if (req.method === "POST" && messageMatch) {
+    const name = messageMatch[1];
+    try {
+      const data = await parseBody(req);
+      if (!data.input) {
+        sendJson(res, 400, { error: "Message input is required" });
+        return;
+      }
+      const profileDir = getProfileDir(name);
+      if (!fs.existsSync(profileDir)) {
+        sendJson(res, 404, { error: `Profile '${name}' not found.` });
+        return;
+      }
+      const result = await sendMessageToProfile(name, data.input, data.from || "dashboard");
+      sendJson(res, 200, { success: true, ...result });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Profile health check (pings the profile's gateway) ──
+  const healthMatch = url.pathname.match(/^\/api\/profiles\/([a-z0-9][a-z0-9_-]*)\/health$/);
+  if (req.method === "GET" && healthMatch) {
+    const name = healthMatch[1];
+    const port = getProfileApiPort(name);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch(`http://${WEB_CONTAINER}:${port}/health`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      const data = await resp.json().catch(() => ({}));
+      sendJson(res, 200, { healthy: resp.ok, port, ...data });
+    } catch (e) {
+      sendJson(res, 200, { healthy: false, port, error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Direct chat with a profile (dashboard chat interface) ──
+  const chatMatch = url.pathname.match(/^\/api\/profiles\/([a-z0-9][a-z0-9_-]*)\/chat$/);
+  if (req.method === "POST" && chatMatch) {
+    const name = chatMatch[1];
+    try {
+      const data = await parseBody(req);
+      if (!data.message) {
+        sendJson(res, 400, { error: "Message is required" });
+        return;
+      }
+      const port = getProfileApiPort(name);
+      const start = Date.now();
+      const resp = await fetch(`http://${WEB_CONTAINER}:${port}/v1/responses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: data.message }),
+      });
+      const result = await resp.json();
+      const duration = Date.now() - start;
+      const responseText = result.output?.[0]?.content?.[0]?.text || result.output || JSON.stringify(result);
+      sendJson(res, 200, {
+        response: typeof responseText === "string" ? responseText : String(responseText),
+        duration_ms: duration,
+      });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Get inter-agent comms log ──
+  if (req.method === "GET" && url.pathname === "/api/profiles/comms") {
+    const limit = parseInt(url.searchParams.get("limit") || "50");
+    const log = readCommsLog().slice(-limit);
+    sendJson(res, 200, { messages: log });
     return;
   }
 
