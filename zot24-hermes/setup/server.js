@@ -223,30 +223,41 @@ function restartWebContainer() {
 // ── Profile helpers ──────────────────────────────────────────────────────────
 
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const COMMS_FILE = path.join(CONFIG_DIR, "agent-comms.json");
+const BASE_API_PORT = 8642;
+const BASE_WEBHOOK_PORT = 8644;
 
 function getProfileDir(name) {
   if (name === "default") return CONFIG_DIR;
   return path.join(PROFILES_DIR, name);
 }
 
-function readProfileConfig(profileDir) {
-  const result = { model: null, provider: null, platforms: [] };
+function readProfileEnv(profileDir) {
+  const env = {};
   try {
     const envFile = path.join(profileDir, ".env");
     if (fs.existsSync(envFile)) {
-      const content = fs.readFileSync(envFile, "utf8");
-      const env = {};
-      content.split("\n").forEach(l => {
+      fs.readFileSync(envFile, "utf8").split("\n").forEach(l => {
         const m = l.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
         if (m) env[m[1]] = m[2];
       });
-      if (env.HERMES_MODEL) result.model = env.HERMES_MODEL;
-      if (env.HERMES_PROVIDER) result.provider = env.HERMES_PROVIDER;
-      if (env.TELEGRAM_BOT_TOKEN) result.platforms.push("telegram");
-      if (env.WHATSAPP_ENABLED === "true") result.platforms.push("whatsapp");
-      if (env.DISCORD_BOT_TOKEN) result.platforms.push("discord");
-      if (env.SLACK_BOT_TOKEN) result.platforms.push("slack");
     }
+  } catch (e) {}
+  return env;
+}
+
+function readProfileConfig(profileDir) {
+  const result = { model: null, provider: null, platforms: [], apiPort: null, webhookPort: null };
+  try {
+    const env = readProfileEnv(profileDir);
+    if (env.HERMES_MODEL) result.model = env.HERMES_MODEL;
+    if (env.HERMES_PROVIDER) result.provider = env.HERMES_PROVIDER;
+    if (env.TELEGRAM_BOT_TOKEN) result.platforms.push("telegram");
+    if (env.WHATSAPP_ENABLED === "true") result.platforms.push("whatsapp");
+    if (env.DISCORD_BOT_TOKEN) result.platforms.push("discord");
+    if (env.SLACK_BOT_TOKEN) result.platforms.push("slack");
+    if (env.API_SERVER_PORT) result.apiPort = parseInt(env.API_SERVER_PORT);
+    if (env.WEBHOOK_PORT) result.webhookPort = parseInt(env.WEBHOOK_PORT);
     // Fallback to config.yaml for model
     if (!result.model) {
       const cfgFile = path.join(profileDir, "config.yaml");
@@ -323,9 +334,63 @@ function execInWebContainer(cmd) {
   );
 }
 
+function assignProfilePorts(name) {
+  const profiles = listProfiles();
+  const idx = profiles.findIndex(p => p.name === name);
+  const offset = (idx < 0 ? profiles.length : idx) * 10;
+  return { apiPort: BASE_API_PORT + offset, webhookPort: BASE_WEBHOOK_PORT + offset };
+}
+
+function getProfileApiPort(name) {
+  const profileDir = getProfileDir(name);
+  const env = readProfileEnv(profileDir);
+  return parseInt(env.API_SERVER_PORT || BASE_API_PORT);
+}
+
+function readCommsLog() {
+  try {
+    if (fs.existsSync(COMMS_FILE)) return JSON.parse(fs.readFileSync(COMMS_FILE, "utf8"));
+  } catch (e) {}
+  return [];
+}
+
+function appendCommsLog(entry) {
+  const log = readCommsLog();
+  log.push(entry);
+  // Keep last 200 entries
+  const trimmed = log.slice(-200);
+  fs.writeFileSync(COMMS_FILE, JSON.stringify(trimmed, null, 2));
+}
+
+async function sendMessageToProfile(name, input, fromName) {
+  const port = getProfileApiPort(name);
+  const start = Date.now();
+  const resp = await fetch(`http://${WEB_CONTAINER}:${port}/v1/responses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input }),
+  });
+  const data = await resp.json();
+  const duration = Date.now() - start;
+  const responseText = data.output?.[0]?.content?.[0]?.text || data.output || JSON.stringify(data);
+
+  appendCommsLog({
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    from: fromName || "dashboard",
+    to: name,
+    input,
+    response: typeof responseText === "string" ? responseText.slice(0, 2000) : String(responseText).slice(0, 2000),
+    timestamp: Math.floor(Date.now() / 1000),
+    duration_ms: duration,
+  });
+
+  return { response: responseText, duration_ms: duration };
+}
+
 function startProfileGateway(name) {
   const profileDir = getProfileDir(name);
-  const cmd = `HERMES_HOME=${profileDir} /app/venv/bin/hermes gateway run &`;
+  const { apiPort, webhookPort } = assignProfilePorts(name);
+  const cmd = `HERMES_HOME=${profileDir} API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run &`;
   // Create exec instance and start it
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
@@ -1548,6 +1613,37 @@ async function handleRequest(req, res) {
     } catch (e) {
       sendJson(res, 500, { error: e.message });
     }
+    return;
+  }
+
+  // ── API: Send message to profile agent ──
+  const messageMatch = url.pathname.match(/^\/api\/profiles\/([a-z0-9][a-z0-9_-]*)\/message$/);
+  if (req.method === "POST" && messageMatch) {
+    const name = messageMatch[1];
+    try {
+      const data = await parseBody(req);
+      if (!data.input) {
+        sendJson(res, 400, { error: "Message input is required" });
+        return;
+      }
+      const profileDir = getProfileDir(name);
+      if (!fs.existsSync(profileDir)) {
+        sendJson(res, 404, { error: `Profile '${name}' not found.` });
+        return;
+      }
+      const result = await sendMessageToProfile(name, data.input, data.from || "dashboard");
+      sendJson(res, 200, { success: true, ...result });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Get inter-agent comms log ──
+  if (req.method === "GET" && url.pathname === "/api/profiles/comms") {
+    const limit = parseInt(url.searchParams.get("limit") || "50");
+    const log = readCommsLog().slice(-limit);
+    sendJson(res, 200, { messages: log });
     return;
   }
 
