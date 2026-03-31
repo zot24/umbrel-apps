@@ -724,16 +724,19 @@ async function handleRequest(req, res) {
       try {
         execSync(
           `tar czfh ${tmpFile} -C ${VOLUME_DIR}` +
-          ` --exclude='default/hermes-agent'` +
-          ` --exclude='default/checkpoints'` +
-          ` --exclude='default/bin'` +
-          ` --exclude='default/logs'` +
-          ` --exclude='default/image_cache'` +
-          ` --exclude='default/audio_cache'` +
-          ` --exclude='default/document_cache'` +
-          ` --exclude='default/browser_screenshots'` +
-          ` --exclude='default/pastes'` +
-          ` --exclude='default/gateway_state.json'` +
+          ` --exclude='*/hermes-agent'` +
+          ` --exclude='*/checkpoints'` +
+          ` --exclude='*/bin'` +
+          ` --exclude='*/logs'` +
+          ` --exclude='*/image_cache'` +
+          ` --exclude='*/audio_cache'` +
+          ` --exclude='*/document_cache'` +
+          ` --exclude='*/browser_screenshots'` +
+          ` --exclude='*/pastes'` +
+          ` --exclude='*/node_modules'` +
+          ` --exclude='*/gateway_state.json'` +
+          ` --exclude='*/*-shm'` +
+          ` --exclude='*/*-wal'` +
           ` default`,
           { timeout: 120000 }
         );
@@ -846,9 +849,21 @@ async function handleRequest(req, res) {
       cleanup();
 
       // Remove stale SQLite WAL files (they reference the old DB state)
-      const stateDb = path.join(CONFIG_DIR, "state.db");
-      try { fs.unlinkSync(stateDb + "-shm"); } catch (e) {}
-      try { fs.unlinkSync(stateDb + "-wal"); } catch (e) {}
+      // Clean default profile and any imported named profiles
+      const walCleanDirs = [CONFIG_DIR];
+      const profilesDir = path.join(CONFIG_DIR, "profiles");
+      try {
+        if (fs.existsSync(profilesDir)) {
+          for (const p of fs.readdirSync(profilesDir)) {
+            walCleanDirs.push(path.join(profilesDir, p));
+          }
+        }
+      } catch (e) {}
+      for (const dir of walCleanDirs) {
+        const db = path.join(dir, "state.db");
+        try { fs.unlinkSync(db + "-shm"); } catch (e) {}
+        try { fs.unlinkSync(db + "-wal"); } catch (e) {}
+      }
 
       // Clear gateway_state.json (excluded from export, stale if leftover)
       try { fs.unlinkSync(STATE_FILE); } catch (e) {}
