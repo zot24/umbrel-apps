@@ -2112,12 +2112,17 @@
   <div class="corner-buttons">
     <div class="corner-dash" id="cornerDash" onclick="toggleDashboard()">
       <div class="corner-dash-tip">
-        <div class="tip-tag">Experimental</div>
-        <span class="tip-text">Agent diagnostics &mdash; sessions, tokens, cost, tools, and memory. Data read from local state only.</span>
+        <div class="tip-tag">Classified</div>
+        <span class="tip-text">What lies beneath the surface? Agents, metrics, memories, and things that prefer to remain unseen.</span>
       </div>
       <div class="corner-btn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <circle cx="12" cy="12" r="8" stroke-dasharray="4 3"/>
+          <line x1="12" y1="1" x2="12" y2="4"/>
+          <line x1="12" y1="20" x2="12" y2="23"/>
+          <line x1="1" y1="12" x2="4" y2="12"/>
+          <line x1="20" y1="12" x2="23" y2="12"/>
         </svg>
       </div>
     </div>
