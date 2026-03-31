@@ -394,7 +394,7 @@ async function sendMessageToProfile(name, input, fromName) {
 function startProfileGateway(name) {
   const profileDir = getProfileDir(name);
   const { apiPort, webhookPort } = assignProfilePorts(name);
-  const cmd = `HERMES_HOME=${profileDir} API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run &`;
+  const cmd = `HERMES_HOME=${profileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run &`;
   // Create exec instance and start it
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
