@@ -4850,42 +4850,46 @@
       if (!msg) return;
       input.value = "";
 
+      // Capture the target profile — this won't change even if user switches tabs
+      const targetProfile = chatProfile;
+
       // Add user message
-      if (!chatHistory[chatProfile]) chatHistory[chatProfile] = [];
-      chatHistory[chatProfile].push({ role: "user", text: msg });
+      if (!chatHistory[targetProfile]) chatHistory[targetProfile] = [];
+      chatHistory[targetProfile].push({ role: "user", text: msg });
       renderChatLog();
 
       // Show typing indicator for this profile
-      chatThinkingProfile = chatProfile;
-      document.getElementById("chatTyping").textContent = `${profileDisplayNamePlain(chatProfile).toUpperCase()} IS THINKING...`;
-      document.getElementById("chatTyping").style.display = "block";
-      document.getElementById("chatSendBtn").disabled = true;
+      chatThinkingProfile = targetProfile;
+      document.getElementById("chatTyping").textContent = `${profileDisplayNamePlain(targetProfile).toUpperCase()} IS THINKING...`;
+      document.getElementById("chatTyping").style.display = chatProfile === targetProfile ? "block" : "none";
+      if (chatProfile === targetProfile) document.getElementById("chatSendBtn").disabled = true;
 
       try {
         const chatBody = { message: msg };
-        if (chatResponseIds[chatProfile]) {
-          chatBody.previous_response_id = chatResponseIds[chatProfile];
+        if (chatResponseIds[targetProfile]) {
+          chatBody.previous_response_id = chatResponseIds[targetProfile];
         }
-        const resp = await fetch(`/api/profiles/${chatProfile}/chat`, {
+        const resp = await fetch(`/api/profiles/${targetProfile}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(chatBody),
         });
         const data = await resp.json();
         if (data.error) {
-          chatHistory[chatProfile].push({ role: "assistant", text: `[ERROR] ${data.error}` });
+          chatHistory[targetProfile].push({ role: "assistant", text: `[ERROR] ${data.error}` });
         } else {
-          chatHistory[chatProfile].push({ role: "assistant", text: data.response, duration: data.duration_ms });
-          if (data.response_id) chatResponseIds[chatProfile] = data.response_id;
+          chatHistory[targetProfile].push({ role: "assistant", text: data.response, duration: data.duration_ms });
+          if (data.response_id) chatResponseIds[targetProfile] = data.response_id;
         }
       } catch (e) {
-        chatHistory[chatProfile].push({ role: "assistant", text: `[ERROR] ${e.message}` });
+        chatHistory[targetProfile].push({ role: "assistant", text: `[ERROR] ${e.message}` });
       }
 
       chatThinkingProfile = null;
       document.getElementById("chatTyping").style.display = "none";
       document.getElementById("chatSendBtn").disabled = false;
-      renderChatLog();
+      // Only re-render if we're still viewing the profile that just got a response
+      if (chatProfile === targetProfile) renderChatLog();
       input.focus();
     }
 
