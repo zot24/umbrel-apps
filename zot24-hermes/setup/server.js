@@ -1946,6 +1946,13 @@ async function handleRequest(req, res) {
       const env = readProfileEnv(cfgDir);
       if (env.HERMES_MODEL) result.model = env.HERMES_MODEL;
       if (env.HERMES_PROVIDER) result.provider = env.HERMES_PROVIDER;
+      // API keys (masked)
+      const apiKeyVars = ["OPENROUTER_API_KEY","ANTHROPIC_API_KEY","OPENAI_API_KEY","MINIMAX_API_KEY","DEEPSEEK_API_KEY","ALIBABA_API_KEY"];
+      result.api_keys = {};
+      for (const k of apiKeyVars) {
+        if (env[k]) result.api_keys[k] = env[k].slice(0, 8) + "..." + env[k].slice(-4);
+      }
+      result.has_api_key = Object.keys(result.api_keys).length > 0;
     } catch (e) {
       console.error("Settings read error:", e.message);
     }
@@ -2010,6 +2017,37 @@ async function handleRequest(req, res) {
         }
 
         fs.writeFileSync(cfgFile, yaml);
+      }
+
+      // Write API keys and model/provider to .env
+      if (data.api_keys || data.model || data.provider) {
+        const envFile = path.join(cfgDir, ".env");
+        let envContent = "";
+        try { if (fs.existsSync(envFile)) envContent = fs.readFileSync(envFile, "utf8"); } catch (e) {}
+
+        const setEnvVar = (content, key, val) => {
+          if (!val) return content;
+          const re = new RegExp(`^${key}=.*$`, "m");
+          return re.test(content) ? content.replace(re, `${key}=${val}`) : content.trimEnd() + `\n${key}=${val}`;
+        };
+
+        if (data.model) envContent = setEnvVar(envContent, "HERMES_MODEL", data.model);
+        if (data.provider) envContent = setEnvVar(envContent, "HERMES_PROVIDER", data.provider);
+
+        // API keys — only write if the value is not masked (doesn't contain "...")
+        if (data.api_keys && typeof data.api_keys === "object") {
+          for (const [key, val] of Object.entries(data.api_keys)) {
+            if (val && !val.includes("...")) {
+              envContent = setEnvVar(envContent, key, val);
+            }
+          }
+        }
+
+        // Ensure it has a header
+        if (!envContent.includes("# Hermes")) {
+          envContent = "# Hermes Agent Configuration\n\n" + envContent;
+        }
+        fs.writeFileSync(envFile, envContent.trim() + "\n");
       }
 
       sendJson(res, 200, { success: true });

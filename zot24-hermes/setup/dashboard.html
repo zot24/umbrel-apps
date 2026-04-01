@@ -544,6 +544,17 @@
       color: var(--phosphor);
       border-color: var(--phosphor-dim);
     }
+    .profile-action-btn.amber {
+      color: var(--amber);
+      border-color: var(--amber-dim);
+      animation: statusBlink 1.5s ease-in-out infinite;
+    }
+    .profile-action-btn.amber:hover {
+      color: var(--amber);
+      border-color: var(--amber);
+      background: var(--amber-glow);
+      animation: none;
+    }
     .profile-action-btn.danger:hover {
       color: var(--red);
       border-color: var(--red-dim);
@@ -4553,14 +4564,15 @@
 
         const isDefault = p.name === "default";
         const transitioning = p.gateway === "starting" || p.gateway === "stopping";
-        let actions = "";
+        const needsConfig = !p.model || p.model === "not configured";
+        let actions = `<button class="profile-action-btn${needsConfig ? " amber" : ""}" onclick="event.stopPropagation();openProfileConfig('${p.name}')">${needsConfig ? "SETUP" : "CONFIG"}</button>`;
         if (!isDefault && transitioning) {
-          actions = `<button class="profile-action-btn" disabled style="opacity:0.4;">${p.gateway === "starting" ? "STARTING..." : "STOPPING..."}</button>`;
+          actions += `<button class="profile-action-btn" disabled style="opacity:0.4;">${p.gateway === "starting" ? "STARTING..." : "STOPPING..."}</button>`;
         } else if (!isDefault && state === "stopped") {
-          actions = `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','start')">START</button>` +
+          actions += `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','start')">START</button>` +
                     `<button class="profile-action-btn danger" onclick="event.stopPropagation();deleteProfile('${p.name}')">DEL</button>`;
         } else if (!isDefault && state === "running") {
-          actions = `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','stop')">STOP</button>`;
+          actions += `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','stop')">STOP</button>`;
         }
 
         // Live stats
@@ -5634,8 +5646,11 @@
 
     let settingsData = {};
 
+    let configProfileOverride = null; // when set, settings panel targets this profile
+
     function toggleSettings() {
       if (window.location.pathname !== "/dashboard") return;
+      configProfileOverride = null;
       const panel = document.getElementById("settingsFloat");
       const btn = document.getElementById("cornerSettings");
       const isOpen = panel.classList.contains("open");
@@ -5644,10 +5659,24 @@
       if (!isOpen) fetchSettings();
     }
 
+    function openProfileConfig(profileName) {
+      configProfileOverride = profileName;
+      const panel = document.getElementById("settingsFloat");
+      const btn = document.getElementById("cornerSettings");
+      panel.classList.add("open");
+      btn.classList.add("active");
+      fetchSettings();
+    }
+
+    function settingsProfileParam() {
+      if (configProfileOverride) return `&profile=${configProfileOverride}`;
+      return profileParam();
+    }
+
     async function fetchSettings() {
       try {
         const [settingsResp, providersResp] = await Promise.all([
-          fetch(`/api/settings?x=1${profileParam()}`),
+          fetch(`/api/settings?x=1${settingsProfileParam()}`),
           fetch("/api/providers"),
         ]);
         const data = await settingsResp.json();
@@ -5725,7 +5754,11 @@
       const personalities = ["none","helpful","concise","technical","creative","teacher","kawaii","catgirl","pirate","shakespeare","surfer","noir","uwu","philosopher","hype"];
       const reasoningLevels = ["off","low","minimal","medium","high","xhigh"];
 
-      body.innerHTML = `
+      const profileLabel = configProfileOverride
+        ? `<div style="padding:6px 10px;margin-bottom:8px;background:rgba(255,192,77,0.04);border-left:2px solid var(--amber);font-size:11px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;">${profileDisplayNamePlain(configProfileOverride)}</div>`
+        : "";
+
+      body.innerHTML = `${profileLabel}
         <div class="settings-group">
           <div class="settings-group-label">Model</div>
           <div class="settings-row">
@@ -5790,6 +5823,19 @@
           </div>
         </div>
 
+        <div class="settings-group">
+          <div class="settings-group-label">API Keys ${!s.has_api_key ? '<span style="color:var(--red);font-size:8px;margin-left:4px;">NONE SET</span>' : ''}</div>
+          ${["OPENROUTER_API_KEY","ANTHROPIC_API_KEY","OPENAI_API_KEY","MINIMAX_API_KEY","DEEPSEEK_API_KEY","ALIBABA_API_KEY"].map(k => {
+            const label = k.replace("_API_KEY","").replace("_","-");
+            const masked = s.api_keys?.[k] || "";
+            return `<div class="settings-row">
+              <span class="settings-row-label" style="font-size:9px;">${label}</span>
+              <input class="settings-input api-key-input" data-key="${k}" type="password" value="${masked}" placeholder="not set" style="width:140px;font-size:9px;">
+            </div>`;
+          }).join("")}
+          <div style="font-size:8px;color:var(--text-muted);padding:4px 10px;opacity:0.6;">Only changed keys are saved. Masked values are not overwritten.</div>
+        </div>
+
         <button class="btn settings-save" onclick="saveSettings()" style="border-color:var(--amber-dim);color:var(--amber);">Save Config</button>
         <div id="settingsSaveStatus" style="text-align:center;font-size:10px;margin-top:6px;color:var(--text-muted);"></div>
 
@@ -5804,6 +5850,15 @@
     }
 
     async function saveSettings() {
+      // Collect API keys that were changed (not masked)
+      const apiKeys = {};
+      document.querySelectorAll(".api-key-input").forEach(input => {
+        const val = input.value.trim();
+        if (val && !val.includes("...")) {
+          apiKeys[input.dataset.key] = val;
+        }
+      });
+
       const payload = {
         model: document.getElementById("setModel")?.dataset.value || null,
         provider: document.getElementById("setProvider")?.dataset.value || null,
@@ -5816,12 +5871,14 @@
         session_idle_minutes: parseInt(document.getElementById("setIdleMinutes").value) || null,
         session_reset_hour: parseInt(document.getElementById("setResetHour").value),
         timezone: document.getElementById("setTimezone").value.trim() || null,
+        api_keys: Object.keys(apiKeys).length ? apiKeys : undefined,
       };
       const status = document.getElementById("settingsSaveStatus");
       status.textContent = "SAVING...";
       status.style.color = "var(--amber)";
       try {
-        const resp = await fetch(`/api/settings?${profileParam().slice(1)}`, {
+        const paramStr = settingsProfileParam().slice(1);
+        const resp = await fetch(`/api/settings?${paramStr}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
