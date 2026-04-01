@@ -4698,6 +4698,7 @@
     // ═══════ CHAT INTERFACE ═══════
     let chatProfile = null;
     let chatHistory = {}; // per-profile chat history
+    let chatResponseIds = {}; // per-profile last response_id for conversation threading
 
     function updateChatTabs(profiles) {
       const el = document.getElementById("chatProfileTabs");
@@ -4762,16 +4763,21 @@
       document.getElementById("chatSendBtn").disabled = true;
 
       try {
+        const chatBody = { message: msg };
+        if (chatResponseIds[chatProfile]) {
+          chatBody.previous_response_id = chatResponseIds[chatProfile];
+        }
         const resp = await fetch(`/api/profiles/${chatProfile}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: msg }),
+          body: JSON.stringify(chatBody),
         });
         const data = await resp.json();
         if (data.error) {
           chatHistory[chatProfile].push({ role: "assistant", text: `[ERROR] ${data.error}` });
         } else {
           chatHistory[chatProfile].push({ role: "assistant", text: data.response, duration: data.duration_ms });
+          if (data.response_id) chatResponseIds[chatProfile] = data.response_id;
         }
       } catch (e) {
         chatHistory[chatProfile].push({ role: "assistant", text: `[ERROR] ${e.message}` });

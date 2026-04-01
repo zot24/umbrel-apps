@@ -2152,16 +2152,22 @@ async function handleRequest(req, res) {
       }
       const port = getProfileApiPort(name);
       const start = Date.now();
+      // Support conversation threading via previous_response_id
+      const body = { input: data.message };
+      if (data.previous_response_id) {
+        body.previous_response_id = data.previous_response_id;
+      }
       const resp = await fetch(`http://${WEB_CONTAINER}:${port}/v1/responses`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: data.message }),
+        body: JSON.stringify(body),
       });
       const result = await resp.json();
       const duration = Date.now() - start;
       const responseText = result.output?.[0]?.content?.[0]?.text || result.output || JSON.stringify(result);
       sendJson(res, 200, {
         response: typeof responseText === "string" ? responseText : String(responseText),
+        response_id: result.id || null,
         duration_ms: duration,
       });
     } catch (e) {
