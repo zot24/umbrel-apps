@@ -35,13 +35,12 @@ if [ -d "$SKELETON_DIR/linuxbrew" ] && [ ! -f "/home/linuxbrew/.linuxbrew/bin/br
     echo "Linuxbrew initialized"
 fi
 
-# ── Ensure bundled Umbrel skills are present ──────────────────────────────────
-# These are COPY'd into /data/.hermes/skills/ at build time but the volume
-# mount may already have a skills/ dir from hermes-agent. Merge ours in.
+# ── Ensure bundled Umbrel skills are present and up to date ───────────────────
+# Force-copy our skills on every start so updates take effect after image rebuild.
 if [ -d "/home-skeleton/.hermes/skills/umbrel" ]; then
     mkdir -p "$HERMES_HOME/skills"
-    cp -rn /home-skeleton/.hermes/skills/umbrel "$HERMES_HOME/skills/" 2>/dev/null || true
-    echo "Bundled Umbrel skills ensured"
+    cp -r /home-skeleton/.hermes/skills/umbrel "$HERMES_HOME/skills/"
+    echo "Bundled Umbrel skills installed/updated"
 fi
 
 # ── Create required directories ──────────────────────────────────────────────
