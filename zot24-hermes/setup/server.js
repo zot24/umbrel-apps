@@ -388,7 +388,20 @@ async function sendMessageToProfile(name, input, fromName) {
   });
   const data = await resp.json();
   const duration = Date.now() - start;
-  const responseText = data.output?.[0]?.content?.[0]?.text || data.output || JSON.stringify(data);
+  // Extract text from Responses API output
+  let responseText = "";
+  if (Array.isArray(data.output)) {
+    for (const item of data.output) {
+      if (item.type === "message" && Array.isArray(item.content)) {
+        for (const c of item.content) {
+          if (c.type === "output_text" || c.type === "text") responseText += (responseText ? "\n" : "") + (c.text || "");
+        }
+      } else if (typeof item === "string") {
+        responseText += (responseText ? "\n" : "") + item;
+      }
+    }
+  }
+  if (!responseText) responseText = typeof data.output === "string" ? data.output : JSON.stringify(data);
 
   appendCommsLog({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -2227,9 +2240,22 @@ async function handleRequest(req, res) {
       });
       const result = await resp.json();
       const duration = Date.now() - start;
-      const responseText = result.output?.[0]?.content?.[0]?.text || result.output || JSON.stringify(result);
+      // Extract text from Responses API output — handles multiple output items with tool calls
+      let responseText = "";
+      if (Array.isArray(result.output)) {
+        for (const item of result.output) {
+          if (item.type === "message" && Array.isArray(item.content)) {
+            for (const c of item.content) {
+              if (c.type === "output_text" || c.type === "text") responseText += (responseText ? "\n" : "") + (c.text || "");
+            }
+          } else if (typeof item === "string") {
+            responseText += (responseText ? "\n" : "") + item;
+          }
+        }
+      }
+      if (!responseText) responseText = typeof result.output === "string" ? result.output : JSON.stringify(result);
       sendJson(res, 200, {
-        response: typeof responseText === "string" ? responseText : String(responseText),
+        response: responseText,
         response_id: result.id || null,
         duration_ms: duration,
       });

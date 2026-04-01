@@ -3239,13 +3239,16 @@
       overflow: hidden;
       padding: 8px;
     }
-    .chat-float-body .chat-profile-tabs { margin-bottom: 6px; }
+    .chat-float-body .chat-profile-tabs { margin-bottom: 6px; flex-shrink: 0; }
     .chat-float-body .chat-log {
       flex: 1;
-      min-height: 200px;
+      min-height: 150px;
       max-height: 300px;
+      overflow-y: auto;
     }
-    .chat-float-body .chat-input-bar { padding-top: 6px; }
+    .chat-float-body .chat-input-bar { padding-top: 6px; flex-shrink: 0; }
+    .chat-float-body .chat-profile-tab img { flex-shrink: 0; }
+    .chat-float-body .ctx-meter { flex-shrink: 0; }
 
     /* Inter-agent comms inside float */
     .chat-float-comms {
