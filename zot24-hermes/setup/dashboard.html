@@ -4850,6 +4850,8 @@
       renderChatLog();
 
       // Show typing indicator
+      const thinkingProfile = chatProfile;
+      document.getElementById("chatTyping").textContent = `${profileDisplayNamePlain(chatProfile).toUpperCase()} IS THINKING...`;
       document.getElementById("chatTyping").style.display = "block";
       document.getElementById("chatSendBtn").disabled = true;
 
