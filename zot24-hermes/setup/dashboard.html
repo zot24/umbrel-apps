@@ -136,6 +136,11 @@
       text-align: center;
       margin-bottom: 28px;
       padding: 16px 0;
+      transition: margin 0.4s ease, padding 0.4s ease;
+    }
+    .header.decayed {
+      margin-bottom: 4px;
+      padding: 2px 0;
     }
 
     .header-sub {
@@ -173,6 +178,71 @@
       animation: blink 1s step-end infinite;
     }
     @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+    /* ── CRT phosphor decay ── */
+    .header.decaying .header-sub,
+    .header.decaying h1 {
+      animation: phosphorGlitch 0.6s steps(4) forwards;
+    }
+    @keyframes phosphorGlitch {
+      0% { opacity: 1; transform: scaleY(1); filter: none; }
+      25% { opacity: 0.8; transform: scaleY(1); filter: blur(1px); letter-spacing: 20px; }
+      50% { opacity: 0.5; transform: scaleY(0.3); filter: blur(2px); letter-spacing: 30px; }
+      75% { opacity: 0.3; transform: scaleY(0.05); filter: blur(4px); letter-spacing: 40px; }
+      100% { opacity: 0; transform: scaleY(0); filter: blur(6px); }
+    }
+    .header.decayed .header-sub,
+    .header.decayed h1 {
+      display: none;
+    }
+    /* The residual phosphor dot */
+    .crt-dot {
+      display: none;
+      width: 4px;
+      height: 4px;
+      background: var(--phosphor);
+      margin: 0 auto;
+      cursor: pointer;
+    }
+    .header.decayed .crt-dot {
+      display: block;
+      animation: crtDotAppear 0.4s ease-out forwards, crtDotPulse 3s ease-in-out 0.4s infinite;
+    }
+    @keyframes crtDotAppear {
+      0% { width: 60px; height: 1px; opacity: 0.8; box-shadow: 0 0 12px var(--phosphor); }
+      60% { width: 8px; height: 2px; opacity: 0.5; }
+      100% { width: 4px; height: 4px; opacity: 1; box-shadow: 0 0 6px rgba(80,255,168,0.3); }
+    }
+    @keyframes crtDotPulse {
+      0%, 100% { opacity: 0.3; box-shadow: 0 0 2px rgba(80,255,168,0.2); }
+      50% { opacity: 0.7; box-shadow: 0 0 8px rgba(80,255,168,0.3); }
+    }
+    /* Degauss effect */
+    .header.degaussing {
+      animation: degauss 0.8s ease-out;
+    }
+    @keyframes degauss {
+      0% { filter: hue-rotate(0deg) saturate(1) blur(0px); transform: scale(1); }
+      10% { filter: hue-rotate(40deg) saturate(3) blur(2px); transform: scale(1.02) skewX(2deg); }
+      20% { filter: hue-rotate(-30deg) saturate(2) blur(3px); transform: scale(0.98) skewX(-3deg); }
+      30% { filter: hue-rotate(60deg) saturate(4) blur(2px); transform: scale(1.01) skewX(1deg); }
+      40% { filter: hue-rotate(-20deg) saturate(2) blur(1px); transform: scale(0.99) skewX(-1deg); }
+      60% { filter: hue-rotate(10deg) saturate(1.5) blur(0.5px); transform: scale(1); }
+      100% { filter: none; transform: scale(1); }
+    }
+    /* Power-on boot sequence */
+    .header.powering-on .header-sub,
+    .header.powering-on h1 {
+      animation: phosphorPowerOn 0.8s ease-out forwards;
+    }
+    .header.powering-on .header-sub { animation-delay: 0.3s; opacity: 0; }
+    @keyframes phosphorPowerOn {
+      0% { opacity: 0; transform: scaleY(0); filter: blur(6px); letter-spacing: 40px; }
+      30% { opacity: 0.3; transform: scaleY(0.05); filter: blur(4px); letter-spacing: 30px; }
+      60% { opacity: 0.7; transform: scaleY(0.5); filter: blur(1px); letter-spacing: 15px; }
+      80% { opacity: 0.9; transform: scaleY(1.05); filter: blur(0.5px); }
+      100% { opacity: 1; transform: scaleY(1); filter: none; letter-spacing: 10px; }
+    }
 
     /* Easter egg: editable title */
     #heroText {
@@ -3013,9 +3083,10 @@
   <div class="bg-vignette"></div>
 
   <div class="container">
-    <div class="header">
+    <div class="header" id="headerBlock">
       <div class="header-sub">Nous Research</div>
       <h1 id="heroTitle"><span id="heroText">HERMES</span><span class="cursor"></span></h1>
+      <div class="crt-dot" id="crtDot"></div>
     </div>
 
     <div id="mainStatusSection">
@@ -3795,6 +3866,74 @@
         if (e.key === "Enter") { e.preventDefault(); el.blur(); }
         if (e.key === "Escape") { el.textContent = "HERMES"; el.blur(); }
       });
+    })();
+
+    // ═══════ CRT PHOSPHOR DECAY ═══════
+    (function() {
+      const header = document.getElementById("headerBlock");
+      const dot = document.getElementById("crtDot");
+      let decayTimer = null;
+      let isDecayed = false;
+      let tripleClickCount = 0;
+      let tripleClickTimer = null;
+
+      function startDecayTimer() {
+        clearTimeout(decayTimer);
+        if (isDecayed) return;
+        // Only on dashboard page
+        if (window.location.pathname !== "/dashboard") return;
+        decayTimer = setTimeout(() => {
+          if (isDecayed) return;
+          // Start decay
+          header.classList.add("decaying");
+          setTimeout(() => {
+            header.classList.remove("decaying");
+            header.classList.add("decayed");
+            isDecayed = true;
+          }, 600);
+        }, 30000); // 30 seconds idle
+      }
+
+      function powerOn() {
+        if (!isDecayed) return;
+        isDecayed = false;
+        header.classList.remove("decayed");
+        header.classList.add("degaussing");
+
+        setTimeout(() => {
+          header.classList.remove("degaussing");
+          // Show elements again
+          header.querySelector(".header-sub").style.display = "";
+          header.querySelector("h1").style.display = "";
+          header.classList.add("powering-on");
+
+          setTimeout(() => {
+            header.classList.remove("powering-on");
+            startDecayTimer(); // Restart the timer
+          }, 1200);
+        }, 800);
+      }
+
+      // Triple-click the dot to power on
+      dot.addEventListener("click", (e) => {
+        e.stopPropagation();
+        tripleClickCount++;
+        clearTimeout(tripleClickTimer);
+        tripleClickTimer = setTimeout(() => { tripleClickCount = 0; }, 500);
+        if (tripleClickCount >= 3) {
+          tripleClickCount = 0;
+          powerOn();
+        }
+      });
+
+      // Reset timer on user interaction
+      document.addEventListener("mousemove", () => { if (!isDecayed) startDecayTimer(); });
+      document.addEventListener("keydown", () => { if (!isDecayed) startDecayTimer(); });
+
+      // Only start on dashboard
+      if (window.location.pathname === "/dashboard") {
+        startDecayTimer();
+      }
     })();
 
     function openBackupModal() {
