@@ -339,9 +339,11 @@ function execInWebContainer(cmd) {
 }
 
 function assignProfilePorts(name) {
-  const profiles = listProfiles();
-  const idx = profiles.findIndex(p => p.name === name);
-  const offset = (idx < 0 ? profiles.length : idx) * 10;
+  if (name === "default") return { apiPort: BASE_API_PORT, webhookPort: BASE_WEBHOOK_PORT };
+  // Stable hash of profile name → unique port offset (avoids collisions when profiles are added/removed)
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+  const offset = (Math.abs(hash) % 90 + 1) * 10; // 10-900 range, avoids 0 (default)
   return { apiPort: BASE_API_PORT + offset, webhookPort: BASE_WEBHOOK_PORT + offset };
 }
 
@@ -1537,10 +1539,12 @@ async function handleRequest(req, res) {
                 }
                 skillEntries.push({
                   name: meta.name || sd.name,
-                  description: (meta.description || "").slice(0, 120),
+                  description: (meta.description || "").slice(0, 200),
                   author: meta.author || null,
+                  version: meta.version || null,
                   platforms: meta.platforms ? meta.platforms.replace(/[\[\]]/g, "").split(",").map(s => s.trim()) : null,
                   has_prerequisites: !!meta.prerequisites || content.includes("## Prerequisites"),
+                  category: d.name,
                 });
                 total++;
               }
@@ -1561,7 +1565,10 @@ async function handleRequest(req, res) {
     } catch (e) {
       console.error("Skills listing error:", e.message);
     }
-    sendJson(res, 200, { categories, total });
+    // Flatten all skills for easy frontend filtering
+    const allSkills = categories.flatMap(c => c.skills);
+    const withPrereqs = allSkills.filter(s => s.has_prerequisites).length;
+    sendJson(res, 200, { categories, total, allSkills, withPrereqs });
     return;
   }
 
@@ -1835,17 +1842,18 @@ async function handleRequest(req, res) {
         fs.mkdirSync(path.join(profileDir, dir), { recursive: true });
       }
 
-      // Clone from default if requested
-      if (data.clone) {
-        // Copy config.yaml (strip platform-specific settings for clean profile)
+      // Clone from default based on mode
+      const cloneMode = data.cloneMode || (data.clone ? "full" : "blank");
+
+      if (cloneMode === "keys" || cloneMode === "full") {
+        // Copy config.yaml (strip platform-specific settings — no messaging channels)
         const cfgSrc = path.join(CONFIG_DIR, "config.yaml");
         if (fs.existsSync(cfgSrc)) {
           let yaml = fs.readFileSync(cfgSrc, "utf8");
-          // Remove platform sections — new profile starts without messaging channels
           yaml = yaml.replace(/gateway:[\s\S]*?(?=\n\w|\n$|$)/, "gateway:\n  streaming: true\n  platforms:\n    # Configure platforms for this profile\n");
           fs.writeFileSync(path.join(profileDir, "config.yaml"), yaml);
         }
-        // Copy .env but strip platform tokens (keep model + provider + API keys)
+        // Copy .env — keep model + provider + API keys, strip platform tokens
         const envSrc = path.join(CONFIG_DIR, ".env");
         if (fs.existsSync(envSrc)) {
           const envContent = fs.readFileSync(envSrc, "utf8");
@@ -1856,7 +1864,10 @@ async function handleRequest(req, res) {
           }).join("\n");
           fs.writeFileSync(path.join(profileDir, ".env"), filtered);
         }
-        // Copy personality/instruction files
+      }
+
+      if (cloneMode === "full") {
+        // Also copy personality and instruction files
         for (const file of ["SOUL.md", "USER.md", "instructions.md"]) {
           const src = path.join(CONFIG_DIR, file);
           if (fs.existsSync(src)) {
@@ -1865,10 +1876,9 @@ async function handleRequest(req, res) {
             }
           }
         }
-        console.log(`Created profile '${name}' (cloned from default)`);
-      } else {
-        console.log(`Created profile '${name}' (blank)`);
       }
+
+      console.log(`Created profile '${name}' (mode: ${cloneMode})`);
 
       sendJson(res, 201, { success: true, name });
     } catch (e) {

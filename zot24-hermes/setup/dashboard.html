@@ -9,6 +9,13 @@
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+    /* ── Retro scrollbars ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--phosphor-dim); }
+    * { scrollbar-width: thin; scrollbar-color: var(--border) var(--bg); }
+
     :root {
       --phosphor: #50ffa8;
       --phosphor-dim: #28b870;
@@ -2369,71 +2376,142 @@
     .mem-search-text { color: var(--text-muted); display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .mem-unsaved { color: var(--amber); }
 
-    /* ── Enhanced skills ── */
-    .skill-cat {
-      margin-bottom: 3px;
+    /* ── Active tools grid ── */
+    .tools-top-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+      margin-bottom: 6px;
     }
-    .skill-cat-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 14px;
+    .tool-stat {
       background: var(--surface-2);
-      cursor: pointer;
-      transition: all 0.15s;
+      padding: 10px 12px;
       border-left: 2px solid transparent;
+      transition: all 0.15s;
     }
-    .skill-cat-header:hover { border-left-color: var(--amber-dim); background: rgba(255,192,77,0.02); }
-    .skill-cat-name {
-      font-family: var(--display);
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--amber);
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-    }
-    .skill-cat-count {
-      font-family: var(--body);
+    .tool-stat:hover { border-left-color: var(--phosphor-dim); background: rgba(80,255,168,0.02); }
+    .tool-stat-name {
       font-size: 9px;
       color: var(--text-muted);
-      padding: 1px 5px;
-      border: 1px solid var(--border);
-    }
-    .skill-cat-arrow {
-      margin-left: auto;
-      color: var(--text-muted);
-      font-size: 10px;
-      transition: transform 0.2s;
-    }
-    .skill-cat.open .skill-cat-arrow { transform: rotate(90deg); }
-    .skill-cat-body {
-      display: none;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 2px;
-      padding: 2px 0;
-    }
-    .skill-cat.open .skill-cat-body { display: grid; }
-    .skill-detail {
-      background: var(--surface-2);
-      padding: 8px 12px;
-      border-left: 2px solid transparent;
-      transition: all 0.15s;
-      overflow: hidden;
-    }
-    .skill-detail:hover { border-left-color: var(--amber-dim); background: rgba(255,192,77,0.02); }
-    .skill-detail-name {
-      font-size: 11px;
-      color: var(--text);
-      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .skill-detail-badges {
+    .tool-stat-val {
+      font-family: var(--display);
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--phosphor);
+      line-height: 1.1;
+      text-shadow: 0 0 12px var(--phosphor-glow);
+    }
+    .tool-stat-bar {
+      height: 4px;
+      background: var(--surface);
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .tool-stat-bar-fill {
+      height: 100%;
+      background: var(--phosphor-dim);
+      position: relative;
+    }
+    .tool-stat-bar-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      width: 8px;
+      background: linear-gradient(90deg, transparent, var(--phosphor));
+    }
+    .tool-stat-pct {
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+    .tools-expand {
+      padding: 6px 14px;
+      font-size: 10px;
+      color: var(--text-muted);
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: color 0.15s;
+      text-align: center;
+    }
+    .tools-expand:hover { color: var(--phosphor); }
+
+    /* ── Skill catalog ── */
+    .skill-filter-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .skill-search {
+      width: 100%;
+      padding: 8px 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--body);
+      font-size: 11px;
+      outline: none;
+    }
+    .skill-search:focus { border-color: var(--phosphor-dim); }
+    .skill-search::placeholder { color: var(--text-muted); opacity: 0.5; }
+    .skill-chips {
       display: flex;
       gap: 3px;
-      margin-top: 3px;
       flex-wrap: wrap;
+    }
+    .skill-chip {
+      padding: 3px 7px;
+      border: 1px solid var(--border);
+      background: none;
+      font-family: var(--body);
+      font-size: 8px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .skill-chip:hover { border-color: var(--amber-dim); color: var(--amber); }
+    .skill-chip.active {
+      border-color: var(--amber);
+      color: var(--amber);
+      background: rgba(255,192,77,0.06);
+    }
+    .skill-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 3px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .skill-card {
+      background: var(--surface-2);
+      padding: 8px 10px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .skill-card:hover { border-left-color: var(--amber-dim); background: rgba(255,192,77,0.02); }
+    .skill-card-name {
+      font-size: 12px;
+      color: var(--phosphor-dim);
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+    .skill-card-bottom {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+      margin-top: 3px;
     }
     .skill-badge {
       font-size: 7px;
@@ -2445,16 +2523,85 @@
     }
     .skill-badge.platform { color: var(--phosphor-dim); border-color: var(--phosphor-dim); }
     .skill-badge.prereq { color: var(--amber); border-color: var(--amber-dim); }
-    .skill-detail-desc {
-      font-size: 9px;
+    .skill-badge.cat { color: var(--text-muted); border-color: var(--border); }
+    .skill-card-author {
+      font-size: 8px;
       color: var(--text-muted);
-      line-height: 1.4;
-      margin-top: 3px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      opacity: 0.4;
+      margin-left: auto;
     }
-    .skill-detail-author { font-size: 8px; color: var(--text-muted); opacity: 0.5; margin-top: 2px; }
+    .skill-summary {
+      padding: 8px 0 0;
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      text-align: center;
+      opacity: 0.6;
+    }
+
+    /* ── Skill detail modal ── */
+    .skill-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(6,10,13,0.85);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      animation: modalFadeIn 0.2s ease-out;
+    }
+    .skill-modal.show { display: flex; }
+    .skill-modal-box {
+      background: var(--surface);
+      border: 1px solid var(--amber-dim);
+      max-width: 440px;
+      width: 90%;
+      position: relative;
+      overflow: hidden;
+      animation: modalSlideIn 0.25s ease-out;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .skill-modal-box::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--amber-dim), transparent);
+      opacity: 0.6;
+    }
+    .skill-modal-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,192,77,0.02);
+    }
+    .skill-modal-name {
+      font-family: var(--display);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--amber);
+      letter-spacing: 1px;
+    }
+    .skill-modal-meta {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .skill-modal-body {
+      padding: 14px 18px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+    .skill-modal-badges {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
 
     /* ── Cron jobs ── */
     .job-card {
@@ -2577,9 +2724,11 @@
     .profiles-float-strip .pf-avatar.stopped img {
       opacity: 0.4;
     }
+    /* Selected overrides running — amber border + thicker outline */
     .profiles-float-strip .pf-avatar.selected img {
-      border-color: var(--amber);
-      box-shadow: 0 0 8px var(--amber-glow);
+      border-color: var(--amber) !important;
+      box-shadow: 0 0 10px var(--amber-glow), 0 0 0 2px rgba(255,192,77,0.2) !important;
+      opacity: 1 !important;
     }
     .profiles-float-strip .pf-dot {
       position: absolute;
@@ -2640,11 +2789,11 @@
     /* Expanded detail view */
     .profiles-float-detail {
       padding: 8px 10px;
-      max-height: 400px;
+      max-height: 350px;
       overflow-y: auto;
-      min-width: 320px;
+      min-width: 280px;
     }
-    .profiles-float.expanded { min-width: 360px; }
+    .profiles-float.expanded { min-width: 300px; }
 
     /* ── Floating chat panel ── */
     .chat-float {
@@ -3006,21 +3155,30 @@
     <div class="dash-view" id="view-tools">
       <div class="panel" id="toolsPanel" style="display:none;">
         <div class="panel-header">
-          <span class="panel-title">Tool Usage</span>
-          <span class="panel-indicator">SYS.TOOLS</span>
+          <span class="panel-title">Active Tools</span>
+          <span class="panel-indicator" id="toolsIndicator">SYS.TOOLS</span>
         </div>
         <div class="panel-body">
-          <div id="toolsList" class="dash-table"></div>
+          <div id="toolsTopGrid" class="tools-top-grid"></div>
+          <div id="toolsExpandWrap" style="display:none;">
+            <div class="tools-expand" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'; this.textContent=this.nextElementSibling.style.display==='none'?this.dataset.label:'COLLAPSE'" data-label="">SHOW ALL</div>
+            <div id="toolsRest" class="dash-table" style="display:none;"></div>
+          </div>
         </div>
       </div>
 
       <div class="panel" id="skillsPanel" style="display:none;">
         <div class="panel-header">
-          <span class="panel-title">Skills</span>
+          <span class="panel-title">Skill Catalog</span>
           <span class="panel-indicator" id="skillsIndicator">SYS.SKILLS</span>
         </div>
         <div class="panel-body">
-          <div id="skillsGrid"></div>
+          <div class="skill-filter-bar">
+            <input type="text" class="skill-search" id="skillSearch" placeholder="Search skills..." oninput="filterSkills()">
+            <div class="skill-chips" id="skillChips"></div>
+          </div>
+          <div id="skillsGrid" class="skill-grid"></div>
+          <div class="skill-summary" id="skillSummary"></div>
         </div>
       </div>
     </div>
@@ -3097,6 +3255,17 @@
           zot24
         </a>
       </div>
+    </div>
+  </div>
+
+  <!-- Skill detail modal -->
+  <div class="skill-modal" id="skillModal" onclick="if(event.target===this)this.classList.remove('show')">
+    <div class="skill-modal-box">
+      <div class="skill-modal-header">
+        <div class="skill-modal-name" id="skillModalName"></div>
+        <div class="skill-modal-meta" id="skillModalMeta"></div>
+      </div>
+      <div class="skill-modal-body" id="skillModalBody"></div>
     </div>
   </div>
 
@@ -3273,7 +3442,7 @@
       </div>
       <div class="modal-body">
         <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 14px;">
-          Create an isolated agent with its own config, API keys, personality, memory, and gateway.
+          Create an isolated agent with its own sessions, memory, and gateway.
         </div>
         <div style="margin-bottom: 12px;">
           <label style="display: block; font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Profile Name</label>
@@ -3281,11 +3450,28 @@
           <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Lowercase letters, numbers, and hyphens only</div>
         </div>
         <div style="margin-bottom: 14px;">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text);">
-            <input type="checkbox" id="cloneProfile" checked>
-            Clone config from default profile
+          <div style="font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">Clone From Commander</div>
+          <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text); padding: 8px 10px; background: var(--surface-2); border-left: 2px solid var(--phosphor-dim); margin-bottom: 3px;">
+            <input type="radio" name="cloneMode" value="keys" checked style="margin-top: 2px;">
+            <div>
+              <div>Model + API keys</div>
+              <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Same model and provider credentials. Ready to use immediately via dashboard chat. No messaging platforms.</div>
+            </div>
           </label>
-          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; margin-left: 24px;">Copies API keys, model, and personality. Fresh sessions and memory.</div>
+          <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text); padding: 8px 10px; background: var(--surface-2); border-left: 2px solid transparent; margin-bottom: 3px;">
+            <input type="radio" name="cloneMode" value="full" style="margin-top: 2px;">
+            <div>
+              <div>Full clone</div>
+              <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Model, API keys, personality (SOUL.md), and instructions. No messaging platforms.</div>
+            </div>
+          </label>
+          <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text); padding: 8px 10px; background: var(--surface-2); border-left: 2px solid transparent;">
+            <input type="radio" name="cloneMode" value="blank" style="margin-top: 2px;">
+            <div>
+              <div>Blank profile</div>
+              <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Empty config. You'll need to set API keys via /hermes-agent-setup from a messaging channel.</div>
+            </div>
+          </label>
         </div>
         <div id="createProfileError" style="display: none; font-size: 12px; color: var(--red); padding: 8px 10px; border: 1px solid var(--red-dim); margin-bottom: 10px;"></div>
       </div>
@@ -3869,16 +4055,19 @@
       }
 
       el.innerHTML = profiles.map(p => {
-        const state = p.gateway === "running" ? "running" : (p.gateway === "starting" ? "starting" : "stopped");
-        const stateLabel = state === "running" ? "ONLINE" : (state === "starting" ? "INIT..." : "STOPPED");
+        const state = p.gateway === "running" ? "running" : (p.gateway === "starting" || p.gateway === "stopping" ? "starting" : "stopped");
+        const stateLabel = p.gateway === "running" ? "ONLINE" : p.gateway === "starting" ? "STARTING..." : p.gateway === "stopping" ? "STOPPING..." : p.gateway === "startup_failed" ? "FAILED" : "STOPPED";
         const platforms = (p.platforms || []).map(pl => `<span>${platformAbbr[pl] || pl}</span>`).join("");
         const modelShort = (p.model || "not configured").split("/").pop().slice(0, 20);
         const avatarImg = getProfileAvatarImg(p.name);
         const selected = selectedProfile === p.name ? " selected" : "";
 
         const isDefault = p.name === "default";
+        const transitioning = p.gateway === "starting" || p.gateway === "stopping";
         let actions = "";
-        if (!isDefault && state === "stopped") {
+        if (!isDefault && transitioning) {
+          actions = `<button class="profile-action-btn" disabled style="opacity:0.4;">${p.gateway === "starting" ? "STARTING..." : "STOPPING..."}</button>`;
+        } else if (!isDefault && state === "stopped") {
           actions = `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','start')">START</button>` +
                     `<button class="profile-action-btn danger" onclick="event.stopPropagation();deleteProfile('${p.name}')">DEL</button>`;
         } else if (!isDefault && state === "running") {
@@ -3915,17 +4104,48 @@
     }
 
     async function profileAction(name, action) {
+      // Immediately update UI to show transitional state
+      const p = cachedProfiles.find(x => x.name === name);
+      if (p) {
+        if (action === "start") p.gateway = "starting";
+        else if (action === "stop") p.gateway = "stopping";
+        renderProfiles(cachedProfiles);
+      }
       try {
-        await fetch(`/api/profiles/${name}/${action}`, { method: "POST" });
-        setTimeout(fetchProfiles, 2000);
+        const resp = await fetch(`/api/profiles/${name}/${action}`, { method: "POST" });
+        const data = await resp.json();
+        if (!data.success) {
+          alert("Failed: " + (data.error || "Unknown error"));
+          fetchProfiles(); // Revert to real state
+          return;
+        }
+        // Poll for state change
+        let checks = 0;
+        const poll = setInterval(async () => {
+          checks++;
+          if (checks > 10) { clearInterval(poll); fetchProfiles(); return; }
+          try {
+            const profiles = await (await fetch("/api/profiles")).json();
+            const updated = profiles.profiles.find(x => x.name === name);
+            if (updated) {
+              const done = (action === "start" && (updated.gateway === "running" || updated.gateway === "startup_failed"))
+                        || (action === "stop" && updated.gateway === "stopped");
+              if (done) {
+                clearInterval(poll);
+                renderProfiles(profiles.profiles);
+              }
+            }
+          } catch (e) {}
+        }, 2000);
       } catch (e) {
         alert("Failed: " + e.message);
+        fetchProfiles();
       }
     }
 
     function openCreateProfile() {
       document.getElementById("newProfileName").value = "";
-      document.getElementById("cloneProfile").checked = true;
+      document.querySelector('input[name="cloneMode"][value="keys"]').checked = true;
       document.getElementById("createProfileError").style.display = "none";
       document.getElementById("createProfileModal").classList.add("show");
       setTimeout(() => document.getElementById("newProfileName").focus(), 100);
@@ -3933,7 +4153,7 @@
 
     async function createProfile() {
       const name = document.getElementById("newProfileName").value.trim().toLowerCase();
-      const clone = document.getElementById("cloneProfile").checked;
+      const cloneMode = document.querySelector('input[name="cloneMode"]:checked')?.value || "keys";
       const errEl = document.getElementById("createProfileError");
 
       if (!name) {
@@ -3950,7 +4170,7 @@
         const resp = await fetch("/api/profiles", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, clone }),
+          body: JSON.stringify({ name, cloneMode }),
         });
         const data = await resp.json();
         if (data.success) {
@@ -4087,7 +4307,7 @@
       }
       el.innerHTML = running.map(p => {
         const active = chatProfile === p.name ? " active" : "";
-        return `<button class="chat-profile-tab${active}" onclick="switchChatProfile('${p.name}')">
+        return `<button class="chat-profile-tab${active}" data-profile="${p.name}" onclick="switchChatProfile('${p.name}')">
           <img src="${getProfileAvatarUrl(p.name)}" width="28" height="28">
           ${profileDisplayNamePlain(p.name)}
         </button>`;
@@ -4097,7 +4317,7 @@
     function switchChatProfile(name) {
       chatProfile = name;
       document.querySelectorAll(".chat-profile-tab").forEach(t => {
-        t.classList.toggle("active", t.textContent.trim() === name);
+        t.classList.toggle("active", t.dataset.profile === name);
       });
       document.getElementById("chatInput").disabled = false;
       document.getElementById("chatSendBtn").disabled = false;
@@ -4403,15 +4623,40 @@
       const panel = document.getElementById("toolsPanel");
       if (data.empty || !data.tools?.length) { panel.style.display = "none"; return; }
       panel.style.display = "block";
-      const maxCount = Math.max(...data.tools.map(t => t.count), 1);
-      document.getElementById("toolsList").innerHTML = data.tools.map(t => `
-        <div class="dash-table-row">
-          <div class="dash-table-name">${t.tool}</div>
-          <div class="dash-table-bar"><div class="dash-table-bar-fill" style="width:${Math.round(t.count/maxCount*100)}%"></div></div>
-          <div class="dash-table-val">${fmtNum(t.count)}</div>
-          <div class="dash-table-val">${t.percentage.toFixed(1)}%</div>
+      const tools = data.tools;
+      const totalCalls = tools.reduce((a, t) => a + t.count, 0);
+      document.getElementById("toolsIndicator").textContent = `${fmtNum(totalCalls)} CALLS`;
+      const maxCount = Math.max(...tools.map(t => t.count), 1);
+
+      // Top 6 as stat blocks
+      const top = tools.slice(0, 6);
+      document.getElementById("toolsTopGrid").innerHTML = top.map(t => `
+        <div class="tool-stat">
+          <div class="tool-stat-name">${t.tool}</div>
+          <div class="tool-stat-val">${fmtNum(t.count)}</div>
+          <div class="tool-stat-bar"><div class="tool-stat-bar-fill" style="width:${Math.round(t.count/maxCount*100)}%"></div></div>
+          <div class="tool-stat-pct">${t.percentage.toFixed(1)}%</div>
         </div>
       `).join("");
+
+      // Remaining as expandable bar chart
+      const rest = tools.slice(6);
+      const expandWrap = document.getElementById("toolsExpandWrap");
+      if (rest.length) {
+        expandWrap.style.display = "block";
+        expandWrap.querySelector(".tools-expand").dataset.label = `SHOW ALL (${rest.length} MORE)`;
+        expandWrap.querySelector(".tools-expand").textContent = `SHOW ALL (${rest.length} MORE)`;
+        document.getElementById("toolsRest").innerHTML = rest.map(t => `
+          <div class="dash-table-row">
+            <div class="dash-table-name">${t.tool}</div>
+            <div class="dash-table-bar"><div class="dash-table-bar-fill" style="width:${Math.round(t.count/maxCount*100)}%"></div></div>
+            <div class="dash-table-val">${fmtNum(t.count)}</div>
+            <div class="dash-table-val">${t.percentage.toFixed(1)}%</div>
+          </div>
+        `).join("");
+      } else {
+        expandWrap.style.display = "none";
+      }
     }
 
     function renderNotable(data) {
@@ -4426,6 +4671,9 @@
       `).join("");
     }
 
+    let allSkillsCache = [];
+    let skillCatFilter = null;
+
     async function fetchSkills() {
       try {
         const data = await (await fetch(`/api/skills?x=1${profileParam()}`)).json();
@@ -4433,37 +4681,102 @@
         if (!data.categories?.length) { panel.style.display = "none"; return; }
         panel.style.display = "block";
         document.getElementById("skillsIndicator").textContent = `${data.total} SKILLS`;
-        document.getElementById("skillsGrid").innerHTML = data.categories.map(c => {
-          const skillCards = c.skills.map(s => {
-            const name = typeof s === "string" ? s : s.name;
-            const desc = s.description || "";
-            const author = s.author || "";
-            const badges = [];
-            if (s.platforms?.length) {
-              badges.push(...s.platforms.map(p => `<span class="skill-badge platform">${escapeHtml(p)}</span>`));
-            }
-            if (s.has_prerequisites) {
-              badges.push(`<span class="skill-badge prereq">PREREQS</span>`);
-            }
-            return `<div class="skill-detail">
-              <div class="skill-detail-name" title="${escapeHtml(desc)}">${escapeHtml(name)}</div>
-              ${badges.length ? `<div class="skill-detail-badges">${badges.join("")}</div>` : ""}
-              ${desc ? `<div class="skill-detail-desc">${escapeHtml(desc)}</div>` : ""}
-              ${author ? `<div class="skill-detail-author">${escapeHtml(author)}</div>` : ""}
-            </div>`;
-          }).join("");
-          return `<div class="skill-cat" onclick="this.classList.toggle('open')">
-            <div class="skill-cat-header">
-              <span class="skill-cat-name">${escapeHtml(c.name)}</span>
-              <span class="skill-cat-count">${c.count}</span>
-              <span class="skill-cat-arrow">&#9654;</span>
-            </div>
-            <div class="skill-cat-body" onclick="event.stopPropagation()">
-              ${skillCards}
-            </div>
-          </div>`;
-        }).join("");
+        allSkillsCache = data.allSkills || [];
+
+        // Category chips — wrapping, not scrolling
+        const cats = data.categories.map(c => c.name);
+        document.getElementById("skillChips").innerHTML =
+          `<button class="skill-chip active" data-cat="" onclick="setSkillCat(null)">ALL</button>` +
+          cats.map(c => `<button class="skill-chip" data-cat="${c}" onclick="setSkillCat('${c}')">${escapeHtml(c)}</button>`).join("");
+
+        // Summary
+        document.getElementById("skillSummary").textContent =
+          `${data.categories.length} CATEGORIES / ${data.total} SKILLS / ${data.withPrereqs || 0} WITH PREREQUISITES`;
+
+        filterSkills();
       } catch (e) {}
+    }
+
+    function setSkillCat(cat) {
+      skillCatFilter = (skillCatFilter === cat) ? null : cat;
+      document.querySelectorAll(".skill-chip").forEach(c => {
+        const chipCat = c.dataset.cat || null;
+        c.classList.toggle("active", chipCat === skillCatFilter || (!skillCatFilter && !chipCat));
+      });
+      filterSkills();
+    }
+
+    function filterSkills() {
+      const query = (document.getElementById("skillSearch").value || "").toLowerCase();
+      let filtered = allSkillsCache;
+
+      if (skillCatFilter) {
+        filtered = filtered.filter(s => s.category === skillCatFilter);
+      }
+      if (query.length >= 2) {
+        filtered = filtered.filter(s =>
+          (s.name || "").toLowerCase().includes(query) ||
+          (s.description || "").toLowerCase().includes(query) ||
+          (s.category || "").toLowerCase().includes(query)
+        );
+      }
+
+      const grid = document.getElementById("skillsGrid");
+      if (!filtered.length) {
+        grid.innerHTML = '<div class="dash-empty" style="grid-column:1/-1;">NO MATCHING SKILLS</div>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map((s, i) => {
+        const name = typeof s === "string" ? s : s.name;
+        const desc = s.description || "";
+        const author = s.author || "";
+        const cat = s.category || "";
+        const badges = [];
+        if (s.has_prerequisites) badges.push(`<span class="skill-badge prereq">PREREQS</span>`);
+        if (s.platforms?.length) {
+          badges.push(...s.platforms.slice(0, 2).map(p => `<span class="skill-badge platform">${escapeHtml(p)}</span>`));
+        }
+        return `<div class="skill-card" onclick="showSkillModal(${i})">
+          <div class="skill-card-name">${escapeHtml(name)}</div>
+          <div class="skill-card-bottom">
+            <span class="skill-badge cat">${escapeHtml(cat)}</span>
+            ${badges.join("")}
+            ${author ? `<span class="skill-card-author">${escapeHtml(author)}</span>` : ""}
+          </div>
+        </div>`;
+      }).join("");
+
+      // Store filtered list for modal access
+      window._filteredSkills = filtered;
+    }
+
+    function showSkillModal(idx) {
+      const s = window._filteredSkills?.[idx];
+      if (!s) return;
+      const name = typeof s === "string" ? s : s.name;
+      document.getElementById("skillModalName").textContent = name;
+
+      // Meta line
+      const metaParts = [];
+      if (s.category) metaParts.push(s.category);
+      if (s.author) metaParts.push("by " + s.author);
+      if (s.version) metaParts.push("v" + s.version);
+      document.getElementById("skillModalMeta").textContent = metaParts.join(" / ");
+
+      // Body
+      let body = "";
+      if (s.description) body += `<div style="margin-bottom:10px;">${escapeHtml(s.description)}</div>`;
+      // Badges
+      const badges = [];
+      if (s.platforms?.length) {
+        badges.push(...s.platforms.map(p => `<span class="skill-badge platform">${escapeHtml(p)}</span>`));
+      }
+      if (s.has_prerequisites) badges.push(`<span class="skill-badge prereq">REQUIRES SETUP</span>`);
+      if (badges.length) body += `<div class="skill-modal-badges">${badges.join("")}</div>`;
+
+      document.getElementById("skillModalBody").innerHTML = body;
+      document.getElementById("skillModal").classList.add("show");
     }
 
     async function fetchSessions() {
