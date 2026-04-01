@@ -4790,6 +4790,7 @@
     let chatProfile = null;
     let chatHistory = {}; // per-profile chat history
     let chatResponseIds = {}; // per-profile last response_id for conversation threading
+    let chatThinkingProfile = null; // which profile is currently processing
 
     function updateChatTabs(profiles) {
       const el = document.getElementById("chatProfileTabs");
@@ -4817,6 +4818,11 @@
       document.getElementById("chatInput").placeholder = `Message ${profileDisplayNamePlain(name)}...`;
       document.getElementById("chatFloatIndicator").textContent = profileDisplayNamePlain(name).toUpperCase();
       renderChatLog();
+      // Show typing only if this profile is the one thinking
+      document.getElementById("chatTyping").style.display = chatThinkingProfile === name ? "block" : "none";
+      // Disable input if this profile is thinking
+      document.getElementById("chatInput").disabled = chatThinkingProfile === name;
+      document.getElementById("chatSendBtn").disabled = chatThinkingProfile === name;
       document.getElementById("chatInput").focus();
     }
 
@@ -4849,8 +4855,8 @@
       chatHistory[chatProfile].push({ role: "user", text: msg });
       renderChatLog();
 
-      // Show typing indicator
-      const thinkingProfile = chatProfile;
+      // Show typing indicator for this profile
+      chatThinkingProfile = chatProfile;
       document.getElementById("chatTyping").textContent = `${profileDisplayNamePlain(chatProfile).toUpperCase()} IS THINKING...`;
       document.getElementById("chatTyping").style.display = "block";
       document.getElementById("chatSendBtn").disabled = true;
@@ -4876,6 +4882,7 @@
         chatHistory[chatProfile].push({ role: "assistant", text: `[ERROR] ${e.message}` });
       }
 
+      chatThinkingProfile = null;
       document.getElementById("chatTyping").style.display = "none";
       document.getElementById("chatSendBtn").disabled = false;
       renderChatLog();
