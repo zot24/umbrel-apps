@@ -5665,7 +5665,138 @@
       const btn = document.getElementById("cornerSettings");
       panel.classList.add("open");
       btn.classList.add("active");
-      fetchSettings();
+      fetchProfileConfig(profileName);
+    }
+
+    async function fetchProfileConfig(profileName) {
+      const body = document.getElementById("settingsBody");
+      body.innerHTML = '<div class="dash-empty">LOADING...</div>';
+      try {
+        const [settingsResp, providersResp] = await Promise.all([
+          fetch(`/api/settings?profile=${profileName}`),
+          fetch("/api/providers"),
+        ]);
+        const s = await settingsResp.json();
+        const provData = await providersResp.json();
+        const providers = (provData.providers || []).map(p => ({ id: p.id, label: p.label || p.id }));
+
+        // Load models for current provider
+        let models = [];
+        try {
+          const modelsResp = await fetch(`/api/models?provider=${s.provider || ""}`);
+          const modelsData = await modelsResp.json();
+          models = (modelsData.models || []).map(m => m.id || m);
+        } catch (e) { models = s.model ? [s.model] : []; }
+
+        // Determine which API key var this provider needs
+        const providerKeyMap = {
+          openrouter: "OPENROUTER_API_KEY",
+          anthropic: "ANTHROPIC_API_KEY",
+          "openai-codex": "OPENAI_API_KEY",
+          minimax: "MINIMAX_API_KEY",
+          "minimax-cn": "MINIMAX_API_KEY",
+          deepseek: "DEEPSEEK_API_KEY",
+          alibaba: "ALIBABA_API_KEY",
+        };
+        const activeKeyVar = providerKeyMap[s.provider] || null;
+        const activeKeyMasked = activeKeyVar && s.api_keys?.[activeKeyVar] ? s.api_keys[activeKeyVar] : "";
+
+        body.innerHTML = `
+          <div style="padding:6px 10px;margin-bottom:8px;background:rgba(255,192,77,0.04);border-left:2px solid var(--amber);font-size:11px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;">
+            ${profileDisplayNamePlain(profileName)}
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-label">Model + Provider</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Provider</span>
+              ${makeRetroSelect("setProvider", s.provider || "", providers, 140)}
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Model</span>
+              ${makeRetroSelect("setModel", s.model || "", models.length ? models : (s.model ? [s.model] : [""]), 160)}
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-label">API Key ${!s.has_api_key ? '<span style="color:var(--red);font-size:8px;margin-left:4px;">REQUIRED</span>' : ''}</div>
+            <div class="settings-row">
+              <span class="settings-row-label" style="font-size:9px;" id="profileKeyLabel">${activeKeyVar ? activeKeyVar.replace("_API_KEY","") : "SELECT PROVIDER"}</span>
+              <input class="settings-input api-key-input" id="profileApiKey" data-key="${activeKeyVar || ""}" type="password" value="${activeKeyMasked}" placeholder="${activeKeyVar ? "enter key..." : "select provider first"}" style="width:160px;font-size:9px;" ${!activeKeyVar ? "disabled" : ""}>
+            </div>
+            <div style="font-size:8px;color:var(--text-muted);padding:4px 10px;opacity:0.6;">Leave empty to keep existing key. Only new values are saved.</div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-label">Messaging Platforms</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Telegram Bot Token</span>
+              <input class="settings-input platform-input" data-key="TELEGRAM_BOT_TOKEN" type="password" value="" placeholder="not set" style="width:160px;font-size:9px;">
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Telegram Chat ID</span>
+              <input class="settings-input platform-input" data-key="TELEGRAM_HOME_CHAT_ID" value="" placeholder="not set" style="width:100px;font-size:9px;">
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">WhatsApp</span>
+              <div class="retro-toggle" id="toggleWhatsApp" onclick="this.classList.toggle('on')"></div>
+            </div>
+            <div style="font-size:8px;color:var(--text-muted);padding:4px 10px;opacity:0.6;">Platform tokens are unique per profile. Don't reuse the same Telegram bot token across profiles.</div>
+          </div>
+
+          <button class="btn settings-save" onclick="saveProfileConfig('${profileName}')" style="border-color:var(--amber-dim);color:var(--amber);">Save Profile</button>
+          <div id="settingsSaveStatus" style="text-align:center;font-size:10px;margin-top:6px;color:var(--text-muted);"></div>
+        `;
+      } catch (e) {
+        body.innerHTML = '<div class="dash-empty">FAILED TO LOAD</div>';
+      }
+    }
+
+    async function saveProfileConfig(profileName) {
+      const apiKeyInput = document.getElementById("profileApiKey");
+      const apiKeys = {};
+      if (apiKeyInput && apiKeyInput.dataset.key && apiKeyInput.value.trim() && !apiKeyInput.value.includes("...")) {
+        apiKeys[apiKeyInput.dataset.key] = apiKeyInput.value.trim();
+      }
+
+      // Collect platform tokens
+      const platformKeys = {};
+      document.querySelectorAll(".platform-input").forEach(input => {
+        const val = input.value.trim();
+        if (val) platformKeys[input.dataset.key] = val;
+      });
+      const whatsapp = document.getElementById("toggleWhatsApp")?.classList.contains("on");
+      if (whatsapp) platformKeys["WHATSAPP_ENABLED"] = "true";
+
+      const payload = {
+        model: document.getElementById("setModel")?.dataset.value || null,
+        provider: document.getElementById("setProvider")?.dataset.value || null,
+        api_keys: { ...apiKeys, ...platformKeys },
+      };
+
+      const status = document.getElementById("settingsSaveStatus");
+      status.textContent = "SAVING...";
+      status.style.color = "var(--amber)";
+      try {
+        const resp = await fetch(`/api/settings?profile=${profileName}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          status.textContent = "SAVED — RESTART PROFILE TO APPLY";
+          status.style.color = "var(--phosphor)";
+          fetchProfiles(); // Refresh profile list to show updated model
+          setTimeout(() => { status.textContent = ""; }, 5000);
+        } else {
+          status.textContent = "FAILED: " + (data.error || "Unknown");
+          status.style.color = "var(--red)";
+        }
+      } catch (e) {
+        status.textContent = "FAILED: " + e.message;
+        status.style.color = "var(--red)";
+      }
     }
 
     function settingsProfileParam() {
@@ -5724,7 +5855,26 @@
       sel.classList.remove("open");
       sel.dataset.value = value;
       // If provider changed, refresh models
-      if (selectId === "setProvider") loadModelsForProvider(value);
+      if (selectId === "setProvider") {
+        loadModelsForProvider(value);
+        // Update API key label in profile config
+        const providerKeyMap = {
+          openrouter: "OPENROUTER_API_KEY", anthropic: "ANTHROPIC_API_KEY",
+          "openai-codex": "OPENAI_API_KEY", minimax: "MINIMAX_API_KEY",
+          "minimax-cn": "MINIMAX_API_KEY", deepseek: "DEEPSEEK_API_KEY",
+          alibaba: "ALIBABA_API_KEY",
+        };
+        const keyVar = providerKeyMap[value] || null;
+        const keyLabel = document.getElementById("profileKeyLabel");
+        const keyInput = document.getElementById("profileApiKey");
+        if (keyLabel) keyLabel.textContent = keyVar ? keyVar.replace("_API_KEY","") : "N/A";
+        if (keyInput) {
+          keyInput.dataset.key = keyVar || "";
+          keyInput.placeholder = keyVar ? "enter key..." : "no key needed";
+          keyInput.disabled = !keyVar;
+          keyInput.value = "";
+        }
+      }
     }
 
     // Close dropdowns on outside click
@@ -5758,17 +5908,13 @@
         ? `<div style="padding:6px 10px;margin-bottom:8px;background:rgba(255,192,77,0.04);border-left:2px solid var(--amber);font-size:11px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;">${profileDisplayNamePlain(configProfileOverride)}</div>`
         : "";
 
-      body.innerHTML = `${profileLabel}
+      body.innerHTML = `
+        <div style="padding:6px 10px;margin-bottom:8px;background:rgba(80,255,168,0.03);border-left:2px solid var(--phosphor-dim);font-size:11px;color:var(--phosphor-dim);letter-spacing:1px;text-transform:uppercase;">
+          GLOBAL SETTINGS
+        </div>
+
         <div class="settings-group">
-          <div class="settings-group-label">Model</div>
-          <div class="settings-row">
-            <span class="settings-row-label">Provider</span>
-            ${makeRetroSelect("setProvider", s.provider || "auto", settingsProviders.length ? settingsProviders : [{id: s.provider || "auto", label: s.provider || "auto"}], 140)}
-          </div>
-          <div class="settings-row">
-            <span class="settings-row-label">Model</span>
-            ${makeRetroSelect("setModel", s.model || "", settingsModels.length ? settingsModels : [s.model || ""], 160)}
-          </div>
+          <div class="settings-group-label">Agent Defaults</div>
           <div class="settings-row">
             <span class="settings-row-label">Max Turns</span>
             <input class="settings-input" id="setMaxTurns" type="number" value="${s.max_turns || 90}" style="width:60px;">
@@ -5823,20 +5969,7 @@
           </div>
         </div>
 
-        <div class="settings-group">
-          <div class="settings-group-label">API Keys ${!s.has_api_key ? '<span style="color:var(--red);font-size:8px;margin-left:4px;">NONE SET</span>' : ''}</div>
-          ${["OPENROUTER_API_KEY","ANTHROPIC_API_KEY","OPENAI_API_KEY","MINIMAX_API_KEY","DEEPSEEK_API_KEY","ALIBABA_API_KEY"].map(k => {
-            const label = k.replace("_API_KEY","").replace("_","-");
-            const masked = s.api_keys?.[k] || "";
-            return `<div class="settings-row">
-              <span class="settings-row-label" style="font-size:9px;">${label}</span>
-              <input class="settings-input api-key-input" data-key="${k}" type="password" value="${masked}" placeholder="not set" style="width:140px;font-size:9px;">
-            </div>`;
-          }).join("")}
-          <div style="font-size:8px;color:var(--text-muted);padding:4px 10px;opacity:0.6;">Only changed keys are saved. Masked values are not overwritten.</div>
-        </div>
-
-        <button class="btn settings-save" onclick="saveSettings()" style="border-color:var(--amber-dim);color:var(--amber);">Save Config</button>
+        <button class="btn settings-save" onclick="saveSettings()" style="border-color:var(--phosphor-dim);color:var(--phosphor);">Save Global</button>
         <div id="settingsSaveStatus" style="text-align:center;font-size:10px;margin-top:6px;color:var(--text-muted);"></div>
 
         <div class="settings-group" style="margin-top:12px;">
@@ -5850,18 +5983,7 @@
     }
 
     async function saveSettings() {
-      // Collect API keys that were changed (not masked)
-      const apiKeys = {};
-      document.querySelectorAll(".api-key-input").forEach(input => {
-        const val = input.value.trim();
-        if (val && !val.includes("...")) {
-          apiKeys[input.dataset.key] = val;
-        }
-      });
-
       const payload = {
-        model: document.getElementById("setModel")?.dataset.value || null,
-        provider: document.getElementById("setProvider")?.dataset.value || null,
         max_turns: parseInt(document.getElementById("setMaxTurns").value) || null,
         personality: document.getElementById("setPersonality")?.dataset.value || null,
         reasoning: document.getElementById("setReasoning")?.dataset.value || null,
@@ -5871,14 +5993,12 @@
         session_idle_minutes: parseInt(document.getElementById("setIdleMinutes").value) || null,
         session_reset_hour: parseInt(document.getElementById("setResetHour").value),
         timezone: document.getElementById("setTimezone").value.trim() || null,
-        api_keys: Object.keys(apiKeys).length ? apiKeys : undefined,
       };
       const status = document.getElementById("settingsSaveStatus");
       status.textContent = "SAVING...";
       status.style.color = "var(--amber)";
       try {
-        const paramStr = settingsProfileParam().slice(1);
-        const resp = await fetch(`/api/settings?${paramStr}`, {
+        const resp = await fetch(`/api/settings`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
