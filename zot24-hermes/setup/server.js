@@ -324,16 +324,26 @@ function listProfiles() {
 function execInWebContainer(cmd) {
   const socketPath = "/var/run/docker.sock";
   if (!fs.existsSync(socketPath)) throw new Error("Docker socket not available");
-  // Use docker exec via curl to the Docker API
-  const payload = JSON.stringify({
-    AttachStdout: false, AttachStderr: false, Detach: true,
+  // Create exec instance
+  const createPayload = JSON.stringify({
+    AttachStdout: true, AttachStderr: true, Detach: false,
     Cmd: ["sh", "-c", cmd],
   });
+  const createResp = execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '${createPayload.replace(/'/g, "'\\''")}' ` +
+    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    { encoding: "utf8", timeout: 10000 }
+  );
+  const execId = JSON.parse(createResp).Id;
+  if (!execId) throw new Error("Failed to create exec instance");
+  // Start and wait
   execSync(
     `curl -s --unix-socket ${socketPath} -X POST ` +
     `-H "Content-Type: application/json" ` +
-    `-d '${payload.replace(/'/g, "'\\''")}' ` +
-    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    `-d '{"Detach":false}' ` +
+    `"http://localhost/exec/${execId}/start"`,
     { timeout: 10000 }
   );
 }
@@ -445,12 +455,24 @@ function startProfileGateway(name) {
 function stopProfileGateway(name) {
   const profileDir = getProfileDir(name);
   if (name === "default") {
-    // Don't kill the default gateway (PID 1)
     throw new Error("Cannot stop the default profile gateway");
   }
-  // Kill the gateway process for this profile
+  // Kill the gateway process for this profile using multiple strategies
   const webProfileDir = webContainerPath(profileDir);
-  const cmd = `pkill -f "HERMES_HOME=${webProfileDir}.*gateway" || true`;
+  const port = getProfileApiPort(name);
+  // Strategy 1: Find PID from gateway_state.json
+  // Strategy 2: Kill by HERMES_HOME in /proc/*/environ
+  // Strategy 3: Kill process listening on the profile's API port
+  const cmd = [
+    // Read PID from state file and kill it
+    `PID=$(python3 -c "import json; print(json.load(open('${webProfileDir}/gateway_state.json')).get('pid',''))" 2>/dev/null) && [ -n "$PID" ] && kill "$PID" 2>/dev/null`,
+    // Kill by matching HERMES_HOME in process environment
+    `for p in /proc/[0-9]*/environ; do grep -qz "HERMES_HOME=${webProfileDir}" "$p" 2>/dev/null && kill $(echo "$p" | cut -d/ -f3) 2>/dev/null; done`,
+    // Kill by API port
+    `fuser -k ${port}/tcp 2>/dev/null`,
+    // Clean up state file
+    `rm -f "${webProfileDir}/gateway_state.json"`,
+  ].join("; ");
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
     AttachStdout: true, AttachStderr: true, Detach: false, Tty: false,
@@ -1946,8 +1968,25 @@ async function handleRequest(req, res) {
       }
       // Stop gateway if running
       try { stopProfileGateway(name); } catch (e) {}
-      // Remove profile directory
-      fs.rmSync(profileDir, { recursive: true, force: true });
+      // Remove profile directory — try locally first, then via web container for permission issues
+      try {
+        fs.rmSync(profileDir, { recursive: true, force: true });
+      } catch (e) {
+        console.error(`Local rmSync failed for ${name}:`, e.message);
+      }
+      // Also remove via web container (handles bind mount permission differences)
+      const webProfileDir = webContainerPath(profileDir);
+      try {
+        execInWebContainer(`rm -rf "${webProfileDir}"`);
+      } catch (e) {
+        console.error(`Web container rm failed for ${name}:`, e.message);
+      }
+      // Verify deletion
+      if (fs.existsSync(profileDir)) {
+        console.error(`Profile directory still exists after delete: ${profileDir}`);
+        sendJson(res, 500, { error: "Failed to delete profile directory" });
+        return;
+      }
       console.log(`Deleted profile: ${name}`);
       sendJson(res, 200, { success: true });
     } catch (e) {
