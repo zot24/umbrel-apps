@@ -5741,7 +5741,10 @@
               <span class="settings-row-label">WhatsApp</span>
               <div class="retro-toggle" id="toggleWhatsApp" onclick="this.classList.toggle('on')"></div>
             </div>
-            <div style="font-size:8px;color:var(--text-muted);padding:4px 10px;opacity:0.6;">Platform tokens are unique per profile. Don't reuse the same Telegram bot token across profiles.</div>
+            <div style="font-size:8px;color:var(--text-muted);padding:4px 10px;opacity:0.6;">
+              Each profile needs its own Telegram bot token (create one via @BotFather).
+              WhatsApp requires QR code pairing after enabling — scan from the main status page after starting the profile.
+            </div>
           </div>
 
           <button class="btn settings-save" onclick="saveProfileConfig('${profileName}')" style="border-color:var(--amber-dim);color:var(--amber);">Save Profile</button>
