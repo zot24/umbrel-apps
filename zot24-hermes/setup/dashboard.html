@@ -4150,6 +4150,8 @@
 
     function resetDashState() {
       localStorage.removeItem(DASH_STATE_KEY);
+      localStorage.removeItem("hermes_chat_history");
+      localStorage.removeItem("hermes_chat_response_ids");
       window.location.reload();
     }
 
@@ -4788,9 +4790,16 @@
 
     // ═══════ CHAT INTERFACE ═══════
     let chatProfile = null;
-    let chatHistory = {}; // per-profile chat history
-    let chatResponseIds = {}; // per-profile last response_id for conversation threading
+    let chatHistory = JSON.parse(localStorage.getItem("hermes_chat_history") || "{}");
+    let chatResponseIds = JSON.parse(localStorage.getItem("hermes_chat_response_ids") || "{}");
     let chatThinkingProfile = null; // which profile is currently processing
+
+    function saveChatState() {
+      try {
+        localStorage.setItem("hermes_chat_history", JSON.stringify(chatHistory));
+        localStorage.setItem("hermes_chat_response_ids", JSON.stringify(chatResponseIds));
+      } catch (e) {}
+    }
 
     function updateChatTabs(profiles) {
       const el = document.getElementById("chatProfileTabs");
@@ -4886,6 +4895,7 @@
       }
 
       chatThinkingProfile = null;
+      saveChatState();
       document.getElementById("chatTyping").style.display = "none";
       document.getElementById("chatSendBtn").disabled = false;
       // Only re-render if we're still viewing the profile that just got a response
