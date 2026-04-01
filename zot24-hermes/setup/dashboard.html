@@ -4022,6 +4022,29 @@
       });
     })();
 
+    // ═══════ DASHBOARD STATE PERSISTENCE ═══════
+    const DASH_STATE_KEY = "hermes_dash_state";
+
+    function saveDashState(key, value) {
+      try {
+        const state = JSON.parse(localStorage.getItem(DASH_STATE_KEY) || "{}");
+        state[key] = value;
+        localStorage.setItem(DASH_STATE_KEY, JSON.stringify(state));
+      } catch (e) {}
+    }
+
+    function getDashState(key, fallback) {
+      try {
+        const state = JSON.parse(localStorage.getItem(DASH_STATE_KEY) || "{}");
+        return state[key] !== undefined ? state[key] : fallback;
+      } catch (e) { return fallback; }
+    }
+
+    function resetDashState() {
+      localStorage.removeItem(DASH_STATE_KEY);
+      window.location.reload();
+    }
+
     // ═══════ CRT PHOSPHOR DECAY ═══════
     (function() {
       const header = document.getElementById("headerBlock");
@@ -4031,39 +4054,41 @@
       let tripleClickCount = 0;
       let tripleClickTimer = null;
 
+      function decay() {
+        if (isDecayed) return;
+        clearTimeout(decayTimer);
+        header.classList.add("decaying");
+        setTimeout(() => {
+          header.classList.remove("decaying");
+          header.classList.add("decayed");
+          isDecayed = true;
+          saveDashState("headerDecayed", true);
+        }, 600);
+      }
+
       function startDecayTimer() {
         clearTimeout(decayTimer);
         if (isDecayed) return;
-        // Only on dashboard page
         if (window.location.pathname !== "/dashboard") return;
-        decayTimer = setTimeout(() => {
-          if (isDecayed) return;
-          // Start decay
-          header.classList.add("decaying");
-          setTimeout(() => {
-            header.classList.remove("decaying");
-            header.classList.add("decayed");
-            isDecayed = true;
-          }, 600);
-        }, 30000); // 30 seconds idle
+        decayTimer = setTimeout(decay, 30000);
       }
 
       function powerOn() {
         if (!isDecayed) return;
         isDecayed = false;
+        saveDashState("headerDecayed", false);
         header.classList.remove("decayed");
         header.classList.add("degaussing");
 
         setTimeout(() => {
           header.classList.remove("degaussing");
-          // Show elements again
           header.querySelector(".header-sub").style.display = "";
           header.querySelector("h1").style.display = "";
           header.classList.add("powering-on");
 
           setTimeout(() => {
             header.classList.remove("powering-on");
-            startDecayTimer(); // Restart the timer
+            startDecayTimer();
           }, 1200);
         }, 800);
       }
@@ -4080,13 +4105,24 @@
         }
       });
 
-      // Reset timer on user interaction
+      // Double-click the title to manually decay
+      header.addEventListener("dblclick", (e) => {
+        if (isDecayed || e.target.closest(".crt-dot")) return;
+        decay();
+      });
+
+      // Reset timer on interaction
       document.addEventListener("mousemove", () => { if (!isDecayed) startDecayTimer(); });
       document.addEventListener("keydown", () => { if (!isDecayed) startDecayTimer(); });
 
-      // Only start on dashboard
+      // Restore saved state or start timer
       if (window.location.pathname === "/dashboard") {
-        startDecayTimer();
+        if (getDashState("headerDecayed", false)) {
+          // Instantly decay without animation
+          header.classList.add("decayed");
+          isDecayed = true;
+        } else {
+          startDecayTimer();
       }
     })();
 
@@ -5528,6 +5564,14 @@
 
         <button class="btn btn-primary settings-save" onclick="saveSettings()">Save</button>
         <div id="settingsSaveStatus" style="text-align:center;font-size:10px;margin-top:6px;color:var(--text-muted);"></div>
+
+        <div class="settings-group" style="margin-top:12px;">
+          <div class="settings-group-label">Dashboard</div>
+          <div class="settings-row">
+            <span class="settings-row-label">Reset View</span>
+            <button class="chat-float-ctrl" onclick="resetDashState()" title="Reset all panel positions and states" style="width:auto;padding:2px 8px;font-size:9px;">RESET</button>
+          </div>
+        </div>
       `;
     }
 
