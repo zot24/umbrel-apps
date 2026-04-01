@@ -2777,9 +2777,66 @@
       opacity: 0.4;
       z-index: 1;
     }
-    .profiles-float.dock-left { right: auto; left: 16px; }
     .profiles-float.dock-right { left: auto; right: 16px; }
     .profiles-float.dragging { transition: none; user-select: none; }
+
+    /* Left dock: vertical sidebar bar */
+    .profiles-float.dock-left {
+      right: auto;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      max-height: none;
+      width: auto;
+      min-width: 0;
+      border-top: none;
+      border-bottom: none;
+      border-left: none;
+      flex-direction: column;
+    }
+    .profiles-float.dock-left .profiles-float-header {
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--border);
+      flex-direction: column;
+      gap: 4px;
+    }
+    .profiles-float.dock-left .profiles-float-title {
+      font-size: 8px;
+      letter-spacing: 1px;
+      writing-mode: vertical-lr;
+      transform: rotate(180deg);
+      display: none;
+    }
+    .profiles-float.dock-left .profiles-float-controls {
+      margin-left: 0;
+      flex-direction: column;
+    }
+    .profiles-float.dock-left .profiles-float-strip {
+      flex-direction: column;
+      padding: 6px;
+      gap: 6px;
+    }
+    .profiles-float.dock-left .profiles-float-strip .pf-avatar img {
+      width: 40px;
+      height: 40px;
+    }
+    .profiles-float.dock-left .profiles-float-strip .pf-add {
+      width: 40px;
+      height: 40px;
+      font-size: 14px;
+    }
+    .profiles-float.dock-left .profiles-float-strip .pf-name {
+      bottom: auto;
+      left: calc(100% + 8px);
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    .profiles-float.dock-left .profiles-float-detail {
+      display: none !important;
+    }
+    .profiles-float.dock-left.expanded {
+      min-width: 0;
+    }
 
     .profiles-float-header {
       display: flex;
@@ -3027,23 +3084,54 @@
       text-align: right;
     }
     .settings-input:focus { border-color: var(--phosphor-dim); }
-    .settings-select {
-      padding: 4px 6px;
+    /* Retro custom dropdown */
+    .retro-select {
+      position: relative;
+      display: inline-block;
+    }
+    .retro-select-btn {
+      padding: 4px 8px;
       background: var(--bg);
       border: 1px solid var(--border);
       color: var(--text);
       font-family: var(--body);
       font-size: 10px;
-      outline: none;
-      width: 120px;
-      text-align: right;
-      -webkit-appearance: none;
-      -moz-appearance: none;
-      appearance: none;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 100px;
+      transition: border-color 0.15s;
     }
-    .settings-select:focus { border-color: var(--phosphor-dim); }
-    .settings-select option { background: var(--surface); color: var(--text); }
+    .retro-select-btn:hover { border-color: var(--phosphor-dim); }
+    .retro-select.open .retro-select-btn { border-color: var(--phosphor-dim); }
+    .retro-select-val { flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .retro-select-arrow { color: var(--text-muted); font-size: 8px; flex-shrink: 0; }
+    .retro-select-list {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 2px);
+      min-width: 100%;
+      max-height: 200px;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      z-index: 300;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .retro-select.open .retro-select-list { display: block; }
+    .retro-select-opt {
+      padding: 5px 10px;
+      font-family: var(--body);
+      font-size: 10px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.1s;
+      white-space: nowrap;
+    }
+    .retro-select-opt:hover { background: rgba(80,255,168,0.04); color: var(--text); }
+    .retro-select-opt.active { color: var(--phosphor); background: rgba(80,255,168,0.06); }
     .settings-save {
       width: 100%;
       margin-top: 4px;
@@ -5517,26 +5605,95 @@
 
     async function fetchSettings() {
       try {
-        const data = await (await fetch(`/api/settings?x=1${profileParam()}`)).json();
+        const [settingsResp, providersResp] = await Promise.all([
+          fetch(`/api/settings?x=1${profileParam()}`),
+          fetch("/api/providers"),
+        ]);
+        const data = await settingsResp.json();
+        const provData = await providersResp.json();
         settingsData = data;
+        settingsProviders = (provData.providers || []).map(p => ({ id: p.id, label: p.label || p.id }));
+        // Load models for current provider
+        try {
+          const modelsResp = await fetch(`/api/models?provider=${data.provider || ""}`);
+          const modelsData = await modelsResp.json();
+          settingsModels = (modelsData.models || []).map(m => m.id || m);
+        } catch (e) { settingsModels = [data.model || ""]; }
         renderSettings(data);
       } catch (e) {
         document.getElementById("settingsBody").innerHTML = '<div class="dash-empty">FAILED TO LOAD</div>';
       }
     }
 
+    let settingsProviders = [];
+    let settingsModels = [];
+
+    function makeRetroSelect(id, value, options, width) {
+      const w = width || 130;
+      const val = value || options[0] || "";
+      return `<div class="retro-select" id="${id}" data-value="${escapeHtml(val)}" style="width:${w}px;" onclick="this.classList.toggle('open');event.stopPropagation()">
+        <div class="retro-select-btn">
+          <span class="retro-select-val">${escapeHtml(val)}</span>
+          <span class="retro-select-arrow">&#9660;</span>
+        </div>
+        <div class="retro-select-list">
+          ${options.map(o => {
+            const optVal = typeof o === "object" ? o.id : o;
+            const optLabel = typeof o === "object" ? (o.label || o.id) : o;
+            return `<div class="retro-select-opt${optVal === val ? " active" : ""}" data-value="${escapeHtml(optVal)}" onclick="selectRetroOpt(event,'${id}','${escapeHtml(optVal)}')">${escapeHtml(optLabel)}</div>`;
+          }).join("")}
+        </div>
+      </div>`;
+    }
+
+    function selectRetroOpt(e, selectId, value) {
+      e.stopPropagation();
+      const sel = document.getElementById(selectId);
+      sel.querySelector(".retro-select-val").textContent = value;
+      sel.querySelectorAll(".retro-select-opt").forEach(o => o.classList.toggle("active", o.dataset.value === value));
+      sel.classList.remove("open");
+      sel.dataset.value = value;
+      // If provider changed, refresh models
+      if (selectId === "setProvider") loadModelsForProvider(value);
+    }
+
+    // Close dropdowns on outside click
+    document.addEventListener("click", () => {
+      document.querySelectorAll(".retro-select.open").forEach(s => s.classList.remove("open"));
+    });
+
+    async function loadModelsForProvider(provider) {
+      try {
+        const data = await (await fetch(`/api/models?provider=${provider}`)).json();
+        settingsModels = (data.models || []).map(m => m.id || m);
+        // Update model dropdown
+        const modelSel = document.getElementById("setModel");
+        if (modelSel) {
+          const currentVal = modelSel.dataset.value || "";
+          const list = modelSel.querySelector(".retro-select-list");
+          list.innerHTML = settingsModels.map(m =>
+            `<div class="retro-select-opt${m === currentVal ? " active" : ""}" data-value="${escapeHtml(m)}" onclick="selectRetroOpt(event,'setModel','${escapeHtml(m)}')">${escapeHtml(m)}</div>`
+          ).join("");
+        }
+      } catch (e) {}
+    }
+
     function renderSettings(s) {
       const body = document.getElementById("settingsBody");
+
+      const personalities = ["none","helpful","concise","technical","creative","teacher","kawaii","catgirl","pirate","shakespeare","surfer","noir","uwu","philosopher","hype"];
+      const reasoningLevels = ["off","low","minimal","medium","high","xhigh"];
+
       body.innerHTML = `
         <div class="settings-group">
           <div class="settings-group-label">Model</div>
           <div class="settings-row">
-            <span class="settings-row-label">Model</span>
-            <input class="settings-input" id="setModel" value="${escapeHtml(s.model || "")}" placeholder="e.g. anthropic/claude-sonnet-4">
+            <span class="settings-row-label">Provider</span>
+            ${makeRetroSelect("setProvider", s.provider || "auto", settingsProviders.length ? settingsProviders : [{id: s.provider || "auto", label: s.provider || "auto"}], 140)}
           </div>
           <div class="settings-row">
-            <span class="settings-row-label">Provider</span>
-            <input class="settings-input" id="setProvider" value="${escapeHtml(s.provider || "")}" placeholder="auto">
+            <span class="settings-row-label">Model</span>
+            ${makeRetroSelect("setModel", s.model || "", settingsModels.length ? settingsModels : [s.model || ""], 160)}
           </div>
           <div class="settings-row">
             <span class="settings-row-label">Max Turns</span>
@@ -5548,19 +5705,11 @@
           <div class="settings-group-label">Display</div>
           <div class="settings-row">
             <span class="settings-row-label">Personality</span>
-            <select class="settings-select" id="setPersonality" style="width:130px;">
-              ${["none","helpful","concise","technical","creative","teacher","kawaii","catgirl","pirate","shakespeare","surfer","noir","uwu","philosopher","hype"].map(p =>
-                `<option value="${p}"${(s.personality||"kawaii")===p?" selected":""}>${p}</option>`
-              ).join("")}
-            </select>
+            ${makeRetroSelect("setPersonality", s.personality || "kawaii", personalities, 130)}
           </div>
           <div class="settings-row">
             <span class="settings-row-label">Reasoning</span>
-            <select class="settings-select" id="setReasoning" style="width:90px;">
-              ${["off","low","minimal","medium","high","xhigh"].map(r =>
-                `<option value="${r}"${(s.reasoning||"off")===r?" selected":""}>${r}</option>`
-              ).join("")}
-            </select>
+            ${makeRetroSelect("setReasoning", s.reasoning || "off", reasoningLevels, 90)}
           </div>
         </div>
 
@@ -5600,7 +5749,7 @@
           </div>
         </div>
 
-        <button class="btn btn-primary settings-save" onclick="saveSettings()">Save</button>
+        <button class="btn settings-save" onclick="saveSettings()" style="border-color:var(--amber-dim);color:var(--amber);">Save Config</button>
         <div id="settingsSaveStatus" style="text-align:center;font-size:10px;margin-top:6px;color:var(--text-muted);"></div>
 
         <div class="settings-group" style="margin-top:12px;">
@@ -5615,11 +5764,11 @@
 
     async function saveSettings() {
       const payload = {
-        model: document.getElementById("setModel").value.trim() || null,
-        provider: document.getElementById("setProvider").value.trim() || null,
+        model: document.getElementById("setModel")?.dataset.value || null,
+        provider: document.getElementById("setProvider")?.dataset.value || null,
         max_turns: parseInt(document.getElementById("setMaxTurns").value) || null,
-        personality: document.getElementById("setPersonality").value || null,
-        reasoning: document.getElementById("setReasoning").value || null,
+        personality: document.getElementById("setPersonality")?.dataset.value || null,
+        reasoning: document.getElementById("setReasoning")?.dataset.value || null,
         streaming: document.getElementById("toggleStreaming").classList.contains("on"),
         memory: document.getElementById("toggleMemory").classList.contains("on"),
         context_compression: document.getElementById("toggleCompression").classList.contains("on"),
@@ -5670,11 +5819,15 @@
       panel.classList.remove("dock-left", "dock-right", "detached");
       panel.classList.add("dock-" + side);
       panel.style.bottom = "";
-      panel.style.top = "16px";
       if (side === "left") {
-        panel.style.left = "16px";
+        // Vertical sidebar — force minimized, full height
+        panel.style.top = "0";
+        panel.style.left = "0";
         panel.style.right = "auto";
+        // Collapse to strip if expanded
+        if (profilesExpanded) toggleProfilesExpand();
       } else {
+        panel.style.top = "16px";
         panel.style.right = "16px";
         panel.style.left = "auto";
       }

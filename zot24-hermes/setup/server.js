@@ -1927,6 +1927,69 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: Available providers and models ──
+  if (req.method === "GET" && url.pathname === "/api/providers") {
+    try {
+      const providersJson = execSync(
+        `curl -s --unix-socket /var/run/docker.sock -X POST ` +
+        `-H "Content-Type: application/json" ` +
+        `-d '{"AttachStdout":true,"AttachStderr":true,"Detach":false,"Cmd":["python3","-c","from hermes_cli.models import list_available_providers; import json; print(json.dumps(list_available_providers()))"]}' ` +
+        `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+        { encoding: "utf8", timeout: 10000 }
+      );
+      const execId = JSON.parse(providersJson).Id;
+      const output = execSync(
+        `curl -s --unix-socket /var/run/docker.sock -X POST ` +
+        `-H "Content-Type: application/json" ` +
+        `-d '{"Detach":false}' ` +
+        `"http://localhost/exec/${execId}/start"`,
+        { encoding: "utf8", timeout: 10000 }
+      );
+      // Output may have docker stream header bytes — find the JSON array
+      const jsonMatch = output.match(/\[[\s\S]*\]/);
+      const providers = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      sendJson(res, 200, { providers });
+    } catch (e) {
+      console.error("Providers fetch error:", e.message);
+      // Fallback static list
+      sendJson(res, 200, { providers: [
+        {id:"openrouter",label:"OpenRouter"},{id:"anthropic",label:"Anthropic"},{id:"minimax",label:"MiniMax"},
+        {id:"deepseek",label:"DeepSeek"},{id:"nous",label:"Nous Portal"},{id:"openai-codex",label:"OpenAI Codex"},
+        {id:"copilot",label:"GitHub Copilot"},{id:"alibaba",label:"Alibaba"},{id:"custom",label:"Custom"},
+      ]});
+    }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/models") {
+    const provider = url.searchParams.get("provider") || "";
+    try {
+      const cmd = `python3 -c "from hermes_cli.models import curated_models_for_provider; import json; print(json.dumps([{'id':m[0],'desc':m[1]} for m in curated_models_for_provider('${provider.replace(/'/g, "")}')]))"`;
+      const createResp = execSync(
+        `curl -s --unix-socket /var/run/docker.sock -X POST ` +
+        `-H "Content-Type: application/json" ` +
+        `-d '${JSON.stringify({AttachStdout:true,AttachStderr:true,Detach:false,Cmd:["sh","-c",cmd]}).replace(/'/g, "'\\''")}' ` +
+        `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+        { encoding: "utf8", timeout: 10000 }
+      );
+      const execId = JSON.parse(createResp).Id;
+      const output = execSync(
+        `curl -s --unix-socket /var/run/docker.sock -X POST ` +
+        `-H "Content-Type: application/json" ` +
+        `-d '{"Detach":false}' ` +
+        `"http://localhost/exec/${execId}/start"`,
+        { encoding: "utf8", timeout: 10000 }
+      );
+      const jsonMatch = output.match(/\[[\s\S]*\]/);
+      const models = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      sendJson(res, 200, { models });
+    } catch (e) {
+      console.error("Models fetch error:", e.message);
+      sendJson(res, 200, { models: [] });
+    }
+    return;
+  }
+
   // ── API: List profiles ──
   if (req.method === "GET" && url.pathname === "/api/profiles") {
     const profiles = listProfiles();
