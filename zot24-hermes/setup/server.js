@@ -1501,7 +1501,54 @@ async function handleRequest(req, res) {
       }));
 
       db.close();
-      sendJson(res, 200, { sessions, total });
+
+      // Also include API response sessions from response_store.db
+      if (!sourceFilter || sourceFilter === "api") {
+        try {
+          const storeDir = profileFilter && profileFilter !== "all"
+            ? getProfileDir(profileFilter)
+            : CONFIG_DIR;
+          const storePath = path.join(storeDir, "response_store.db");
+          if (Database && fs.existsSync(storePath)) {
+            const rdb = new Database(storePath, { readonly: true, fileMustExist: true });
+            const apiResponses = rdb.prepare("SELECT response_id, data, accessed_at FROM responses ORDER BY accessed_at DESC").all();
+            rdb.close();
+            for (const r of apiResponses) {
+              try {
+                const d = JSON.parse(r.data);
+                const resp = d.response || {};
+                const history = d.conversation_history || [];
+                const userMsgs = history.filter(m => m.role === "user");
+                const asstMsgs = history.filter(m => m.role === "assistant");
+                const title = userMsgs[0]?.content?.slice(0, 80) || null;
+                sessions.push({
+                  id: r.response_id,
+                  source: "api",
+                  model: resp.model || "hermes-agent",
+                  started_at: resp.created_at || Math.floor(r.accessed_at),
+                  ended_at: resp.created_at || Math.floor(r.accessed_at),
+                  message_count: history.length,
+                  tool_call_count: 0,
+                  input_tokens: resp.usage?.input_tokens || 0,
+                  output_tokens: resp.usage?.output_tokens || 0,
+                  cache_read_tokens: 0,
+                  cache_write_tokens: 0,
+                  estimated_cost_usd: 0,
+                  end_reason: resp.status || "completed",
+                  title,
+                  _api: true,
+                });
+              } catch (e) {}
+            }
+            // Re-sort by started_at desc after merging
+            sessions.sort((a, b) => (b.started_at || 0) - (a.started_at || 0));
+          }
+        } catch (e) {
+          console.error("Response store read error:", e.message);
+        }
+      }
+
+      sendJson(res, 200, { sessions, total: sessions.length });
     } catch (e) {
       try { db.close(); } catch (_) {}
       sendJson(res, 500, { error: e.message });
@@ -1514,6 +1561,38 @@ async function handleRequest(req, res) {
     const parts = url.pathname.replace("/api/sessions/", "").replace("/messages", "").split("?");
     const sessionId = parts[0];
     const profileFilter = url.searchParams.get("profile") || null;
+
+    // Check if this is an API response session (response_id format)
+    if (sessionId.startsWith("resp_")) {
+      try {
+        const storeDir = profileFilter && profileFilter !== "all"
+          ? getProfileDir(profileFilter)
+          : CONFIG_DIR;
+        const storePath = path.join(storeDir, "response_store.db");
+        if (Database && fs.existsSync(storePath)) {
+          const rdb = new Database(storePath, { readonly: true, fileMustExist: true });
+          const row = rdb.prepare("SELECT data FROM responses WHERE response_id = ?").get(sessionId);
+          rdb.close();
+          if (row) {
+            const d = JSON.parse(row.data);
+            const history = d.conversation_history || [];
+            sendJson(res, 200, {
+              messages: history.map(m => ({
+                role: m.role,
+                content: (m.content || "").slice(0, 2000),
+                tool_name: null,
+                tool_calls: null,
+                timestamp: null,
+              })),
+            });
+            return;
+          }
+        }
+      } catch (e) {}
+      sendJson(res, 200, { messages: [] });
+      return;
+    }
+
     const db = openStateDb(profileFilter);
     if (!db) { sendJson(res, 200, { messages: [] }); return; }
 
@@ -1527,7 +1606,7 @@ async function handleRequest(req, res) {
       sendJson(res, 200, {
         messages: messages.map(m => ({
           role: m.role,
-          content: m.content ? m.content.slice(0, 2000) : null, // Truncate large content
+          content: m.content ? m.content.slice(0, 2000) : null,
           tool_name: m.tool_name,
           tool_calls: m.tool_calls ? (() => { try { return JSON.parse(m.tool_calls); } catch { return null; } })() : null,
           timestamp: m.timestamp,
