@@ -5401,8 +5401,23 @@
     let memEditing = false;
     let memUnsaved = false;
 
+    function resetMemBrowser() {
+      if (memUnsaved && !confirm("Discard unsaved changes?")) return false;
+      memActiveFile = null;
+      memEditing = false;
+      memUnsaved = false;
+      document.getElementById("memToolbar").style.display = "none";
+      document.getElementById("memViewer").innerHTML = '<div class="dash-empty">SELECT A FILE</div>';
+      document.getElementById("memViewer").style.display = "block";
+      document.getElementById("memEditor").style.display = "none";
+      document.getElementById("memSearch").value = "";
+      document.getElementById("memSearchResults").style.display = "none";
+      return true;
+    }
+
     async function fetchMemoryFiles() {
       try {
+        resetMemBrowser();
         const data = await (await fetch(`/api/memory/files?x=1${profileParam()}`)).json();
         memFiles = data.files || [];
         document.getElementById("memoryIndicator").textContent = memFiles.length ? `${memFiles.length} FILES` : "SYS.MEMORY";
