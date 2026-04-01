@@ -2905,6 +2905,141 @@
     }
     .profiles-float.expanded { min-width: 300px; }
 
+    /* ── Settings panel ── */
+    .settings-float {
+      display: none;
+      position: fixed;
+      bottom: 56px;
+      left: 16px;
+      width: 340px;
+      max-height: 500px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      z-index: 200;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 0 1px var(--amber-dim);
+    }
+    .settings-float.open { display: flex; animation: chatFloatIn 0.25s ease-out; }
+    .settings-float::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent 5%, var(--amber-dim) 50%, transparent 95%);
+      opacity: 0.4;
+      z-index: 1;
+    }
+    .settings-float-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,192,77,0.015);
+    }
+    .settings-float-title {
+      font-family: var(--display);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--amber-dim);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .settings-float-close {
+      margin-left: auto;
+    }
+    .settings-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+    }
+    .settings-group {
+      margin-bottom: 10px;
+    }
+    .settings-group-label {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      background: var(--surface-2);
+      margin-bottom: 2px;
+      font-size: 11px;
+    }
+    .settings-row-label { color: var(--text); }
+    .settings-row-value {
+      color: var(--phosphor-dim);
+      font-size: 10px;
+      text-align: right;
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    /* Retro toggle switch */
+    .retro-toggle {
+      width: 32px;
+      height: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      position: relative;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+    .retro-toggle::after {
+      content: '';
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      width: 10px;
+      height: 10px;
+      background: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .retro-toggle.on {
+      border-color: var(--phosphor-dim);
+    }
+    .retro-toggle.on::after {
+      left: 19px;
+      background: var(--phosphor);
+      box-shadow: 0 0 6px var(--phosphor-glow);
+    }
+    .settings-input {
+      padding: 4px 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--body);
+      font-size: 10px;
+      outline: none;
+      width: 120px;
+      text-align: right;
+    }
+    .settings-input:focus { border-color: var(--phosphor-dim); }
+    .settings-save {
+      width: 100%;
+      margin-top: 4px;
+    }
+    #cornerSettings { display: none; }
+    #cornerSettings.visible { display: flex; }
+    #cornerSettings.active {
+      color: var(--amber);
+      border-color: var(--amber-dim);
+      background: rgba(255,192,77,0.06);
+      box-shadow: 0 0 12px var(--amber-glow);
+    }
+
     /* ── Floating chat panel ── */
     .chat-float {
       display: none;
@@ -3380,6 +3515,22 @@
     </div>
   </div>
 
+  <!-- Settings Panel -->
+  <div class="settings-float" id="settingsFloat">
+    <div class="settings-float-header">
+      <span class="settings-float-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        CONFIG
+      </span>
+      <div class="settings-float-close">
+        <button class="chat-float-ctrl" onclick="toggleSettings()" title="Close">&#10005;</button>
+      </div>
+    </div>
+    <div class="settings-body" id="settingsBody">
+      <div class="dash-empty">LOADING...</div>
+    </div>
+  </div>
+
   <!-- Floating Profiles Strip -->
   <div class="profiles-float" id="profilesFloat">
     <div class="profiles-float-header" id="profilesFloatHeader">
@@ -3445,6 +3596,9 @@
 
   <!-- Corner buttons -->
   <div class="corner-buttons">
+    <div class="corner-btn" id="cornerSettings" onclick="toggleSettings()" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </div>
     <div class="corner-btn" id="cornerChat" onclick="toggleChatFloat()" title="Agent Chat">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
     </div>
@@ -5281,6 +5435,140 @@
       }
     }
 
+    // ═══════ SETTINGS PANEL ═══════
+
+    let settingsData = {};
+
+    function toggleSettings() {
+      if (window.location.pathname !== "/dashboard") return;
+      const panel = document.getElementById("settingsFloat");
+      const btn = document.getElementById("cornerSettings");
+      const isOpen = panel.classList.contains("open");
+      panel.classList.toggle("open");
+      btn.classList.toggle("active");
+      if (!isOpen) fetchSettings();
+    }
+
+    async function fetchSettings() {
+      try {
+        const data = await (await fetch(`/api/settings?x=1${profileParam()}`)).json();
+        settingsData = data;
+        renderSettings(data);
+      } catch (e) {
+        document.getElementById("settingsBody").innerHTML = '<div class="dash-empty">FAILED TO LOAD</div>';
+      }
+    }
+
+    function renderSettings(s) {
+      const body = document.getElementById("settingsBody");
+      body.innerHTML = `
+        <div class="settings-group">
+          <div class="settings-group-label">Model</div>
+          <div class="settings-row">
+            <span class="settings-row-label">Model</span>
+            <input class="settings-input" id="setModel" value="${escapeHtml(s.model || "")}" placeholder="e.g. anthropic/claude-sonnet-4">
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Provider</span>
+            <input class="settings-input" id="setProvider" value="${escapeHtml(s.provider || "")}" placeholder="auto">
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Max Turns</span>
+            <input class="settings-input" id="setMaxTurns" type="number" value="${s.max_turns || 90}" style="width:60px;">
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-label">Display</div>
+          <div class="settings-row">
+            <span class="settings-row-label">Personality</span>
+            <input class="settings-input" id="setPersonality" value="${escapeHtml(s.personality || "")}" placeholder="kawaii">
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Reasoning</span>
+            <input class="settings-input" id="setReasoning" value="${escapeHtml(s.reasoning || "off")}" placeholder="off" style="width:60px;">
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-label">Agent Behavior</div>
+          <div class="settings-row">
+            <span class="settings-row-label">Streaming</span>
+            <div class="retro-toggle ${s.streaming ? "on" : ""}" id="toggleStreaming" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Memory</span>
+            <div class="retro-toggle ${s.memory ? "on" : ""}" id="toggleMemory" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Context Compression</span>
+            <div class="retro-toggle ${s.context_compression ? "on" : ""}" id="toggleCompression" onclick="this.classList.toggle('on')"></div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-label">Session Reset</div>
+          <div class="settings-row">
+            <span class="settings-row-label">Idle Timeout (min)</span>
+            <input class="settings-input" id="setIdleMinutes" type="number" value="${s.session_idle_minutes || 1440}" style="width:70px;">
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Reset Hour (UTC)</span>
+            <input class="settings-input" id="setResetHour" type="number" min="0" max="23" value="${s.session_reset_hour || 4}" style="width:60px;">
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="settings-group-label">System</div>
+          <div class="settings-row">
+            <span class="settings-row-label">Timezone</span>
+            <input class="settings-input" id="setTimezone" value="${escapeHtml(s.timezone || "")}" placeholder="auto">
+          </div>
+        </div>
+
+        <button class="btn btn-primary settings-save" onclick="saveSettings()">Save</button>
+        <div id="settingsSaveStatus" style="text-align:center;font-size:10px;margin-top:6px;color:var(--text-muted);"></div>
+      `;
+    }
+
+    async function saveSettings() {
+      const payload = {
+        model: document.getElementById("setModel").value.trim() || null,
+        provider: document.getElementById("setProvider").value.trim() || null,
+        max_turns: parseInt(document.getElementById("setMaxTurns").value) || null,
+        personality: document.getElementById("setPersonality").value.trim() || null,
+        reasoning: document.getElementById("setReasoning").value.trim() || null,
+        streaming: document.getElementById("toggleStreaming").classList.contains("on"),
+        memory: document.getElementById("toggleMemory").classList.contains("on"),
+        context_compression: document.getElementById("toggleCompression").classList.contains("on"),
+        session_idle_minutes: parseInt(document.getElementById("setIdleMinutes").value) || null,
+        session_reset_hour: parseInt(document.getElementById("setResetHour").value),
+        timezone: document.getElementById("setTimezone").value.trim() || null,
+      };
+      const status = document.getElementById("settingsSaveStatus");
+      status.textContent = "SAVING...";
+      status.style.color = "var(--amber)";
+      try {
+        const resp = await fetch(`/api/settings?${profileParam().slice(1)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (data.success) {
+          status.textContent = "SAVED — RESTART GATEWAY TO APPLY";
+          status.style.color = "var(--phosphor)";
+          setTimeout(() => { status.textContent = ""; }, 5000);
+        } else {
+          status.textContent = "FAILED: " + (data.error || "Unknown");
+          status.style.color = "var(--red)";
+        }
+      } catch (e) {
+        status.textContent = "FAILED: " + e.message;
+        status.style.color = "var(--red)";
+      }
+    }
+
     // ═══════ FLOATING PROFILES STRIP ═══════
 
     function toggleProfilesExpand() {
@@ -5433,6 +5721,7 @@
       section.classList.add("open");
       btn.classList.add("active");
       document.getElementById("cornerChat").classList.add("visible");
+      document.getElementById("cornerSettings").classList.add("visible");
       document.getElementById("profilesFloat").classList.add("visible");
       if (!dashLoaded) {
         dashLoaded = true;

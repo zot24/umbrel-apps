@@ -1825,6 +1825,108 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: Settings (read/write config.yaml + .env) ──
+  if (req.method === "GET" && url.pathname === "/api/settings") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    const cfgDir = profileFilter && profileFilter !== "all"
+      ? getProfileDir(profileFilter)
+      : CONFIG_DIR;
+    const result = { model: null, provider: null, personality: null, reasoning: null, streaming: true, memory: true, context_compression: true, compression_threshold: null, session_reset_mode: null, session_idle_minutes: null, session_reset_hour: null, timezone: null, max_turns: null };
+    try {
+      const cfgFile = path.join(cfgDir, "config.yaml");
+      if (fs.existsSync(cfgFile)) {
+        const yaml = fs.readFileSync(cfgFile, "utf8");
+        const get = (pattern) => { const m = yaml.match(pattern); return m ? m[1].trim().replace(/^["']|["']$/g, "") : null; };
+        result.model = get(/default:\s*"?([^"\n]+)"?/);
+        result.provider = get(/provider:\s*"?([^"\n]+)"?/);
+        result.personality = get(/personality:\s*"?([^"\n]+)"?/);
+        result.reasoning = get(/reasoning:\s*"?([^"\n]+)"?/);
+        result.streaming = yaml.includes("streaming: false") ? false : true;
+        result.memory = !yaml.includes("memory:") || !yaml.includes("enabled: false");
+        result.context_compression = !yaml.includes("context_compression:") || !yaml.match(/context_compression:[\s\S]*?enabled:\s*false/);
+        result.compression_threshold = get(/threshold:\s*"?([^"\n]+)"?/);
+        result.session_reset_mode = get(/mode:\s*"?([^"\n]+)"?/);
+        result.session_idle_minutes = get(/idle_minutes:\s*(\d+)/);
+        result.session_reset_hour = get(/at_hour:\s*(\d+)/);
+        result.timezone = get(/timezone:\s*"?([^"\n]+)"?/);
+        result.max_turns = get(/max_turns:\s*(\d+)/);
+      }
+      const env = readProfileEnv(cfgDir);
+      if (env.HERMES_MODEL) result.model = env.HERMES_MODEL;
+      if (env.HERMES_PROVIDER) result.provider = env.HERMES_PROVIDER;
+    } catch (e) {
+      console.error("Settings read error:", e.message);
+    }
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/settings") {
+    try {
+      const data = await parseBody(req);
+      const profileFilter = url.searchParams.get("profile") || null;
+      const cfgDir = profileFilter && profileFilter !== "all"
+        ? getProfileDir(profileFilter)
+        : CONFIG_DIR;
+      const webCfgDir = webContainerPath(cfgDir);
+
+      // Use hermes config set via the web container for each changed key
+      const configMap = {
+        model: "model.default",
+        provider: "model.provider",
+        personality: "display.personality",
+        reasoning: "display.reasoning",
+        max_turns: "model.max_turns",
+        timezone: "timezone",
+      };
+
+      for (const [key, cfgKey] of Object.entries(configMap)) {
+        if (data[key] !== undefined && data[key] !== null) {
+          try {
+            execInWebContainer(`HERMES_HOME=${webCfgDir} /app/venv/bin/hermes config set "${cfgKey}" "${String(data[key]).replace(/"/g, '\\"')}"`);
+          } catch (e) {
+            console.error(`Config set failed for ${cfgKey}:`, e.message);
+          }
+        }
+      }
+
+      // Toggle settings need special handling in config.yaml
+      const cfgFile = path.join(cfgDir, "config.yaml");
+      if (fs.existsSync(cfgFile)) {
+        let yaml = fs.readFileSync(cfgFile, "utf8");
+
+        if (data.streaming !== undefined) {
+          yaml = yaml.includes("streaming:")
+            ? yaml.replace(/streaming:\s*(true|false)/, `streaming: ${data.streaming}`)
+            : yaml.replace(/gateway:/, `gateway:\n  streaming: ${data.streaming}`);
+        }
+        if (data.memory !== undefined) {
+          yaml = yaml.includes("memory:")
+            ? yaml.replace(/memory:\s*\n\s*enabled:\s*(true|false)/, `memory:\n  enabled: ${data.memory}`)
+            : yaml + `\nmemory:\n  enabled: ${data.memory}\n`;
+        }
+        if (data.context_compression !== undefined) {
+          yaml = yaml.includes("context_compression:")
+            ? yaml.replace(/context_compression:\s*\n\s*enabled:\s*(true|false)/, `context_compression:\n  enabled: ${data.context_compression}`)
+            : yaml + `\ncontext_compression:\n  enabled: ${data.context_compression}\n`;
+        }
+        if (data.session_idle_minutes !== undefined) {
+          yaml = yaml.replace(/idle_minutes:\s*\d+/, `idle_minutes: ${data.session_idle_minutes}`);
+        }
+        if (data.session_reset_hour !== undefined) {
+          yaml = yaml.replace(/at_hour:\s*\d+/, `at_hour: ${data.session_reset_hour}`);
+        }
+
+        fs.writeFileSync(cfgFile, yaml);
+      }
+
+      sendJson(res, 200, { success: true });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
   // ── API: List profiles ──
   if (req.method === "GET" && url.pathname === "/api/profiles") {
     const profiles = listProfiles();
