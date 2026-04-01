@@ -3027,6 +3027,23 @@
       text-align: right;
     }
     .settings-input:focus { border-color: var(--phosphor-dim); }
+    .settings-select {
+      padding: 4px 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--body);
+      font-size: 10px;
+      outline: none;
+      width: 120px;
+      text-align: right;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      cursor: pointer;
+    }
+    .settings-select:focus { border-color: var(--phosphor-dim); }
+    .settings-select option { background: var(--surface); color: var(--text); }
     .settings-save {
       width: 100%;
       margin-top: 4px;
@@ -5519,11 +5536,19 @@
           <div class="settings-group-label">Display</div>
           <div class="settings-row">
             <span class="settings-row-label">Personality</span>
-            <input class="settings-input" id="setPersonality" value="${escapeHtml(s.personality || "")}" placeholder="kawaii">
+            <select class="settings-select" id="setPersonality" style="width:130px;">
+              ${["none","helpful","concise","technical","creative","teacher","kawaii","catgirl","pirate","shakespeare","surfer","noir","uwu","philosopher","hype"].map(p =>
+                `<option value="${p}"${(s.personality||"kawaii")===p?" selected":""}>${p}</option>`
+              ).join("")}
+            </select>
           </div>
           <div class="settings-row">
             <span class="settings-row-label">Reasoning</span>
-            <input class="settings-input" id="setReasoning" value="${escapeHtml(s.reasoning || "off")}" placeholder="off" style="width:60px;">
+            <select class="settings-select" id="setReasoning" style="width:90px;">
+              ${["off","low","minimal","medium","high","xhigh"].map(r =>
+                `<option value="${r}"${(s.reasoning||"off")===r?" selected":""}>${r}</option>`
+              ).join("")}
+            </select>
           </div>
         </div>
 
@@ -5581,8 +5606,8 @@
         model: document.getElementById("setModel").value.trim() || null,
         provider: document.getElementById("setProvider").value.trim() || null,
         max_turns: parseInt(document.getElementById("setMaxTurns").value) || null,
-        personality: document.getElementById("setPersonality").value.trim() || null,
-        reasoning: document.getElementById("setReasoning").value.trim() || null,
+        personality: document.getElementById("setPersonality").value || null,
+        reasoning: document.getElementById("setReasoning").value || null,
         streaming: document.getElementById("toggleStreaming").classList.contains("on"),
         memory: document.getElementById("toggleMemory").classList.contains("on"),
         context_compression: document.getElementById("toggleCompression").classList.contains("on"),
