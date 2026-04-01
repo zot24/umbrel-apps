@@ -139,8 +139,8 @@
       transition: margin 0.4s ease, padding 0.4s ease;
     }
     .header.decayed {
-      margin-bottom: 4px;
-      padding: 2px 0;
+      margin-bottom: 8px;
+      padding: 8px 0;
     }
 
     .header-sub {
@@ -4094,20 +4094,26 @@
         if (!isDecayed) return;
         isDecayed = false;
         saveDashState("headerDecayed", false);
-        header.classList.remove("decayed");
+
+        // Phase 1: degauss wobble on the dot area
         header.classList.add("degaussing");
 
         setTimeout(() => {
-          header.classList.remove("degaussing");
-          header.querySelector(".header-sub").style.display = "";
-          header.querySelector("h1").style.display = "";
+          // Phase 2: remove decayed (shows elements) and immediately start power-on animation
+          header.classList.remove("degaussing", "decayed");
+          // Force elements visible but at animation start state (scaleY 0, invisible)
+          const sub = header.querySelector(".header-sub");
+          const h1 = header.querySelector("h1");
+          sub.style.display = "";
+          h1.style.display = "";
           header.classList.add("powering-on");
 
           setTimeout(() => {
             header.classList.remove("powering-on");
-            startDecayTimer();
+            // Don't restart decay timer — let user enjoy the title
+            // It will only decay again on manual double-click or after they stop moving for 30s
           }, 1200);
-        }, 800);
+        }, 600);
       }
 
       // Triple-click the dot to power on
