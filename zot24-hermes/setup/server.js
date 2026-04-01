@@ -226,7 +226,7 @@ function restartWebContainer() {
 
 // ── Profile helpers ──────────────────────────────────────────────────────────
 
-const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,19}$/;
 const COMMS_FILE = path.join(CONFIG_DIR, "agent-comms.json");
 const BASE_API_PORT = 8642;
 const BASE_WEBHOOK_PORT = 8644;
@@ -1755,30 +1755,43 @@ async function handleRequest(req, res) {
     const cronDir = profileFilter && profileFilter !== "all"
       ? path.join(getProfileDir(profileFilter), "cron")
       : path.join(CONFIG_DIR, "cron");
-    const jobs = [];
+    let jobs = [];
     try {
       if (fs.existsSync(cronDir)) {
+        // Primary format: jobs.json with { "jobs": [...] } structure
+        const jobsFile = path.join(cronDir, "jobs.json");
+        if (fs.existsSync(jobsFile)) {
+          const content = JSON.parse(fs.readFileSync(jobsFile, "utf8"));
+          if (Array.isArray(content.jobs)) {
+            jobs = content.jobs;
+          } else if (Array.isArray(content)) {
+            jobs = content;
+          }
+        }
+        // Also check for individual job files (legacy format)
         for (const file of fs.readdirSync(cronDir)) {
-          if (!file.endsWith(".json") && !file.endsWith(".yaml") && !file.endsWith(".yml")) continue;
+          if (file === "jobs.json" || file.startsWith(".") || file === "output") continue;
+          if (!file.endsWith(".json")) continue;
           try {
-            const content = fs.readFileSync(path.join(cronDir, file), "utf8");
-            const job = file.endsWith(".json") ? JSON.parse(content) : { raw: content };
-            job._file = file;
-            jobs.push(job);
+            const content = JSON.parse(fs.readFileSync(path.join(cronDir, file), "utf8"));
+            if (content.id || content.name) jobs.push(content);
           } catch (e) {}
         }
-        // Check for cron output files
+        // Enrich with output logs
         const outputDir = path.join(cronDir, "output");
         if (fs.existsSync(outputDir)) {
           for (const job of jobs) {
-            const name = job.name || job._file.replace(/\.[^.]+$/, "");
-            const outFile = path.join(outputDir, name + ".log");
-            if (fs.existsSync(outFile)) {
-              const stat = fs.statSync(outFile);
-              const content = fs.readFileSync(outFile, "utf8");
-              const lastLines = content.split("\n").slice(-10).join("\n");
-              job._last_output = lastLines;
-              job._last_run_at = Math.floor(stat.mtimeMs / 1000);
+            const id = job.id || job.name || "";
+            for (const suffix of [id, job.name || ""]) {
+              if (!suffix) continue;
+              const outFile = path.join(outputDir, suffix + ".log");
+              if (fs.existsSync(outFile)) {
+                const stat = fs.statSync(outFile);
+                const content = fs.readFileSync(outFile, "utf8");
+                job._last_output = content.split("\n").slice(-10).join("\n");
+                if (!job.last_run_at) job._last_run_at = Math.floor(stat.mtimeMs / 1000);
+                break;
+              }
             }
           }
         }
@@ -1821,7 +1834,7 @@ async function handleRequest(req, res) {
       const name = (data.name || "").trim().toLowerCase();
 
       if (!name || !PROFILE_NAME_RE.test(name)) {
-        sendJson(res, 400, { error: "Invalid profile name. Use lowercase letters, numbers, hyphens." });
+        sendJson(res, 400, { error: "Invalid profile name. Use lowercase letters, numbers, hyphens. Max 20 characters." });
         return;
       }
       if (name === "default") {

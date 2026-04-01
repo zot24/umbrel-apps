@@ -492,6 +492,46 @@
     }
     .create-profile-modal .modal-icon { color: var(--phosphor); }
     .create-profile-modal .modal-title { color: var(--phosphor); }
+    /* Retro radio buttons */
+    .clone-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text);
+      padding: 8px 10px;
+      background: var(--surface-2);
+      border-left: 2px solid transparent;
+      margin-bottom: 3px;
+      transition: all 0.15s;
+    }
+    .clone-option:hover { border-left-color: var(--phosphor-dim); background: rgba(80,255,168,0.02); }
+    .clone-option input[type="radio"] { display: none; }
+    .clone-option .radio-mark {
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .clone-option input[type="radio"]:checked ~ .radio-mark {
+      border-color: var(--phosphor);
+    }
+    .clone-option input[type="radio"]:checked ~ .radio-mark::after {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--phosphor);
+      box-shadow: 0 0 4px var(--phosphor-glow);
+    }
+    .clone-option input[type="radio"]:checked ~ div { color: var(--text); }
+    .clone-option-title { font-weight: 500; }
+    .clone-option-desc { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
 
     /* ── Agent Comms ── */
     .comms-msg {
@@ -3446,30 +3486,33 @@
         </div>
         <div style="margin-bottom: 12px;">
           <label style="display: block; font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Profile Name</label>
-          <input type="text" id="newProfileName" placeholder="e.g. coder, research, assistant" style="width: 100%; box-sizing: border-box; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-family: var(--body); font-size: 13px;">
-          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Lowercase letters, numbers, and hyphens only</div>
+          <input type="text" id="newProfileName" placeholder="e.g. coder, research, assistant" maxlength="20" style="width: 100%; box-sizing: border-box; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-family: var(--body); font-size: 13px;">
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Lowercase letters, numbers, hyphens. Max 20 characters.</div>
         </div>
         <div style="margin-bottom: 14px;">
           <div style="font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">Clone From Commander</div>
-          <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text); padding: 8px 10px; background: var(--surface-2); border-left: 2px solid var(--phosphor-dim); margin-bottom: 3px;">
-            <input type="radio" name="cloneMode" value="keys" checked style="margin-top: 2px;">
+          <label class="clone-option">
+            <input type="radio" name="cloneMode" value="keys" checked>
+            <span class="radio-mark"></span>
             <div>
-              <div>Model + API keys</div>
-              <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Same model and provider credentials. Ready to use immediately via dashboard chat. No messaging platforms.</div>
+              <div class="clone-option-title">Model + API keys</div>
+              <div class="clone-option-desc">Same model and provider credentials. Ready to use immediately. No messaging platforms.</div>
             </div>
           </label>
-          <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text); padding: 8px 10px; background: var(--surface-2); border-left: 2px solid transparent; margin-bottom: 3px;">
-            <input type="radio" name="cloneMode" value="full" style="margin-top: 2px;">
+          <label class="clone-option">
+            <input type="radio" name="cloneMode" value="full">
+            <span class="radio-mark"></span>
             <div>
-              <div>Full clone</div>
-              <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Model, API keys, personality (SOUL.md), and instructions. No messaging platforms.</div>
+              <div class="clone-option-title">Full clone</div>
+              <div class="clone-option-desc">Model, API keys, personality (SOUL.md), and instructions. No messaging platforms.</div>
             </div>
           </label>
-          <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--text); padding: 8px 10px; background: var(--surface-2); border-left: 2px solid transparent;">
-            <input type="radio" name="cloneMode" value="blank" style="margin-top: 2px;">
+          <label class="clone-option">
+            <input type="radio" name="cloneMode" value="blank">
+            <span class="radio-mark"></span>
             <div>
-              <div>Blank profile</div>
-              <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Empty config. You'll need to set API keys via /hermes-agent-setup from a messaging channel.</div>
+              <div class="clone-option-title">Blank profile</div>
+              <div class="clone-option-desc">Empty config. Set API keys via /hermes-agent-setup from a messaging channel.</div>
             </div>
           </label>
         </div>
@@ -4266,10 +4309,14 @@
       }
       selectedProfile = name;
       document.getElementById("profileFilterBar").classList.add("active");
-      document.getElementById("profileFilterName").textContent = name;
-      // Highlight selected profile
+      document.getElementById("profileFilterName").textContent = profileDisplayNamePlain(name);
+      // Highlight in expanded list
       document.querySelectorAll(".profile-item").forEach(el => {
         el.classList.toggle("selected", el.onclick?.toString().includes(`'${name}'`));
+      });
+      // Highlight in minimized strip
+      document.querySelectorAll(".pf-avatar").forEach(el => {
+        el.classList.toggle("selected", el.title === profileDisplayNamePlain(name));
       });
       // Refresh all filtered data
       refreshFilteredData();
@@ -4279,6 +4326,7 @@
       selectedProfile = null;
       document.getElementById("profileFilterBar").classList.remove("active");
       document.querySelectorAll(".profile-item").forEach(el => el.classList.remove("selected"));
+      document.querySelectorAll(".pf-avatar").forEach(el => el.classList.remove("selected"));
       refreshFilteredData();
     }
 
@@ -5043,23 +5091,49 @@
         }
 
         el.innerHTML = jobs.map(j => {
-          const name = j.name || j._file || "unnamed";
-          const schedule = j.schedule || j.cron || j.interval || "";
+          const name = j.name || j.id || "unnamed";
+          // Handle schedule as object or string
+          const schedule = typeof j.schedule === "object" ? (j.schedule_display || j.schedule?.display || j.schedule?.expr || "") : (j.schedule || "");
           const enabled = j.enabled !== false && j.state !== "paused";
-          const statusCls = enabled ? "active" : "paused";
-          const statusLabel = enabled ? "ACTIVE" : "PAUSED";
+          const state = j.state || (enabled ? "scheduled" : "paused");
+          const statusCls = state === "paused" ? "paused" : "active";
+          const statusLabel = state.toUpperCase();
           const prompt = j.prompt || j.task || j.command || "";
-          const lastRun = j._last_run_at ? new Date(j._last_run_at * 1000).toLocaleDateString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : null;
+          const deliver = j.deliver || "";
+
+          // Next run
+          let nextRun = "";
+          if (j.next_run_at) {
+            const d = new Date(j.next_run_at);
+            nextRun = d.toLocaleDateString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+          }
+          // Last run
+          let lastRun = "";
+          if (j.last_run_at) {
+            const d = new Date(j.last_run_at);
+            lastRun = d.toLocaleDateString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+          } else if (j._last_run_at) {
+            lastRun = new Date(j._last_run_at * 1000).toLocaleDateString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+          }
+          const lastErr = j.last_error || "";
           const output = j._last_output || "";
 
           return `<div class="job-card">
             <div class="job-header">
               <span class="job-name">${escapeHtml(name)}</span>
-              ${schedule ? `<span class="job-schedule">${escapeHtml(schedule)}</span>` : ""}
               <span class="job-status ${statusCls}">${statusLabel}</span>
             </div>
-            ${prompt ? `<div class="job-meta">${escapeHtml(prompt.slice(0, 150))}${prompt.length > 150 ? "..." : ""}</div>` : ""}
-            ${lastRun ? `<div class="job-meta" style="margin-top:4px;">Last run: ${lastRun}</div>` : ""}
+            ${prompt ? `<div class="job-meta">${escapeHtml(prompt.slice(0, 200))}${prompt.length > 200 ? "..." : ""}</div>` : ""}
+            <div style="display:flex;gap:12px;margin-top:4px;font-size:10px;color:var(--text-muted);">
+              ${schedule ? `<span>SCHEDULE: <span style="color:var(--amber-dim)">${escapeHtml(schedule)}</span></span>` : ""}
+              ${deliver ? `<span>DELIVER: <span style="color:var(--phosphor-dim)">${escapeHtml(deliver)}</span></span>` : ""}
+            </div>
+            <div style="display:flex;gap:12px;margin-top:3px;font-size:10px;color:var(--text-muted);">
+              ${nextRun ? `<span>NEXT: ${nextRun}</span>` : ""}
+              ${lastRun ? `<span>LAST: ${lastRun}</span>` : ""}
+              ${j.repeat?.completed ? `<span>RUNS: ${j.repeat.completed}</span>` : ""}
+            </div>
+            ${lastErr ? `<div style="font-size:10px;color:var(--red);margin-top:4px;">${escapeHtml(lastErr)}</div>` : ""}
             ${output ? `<div class="job-output">${escapeHtml(output)}</div>` : ""}
           </div>`;
         }).join("");
