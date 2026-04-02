@@ -36,11 +36,19 @@ if [ -d "$SKELETON_DIR/linuxbrew" ] && [ ! -f "/home/linuxbrew/.linuxbrew/bin/br
 fi
 
 # ── Ensure bundled Umbrel skills are present and up to date ───────────────────
-# Force-copy our skills on every start so updates take effect after image rebuild.
+# Force-copy our skills to default profile and all named profiles.
 if [ -d "/home-skeleton/.hermes/skills/umbrel" ]; then
     mkdir -p "$HERMES_HOME/skills"
     cp -r /home-skeleton/.hermes/skills/umbrel "$HERMES_HOME/skills/"
-    echo "Bundled Umbrel skills installed/updated"
+    # Also install into all named profiles
+    if [ -d "$HERMES_HOME/profiles" ]; then
+        for profile_dir in "$HERMES_HOME/profiles"/*/; do
+            [ ! -d "$profile_dir" ] && continue
+            mkdir -p "$profile_dir/skills"
+            cp -r /home-skeleton/.hermes/skills/umbrel "$profile_dir/skills/"
+        done
+    fi
+    echo "Bundled Umbrel skills installed/updated (all profiles)"
 fi
 
 # ── Create required directories ──────────────────────────────────────────────

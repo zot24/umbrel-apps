@@ -2212,6 +2212,16 @@ async function handleRequest(req, res) {
         }
       }
 
+      // Copy Umbrel-specific skills (ask-agent etc.) — hermes doesn't include these
+      try {
+        const umbrelSkills = path.join(CONFIG_DIR, "skills", "umbrel");
+        if (fs.existsSync(umbrelSkills)) {
+          execInWebContainer(`cp -r ${webContainerPath(umbrelSkills)} ${webContainerPath(path.join(profileDir, "skills"))}/`);
+        }
+      } catch (e) {
+        console.error(`Failed to copy Umbrel skills to ${name}:`, e.message);
+      }
+
       // Assign API server ports
       const { apiPort, webhookPort } = assignProfilePorts(name);
       const envFile = path.join(profileDir, ".env");
