@@ -2196,6 +2196,35 @@ async function handleRequest(req, res) {
         }
       }
 
+      // Strip platform tokens from cloned .env to prevent conflicts
+      // (hermes profile create --clone copies .env as-is, but sharing
+      // Telegram/WhatsApp tokens between profiles causes token lock errors)
+      if (cloneMode === "clone" || cloneMode === "clone-all") {
+        const envFile = path.join(profileDir, ".env");
+        if (fs.existsSync(envFile)) {
+          const platformTokenKeys = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID", "WHATSAPP_ENABLED", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "HERMES_REGEN_CONFIG"];
+          const envContent = fs.readFileSync(envFile, "utf8");
+          const filtered = envContent.split("\n").filter(line => {
+            const key = line.split("=")[0].trim();
+            return !platformTokenKeys.includes(key);
+          }).join("\n");
+          fs.writeFileSync(envFile, filtered);
+        }
+      }
+
+      // Assign API server ports
+      const { apiPort, webhookPort } = assignProfilePorts(name);
+      const envFile = path.join(profileDir, ".env");
+      let envContent = "";
+      try { if (fs.existsSync(envFile)) envContent = fs.readFileSync(envFile, "utf8"); } catch (e) {}
+      const setEnvVar = (content, key, val) => {
+        const re = new RegExp(`^${key}=.*$`, "m");
+        return re.test(content) ? content.replace(re, `${key}=${val}`) : content.trimEnd() + `\n${key}=${val}`;
+      };
+      envContent = setEnvVar(envContent, "API_SERVER_PORT", apiPort);
+      envContent = setEnvVar(envContent, "WEBHOOK_PORT", webhookPort);
+      fs.writeFileSync(envFile, envContent.trim() + "\n");
+
       console.log(`Created profile '${name}' (mode: ${cloneMode}, from: ${cloneFrom})`);
 
       sendJson(res, 201, { success: true, name });
@@ -2249,22 +2278,17 @@ async function handleRequest(req, res) {
         sendJson(res, 404, { error: `Profile '${name}' not found.` });
         return;
       }
-      // Stop gateway if running
-      try { stopProfileGateway(name); } catch (e) {}
-      // Remove profile directory — try locally first, then via web container for permission issues
+      // Use hermes profile delete via web container (handles gateway stop, service cleanup, alias removal)
       try {
-        fs.rmSync(profileDir, { recursive: true, force: true });
+        execInWebContainer(`/app/venv/bin/hermes profile delete ${name} --yes`);
       } catch (e) {
-        console.error(`Local rmSync failed for ${name}:`, e.message);
+        console.error(`hermes profile delete failed for ${name}:`, e.message);
       }
-      // Also remove via web container (handles bind mount permission differences)
-      const webProfileDir = webContainerPath(profileDir);
-      try {
-        execInWebContainer(`rm -rf "${webProfileDir}"`);
-      } catch (e) {
-        console.error(`Web container rm failed for ${name}:`, e.message);
+      // Fallback: direct remove if CLI didn't clean up
+      if (fs.existsSync(profileDir)) {
+        try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch (e) {}
+        try { execInWebContainer(`rm -rf "${webContainerPath(profileDir)}"`); } catch (e) {}
       }
-      // Verify deletion
       if (fs.existsSync(profileDir)) {
         console.error(`Profile directory still exists after delete: ${profileDir}`);
         sendJson(res, 500, { error: "Failed to delete profile directory" });
