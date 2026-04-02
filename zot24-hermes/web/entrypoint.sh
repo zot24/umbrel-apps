@@ -35,6 +35,22 @@ if [ -d "$SKELETON_DIR/linuxbrew" ] && [ ! -f "/home/linuxbrew/.linuxbrew/bin/br
     echo "Linuxbrew initialized"
 fi
 
+# ── Ensure bundled Umbrel skills are present and up to date ───────────────────
+# Force-copy our skills to default profile and all named profiles.
+if [ -d "/home-skeleton/.hermes/skills/umbrel" ]; then
+    mkdir -p "$HERMES_HOME/skills"
+    cp -r /home-skeleton/.hermes/skills/umbrel "$HERMES_HOME/skills/"
+    # Also install into all named profiles
+    if [ -d "$HERMES_HOME/profiles" ]; then
+        for profile_dir in "$HERMES_HOME/profiles"/*/; do
+            [ ! -d "$profile_dir" ] && continue
+            mkdir -p "$profile_dir/skills"
+            cp -r /home-skeleton/.hermes/skills/umbrel "$profile_dir/skills/"
+        done
+    fi
+    echo "Bundled Umbrel skills installed/updated (all profiles)"
+fi
+
 # ── Create required directories ──────────────────────────────────────────────
 mkdir -p "$HERMES_HOME"/{sessions,logs,pairing,hooks,image_cache,audio_cache,memories,skills,whatsapp,cron}
 
@@ -180,7 +196,15 @@ case "${1:-gateway}" in
                     prev_state=$(python3 -c "import json; print(json.load(open('$state_file')).get('gateway_state',''))" 2>/dev/null)
                     if [ "$prev_state" = "running" ]; then
                         echo "Auto-starting profile gateway: $profile_name"
-                        HERMES_HOME="$profile_dir" hermes gateway run &
+                        # Clear parent platform tokens so the profile doesn't conflict
+                        # with the default gateway, then source the profile's own .env
+                        (
+                            unset TELEGRAM_BOT_TOKEN TELEGRAM_HOME_CHAT_ID
+                            unset WHATSAPP_ENABLED DISCORD_BOT_TOKEN SLACK_BOT_TOKEN
+                            unset HERMES_REGEN_CONFIG
+                            [ -f "$profile_dir/.env" ] && set -a && source "$profile_dir/.env" && set +a
+                            HERMES_HOME="$profile_dir" exec hermes gateway run
+                        ) &
                         sleep 1
                     fi
                 fi

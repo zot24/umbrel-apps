@@ -226,7 +226,7 @@ function restartWebContainer() {
 
 // ── Profile helpers ──────────────────────────────────────────────────────────
 
-const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,19}$/;
 const COMMS_FILE = path.join(CONFIG_DIR, "agent-comms.json");
 const BASE_API_PORT = 8642;
 const BASE_WEBHOOK_PORT = 8644;
@@ -324,24 +324,36 @@ function listProfiles() {
 function execInWebContainer(cmd) {
   const socketPath = "/var/run/docker.sock";
   if (!fs.existsSync(socketPath)) throw new Error("Docker socket not available");
-  // Use docker exec via curl to the Docker API
-  const payload = JSON.stringify({
-    AttachStdout: false, AttachStderr: false, Detach: true,
+  // Create exec instance
+  const createPayload = JSON.stringify({
+    AttachStdout: true, AttachStderr: true, Detach: false,
     Cmd: ["sh", "-c", cmd],
   });
+  const createResp = execSync(
+    `curl -s --unix-socket ${socketPath} -X POST ` +
+    `-H "Content-Type: application/json" ` +
+    `-d '${createPayload.replace(/'/g, "'\\''")}' ` +
+    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    { encoding: "utf8", timeout: 10000 }
+  );
+  const execId = JSON.parse(createResp).Id;
+  if (!execId) throw new Error("Failed to create exec instance");
+  // Start and wait
   execSync(
     `curl -s --unix-socket ${socketPath} -X POST ` +
     `-H "Content-Type: application/json" ` +
-    `-d '${payload.replace(/'/g, "'\\''")}' ` +
-    `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+    `-d '{"Detach":false}' ` +
+    `"http://localhost/exec/${execId}/start"`,
     { timeout: 10000 }
   );
 }
 
 function assignProfilePorts(name) {
-  const profiles = listProfiles();
-  const idx = profiles.findIndex(p => p.name === name);
-  const offset = (idx < 0 ? profiles.length : idx) * 10;
+  if (name === "default") return { apiPort: BASE_API_PORT, webhookPort: BASE_WEBHOOK_PORT };
+  // Stable hash of profile name → unique port offset (avoids collisions when profiles are added/removed)
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+  const offset = (Math.abs(hash) % 90 + 1) * 10; // 10-900 range, avoids 0 (default)
   return { apiPort: BASE_API_PORT + offset, webhookPort: BASE_WEBHOOK_PORT + offset };
 }
 
@@ -376,7 +388,20 @@ async function sendMessageToProfile(name, input, fromName) {
   });
   const data = await resp.json();
   const duration = Date.now() - start;
-  const responseText = data.output?.[0]?.content?.[0]?.text || data.output || JSON.stringify(data);
+  // Extract text from Responses API output
+  let responseText = "";
+  if (Array.isArray(data.output)) {
+    for (const item of data.output) {
+      if (item.type === "message" && Array.isArray(item.content)) {
+        for (const c of item.content) {
+          if (c.type === "output_text" || c.type === "text") responseText += (responseText ? "\n" : "") + (c.text || "");
+        }
+      } else if (typeof item === "string") {
+        responseText += (responseText ? "\n" : "") + item;
+      }
+    }
+  }
+  if (!responseText) responseText = typeof data.output === "string" ? data.output : JSON.stringify(data);
 
   appendCommsLog({
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -391,10 +416,30 @@ async function sendMessageToProfile(name, input, fromName) {
   return { response: responseText, duration_ms: duration };
 }
 
+// Translate a path from the setup container's view (/config/...) to the web container's view (/data/...)
+function webContainerPath(localPath) {
+  return localPath.replace(/^\/config\//, "/data/");
+}
+
 function startProfileGateway(name) {
   const profileDir = getProfileDir(name);
+  const webProfileDir = webContainerPath(profileDir);
   const { apiPort, webhookPort } = assignProfilePorts(name);
-  const cmd = `HERMES_HOME=${profileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run &`;
+
+  // Persist port assignments in the profile's .env so getProfileApiPort() can find them
+  const envFile = path.join(profileDir, ".env");
+  let envContent = "";
+  try { if (fs.existsSync(envFile)) envContent = fs.readFileSync(envFile, "utf8"); } catch (e) {}
+  // Update or append port settings
+  const setEnvVar = (content, key, val) => {
+    const re = new RegExp(`^${key}=.*$`, "m");
+    return re.test(content) ? content.replace(re, `${key}=${val}`) : content.trimEnd() + `\n${key}=${val}`;
+  };
+  envContent = setEnvVar(envContent, "API_SERVER_PORT", apiPort);
+  envContent = setEnvVar(envContent, "WEBHOOK_PORT", webhookPort);
+  fs.writeFileSync(envFile, envContent.trim() + "\n");
+
+  const cmd = `HERMES_HOME=${webProfileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run --replace &`;
   // Create exec instance and start it
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
@@ -423,11 +468,24 @@ function startProfileGateway(name) {
 function stopProfileGateway(name) {
   const profileDir = getProfileDir(name);
   if (name === "default") {
-    // Don't kill the default gateway (PID 1)
     throw new Error("Cannot stop the default profile gateway");
   }
-  // Kill the gateway process for this profile
-  const cmd = `pkill -f "HERMES_HOME=${profileDir}.*gateway" || true`;
+  // Kill the gateway process for this profile using multiple strategies
+  const webProfileDir = webContainerPath(profileDir);
+  const port = getProfileApiPort(name);
+  // Strategy 1: Find PID from gateway_state.json
+  // Strategy 2: Kill by HERMES_HOME in /proc/*/environ
+  // Strategy 3: Kill process listening on the profile's API port
+  const cmd = [
+    // Read PID from state file and kill it
+    `PID=$(python3 -c "import json; print(json.load(open('${webProfileDir}/gateway_state.json')).get('pid',''))" 2>/dev/null) && [ -n "$PID" ] && kill "$PID" 2>/dev/null`,
+    // Kill by matching HERMES_HOME in process environment
+    `for p in /proc/[0-9]*/environ; do grep -qz "HERMES_HOME=${webProfileDir}" "$p" 2>/dev/null && kill $(echo "$p" | cut -d/ -f3) 2>/dev/null; done`,
+    // Kill by API port
+    `fuser -k ${port}/tcp 2>/dev/null`,
+    // Clean up state file
+    `rm -f "${webProfileDir}/gateway_state.json"`,
+  ].join("; ");
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
     AttachStdout: true, AttachStderr: true, Detach: false, Tty: false,
@@ -697,8 +755,12 @@ async function handleRequest(req, res) {
   // Once paired, it deletes the file. The status page polls this endpoint.
   // Returns a data URL (base64 PNG) so no client-side QR library is needed.
   if (req.method === "GET" && url.pathname === "/api/whatsapp-qr") {
-    const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
-    const sessionFile = path.join(CONFIG_DIR, "whatsapp", "session", "creds.json");
+    const profileFilter = url.searchParams.get("profile") || null;
+    const cfgDir = profileFilter && profileFilter !== "all"
+      ? getProfileDir(profileFilter)
+      : CONFIG_DIR;
+    const qrFile = path.join(cfgDir, "whatsapp", "qr.txt");
+    const sessionFile = path.join(cfgDir, "whatsapp", "session", "creds.json");
     const paired = fs.existsSync(sessionFile);
 
     if (paired) {
@@ -1443,7 +1505,54 @@ async function handleRequest(req, res) {
       }));
 
       db.close();
-      sendJson(res, 200, { sessions, total });
+
+      // Also include API response sessions from response_store.db
+      if (!sourceFilter || sourceFilter === "api") {
+        try {
+          const storeDir = profileFilter && profileFilter !== "all"
+            ? getProfileDir(profileFilter)
+            : CONFIG_DIR;
+          const storePath = path.join(storeDir, "response_store.db");
+          if (Database && fs.existsSync(storePath)) {
+            const rdb = new Database(storePath, { readonly: true, fileMustExist: true });
+            const apiResponses = rdb.prepare("SELECT response_id, data, accessed_at FROM responses ORDER BY accessed_at DESC").all();
+            rdb.close();
+            for (const r of apiResponses) {
+              try {
+                const d = JSON.parse(r.data);
+                const resp = d.response || {};
+                const history = d.conversation_history || [];
+                const userMsgs = history.filter(m => m.role === "user");
+                const asstMsgs = history.filter(m => m.role === "assistant");
+                const title = userMsgs[0]?.content?.slice(0, 80) || null;
+                sessions.push({
+                  id: r.response_id,
+                  source: "api",
+                  model: resp.model || "hermes-agent",
+                  started_at: resp.created_at || Math.floor(r.accessed_at),
+                  ended_at: resp.created_at || Math.floor(r.accessed_at),
+                  message_count: history.length,
+                  tool_call_count: 0,
+                  input_tokens: resp.usage?.input_tokens || 0,
+                  output_tokens: resp.usage?.output_tokens || 0,
+                  cache_read_tokens: 0,
+                  cache_write_tokens: 0,
+                  estimated_cost_usd: 0,
+                  end_reason: resp.status || "completed",
+                  title,
+                  _api: true,
+                });
+              } catch (e) {}
+            }
+            // Re-sort by started_at desc after merging
+            sessions.sort((a, b) => (b.started_at || 0) - (a.started_at || 0));
+          }
+        } catch (e) {
+          console.error("Response store read error:", e.message);
+        }
+      }
+
+      sendJson(res, 200, { sessions, total: sessions.length });
     } catch (e) {
       try { db.close(); } catch (_) {}
       sendJson(res, 500, { error: e.message });
@@ -1456,6 +1565,38 @@ async function handleRequest(req, res) {
     const parts = url.pathname.replace("/api/sessions/", "").replace("/messages", "").split("?");
     const sessionId = parts[0];
     const profileFilter = url.searchParams.get("profile") || null;
+
+    // Check if this is an API response session (response_id format)
+    if (sessionId.startsWith("resp_")) {
+      try {
+        const storeDir = profileFilter && profileFilter !== "all"
+          ? getProfileDir(profileFilter)
+          : CONFIG_DIR;
+        const storePath = path.join(storeDir, "response_store.db");
+        if (Database && fs.existsSync(storePath)) {
+          const rdb = new Database(storePath, { readonly: true, fileMustExist: true });
+          const row = rdb.prepare("SELECT data FROM responses WHERE response_id = ?").get(sessionId);
+          rdb.close();
+          if (row) {
+            const d = JSON.parse(row.data);
+            const history = d.conversation_history || [];
+            sendJson(res, 200, {
+              messages: history.map(m => ({
+                role: m.role,
+                content: (m.content || "").slice(0, 2000),
+                tool_name: null,
+                tool_calls: null,
+                timestamp: null,
+              })),
+            });
+            return;
+          }
+        }
+      } catch (e) {}
+      sendJson(res, 200, { messages: [] });
+      return;
+    }
+
     const db = openStateDb(profileFilter);
     if (!db) { sendJson(res, 200, { messages: [] }); return; }
 
@@ -1469,7 +1610,7 @@ async function handleRequest(req, res) {
       sendJson(res, 200, {
         messages: messages.map(m => ({
           role: m.role,
-          content: m.content ? m.content.slice(0, 2000) : null, // Truncate large content
+          content: m.content ? m.content.slice(0, 2000) : null,
           tool_name: m.tool_name,
           tool_calls: m.tool_calls ? (() => { try { return JSON.parse(m.tool_calls); } catch { return null; } })() : null,
           timestamp: m.timestamp,
@@ -1516,10 +1657,12 @@ async function handleRequest(req, res) {
                 }
                 skillEntries.push({
                   name: meta.name || sd.name,
-                  description: (meta.description || "").slice(0, 120),
+                  description: (meta.description || "").slice(0, 200),
                   author: meta.author || null,
+                  version: meta.version || null,
                   platforms: meta.platforms ? meta.platforms.replace(/[\[\]]/g, "").split(",").map(s => s.trim()) : null,
                   has_prerequisites: !!meta.prerequisites || content.includes("## Prerequisites"),
+                  category: d.name,
                 });
                 total++;
               }
@@ -1540,7 +1683,10 @@ async function handleRequest(req, res) {
     } catch (e) {
       console.error("Skills listing error:", e.message);
     }
-    sendJson(res, 200, { categories, total });
+    // Flatten all skills for easy frontend filtering
+    const allSkills = categories.flatMap(c => c.skills);
+    const withPrereqs = allSkills.filter(s => s.has_prerequisites).length;
+    sendJson(res, 200, { categories, total, allSkills, withPrereqs });
     return;
   }
 
@@ -1727,30 +1873,43 @@ async function handleRequest(req, res) {
     const cronDir = profileFilter && profileFilter !== "all"
       ? path.join(getProfileDir(profileFilter), "cron")
       : path.join(CONFIG_DIR, "cron");
-    const jobs = [];
+    let jobs = [];
     try {
       if (fs.existsSync(cronDir)) {
+        // Primary format: jobs.json with { "jobs": [...] } structure
+        const jobsFile = path.join(cronDir, "jobs.json");
+        if (fs.existsSync(jobsFile)) {
+          const content = JSON.parse(fs.readFileSync(jobsFile, "utf8"));
+          if (Array.isArray(content.jobs)) {
+            jobs = content.jobs;
+          } else if (Array.isArray(content)) {
+            jobs = content;
+          }
+        }
+        // Also check for individual job files (legacy format)
         for (const file of fs.readdirSync(cronDir)) {
-          if (!file.endsWith(".json") && !file.endsWith(".yaml") && !file.endsWith(".yml")) continue;
+          if (file === "jobs.json" || file.startsWith(".") || file === "output") continue;
+          if (!file.endsWith(".json")) continue;
           try {
-            const content = fs.readFileSync(path.join(cronDir, file), "utf8");
-            const job = file.endsWith(".json") ? JSON.parse(content) : { raw: content };
-            job._file = file;
-            jobs.push(job);
+            const content = JSON.parse(fs.readFileSync(path.join(cronDir, file), "utf8"));
+            if (content.id || content.name) jobs.push(content);
           } catch (e) {}
         }
-        // Check for cron output files
+        // Enrich with output logs
         const outputDir = path.join(cronDir, "output");
         if (fs.existsSync(outputDir)) {
           for (const job of jobs) {
-            const name = job.name || job._file.replace(/\.[^.]+$/, "");
-            const outFile = path.join(outputDir, name + ".log");
-            if (fs.existsSync(outFile)) {
-              const stat = fs.statSync(outFile);
-              const content = fs.readFileSync(outFile, "utf8");
-              const lastLines = content.split("\n").slice(-10).join("\n");
-              job._last_output = lastLines;
-              job._last_run_at = Math.floor(stat.mtimeMs / 1000);
+            const id = job.id || job.name || "";
+            for (const suffix of [id, job.name || ""]) {
+              if (!suffix) continue;
+              const outFile = path.join(outputDir, suffix + ".log");
+              if (fs.existsSync(outFile)) {
+                const stat = fs.statSync(outFile);
+                const content = fs.readFileSync(outFile, "utf8");
+                job._last_output = content.split("\n").slice(-10).join("\n");
+                if (!job.last_run_at) job._last_run_at = Math.floor(stat.mtimeMs / 1000);
+                break;
+              }
             }
           }
         }
@@ -1759,6 +1918,209 @@ async function handleRequest(req, res) {
       console.error("Cron listing error:", e.message);
     }
     sendJson(res, 200, { jobs });
+    return;
+  }
+
+  // ── API: Settings (read/write config.yaml + .env) ──
+  if (req.method === "GET" && url.pathname === "/api/settings") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    const cfgDir = profileFilter && profileFilter !== "all"
+      ? getProfileDir(profileFilter)
+      : CONFIG_DIR;
+    const result = { model: null, provider: null, personality: null, reasoning: null, streaming: true, memory: true, context_compression: true, compression_threshold: null, session_reset_mode: null, session_idle_minutes: null, session_reset_hour: null, timezone: null, max_turns: null };
+    try {
+      const cfgFile = path.join(cfgDir, "config.yaml");
+      if (fs.existsSync(cfgFile)) {
+        const yaml = fs.readFileSync(cfgFile, "utf8");
+        const get = (pattern) => { const m = yaml.match(pattern); return m ? m[1].trim().replace(/^["']|["']$/g, "") : null; };
+        result.model = get(/default:\s*"?([^"\n]+)"?/);
+        result.provider = get(/provider:\s*"?([^"\n]+)"?/);
+        result.personality = get(/personality:\s*"?([^"\n]+)"?/);
+        result.reasoning = get(/reasoning:\s*"?([^"\n]+)"?/);
+        result.streaming = yaml.includes("streaming: false") ? false : true;
+        result.memory = !yaml.includes("memory:") || !yaml.includes("enabled: false");
+        result.context_compression = !yaml.includes("context_compression:") || !yaml.match(/context_compression:[\s\S]*?enabled:\s*false/);
+        result.compression_threshold = get(/threshold:\s*"?([^"\n]+)"?/);
+        result.session_reset_mode = get(/mode:\s*"?([^"\n]+)"?/);
+        result.session_idle_minutes = get(/idle_minutes:\s*(\d+)/);
+        result.session_reset_hour = get(/at_hour:\s*(\d+)/);
+        result.timezone = get(/timezone:\s*"?([^"\n]+)"?/);
+        result.max_turns = get(/max_turns:\s*(\d+)/);
+      }
+      const env = readProfileEnv(cfgDir);
+      if (env.HERMES_MODEL) result.model = env.HERMES_MODEL;
+      if (env.HERMES_PROVIDER) result.provider = env.HERMES_PROVIDER;
+      // API keys (masked)
+      const apiKeyVars = ["OPENROUTER_API_KEY","ANTHROPIC_API_KEY","OPENAI_API_KEY","MINIMAX_API_KEY","DEEPSEEK_API_KEY","ALIBABA_API_KEY"];
+      result.api_keys = {};
+      for (const k of apiKeyVars) {
+        if (env[k]) result.api_keys[k] = env[k].slice(0, 8) + "..." + env[k].slice(-4);
+      }
+      result.has_api_key = Object.keys(result.api_keys).length > 0;
+    } catch (e) {
+      console.error("Settings read error:", e.message);
+    }
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/settings") {
+    try {
+      const data = await parseBody(req);
+      const profileFilter = url.searchParams.get("profile") || null;
+      const cfgDir = profileFilter && profileFilter !== "all"
+        ? getProfileDir(profileFilter)
+        : CONFIG_DIR;
+      const webCfgDir = webContainerPath(cfgDir);
+
+      // Use hermes config set via the web container for each changed key
+      const configMap = {
+        model: "model.default",
+        provider: "model.provider",
+        personality: "display.personality",
+        reasoning: "display.reasoning",
+        max_turns: "model.max_turns",
+        timezone: "timezone",
+      };
+
+      for (const [key, cfgKey] of Object.entries(configMap)) {
+        if (data[key] !== undefined && data[key] !== null) {
+          try {
+            execInWebContainer(`HERMES_HOME=${webCfgDir} /app/venv/bin/hermes config set "${cfgKey}" "${String(data[key]).replace(/"/g, '\\"')}"`);
+          } catch (e) {
+            console.error(`Config set failed for ${cfgKey}:`, e.message);
+          }
+        }
+      }
+
+      // Toggle settings need special handling in config.yaml
+      const cfgFile = path.join(cfgDir, "config.yaml");
+      if (fs.existsSync(cfgFile)) {
+        let yaml = fs.readFileSync(cfgFile, "utf8");
+
+        if (data.streaming !== undefined) {
+          yaml = yaml.includes("streaming:")
+            ? yaml.replace(/streaming:\s*(true|false)/, `streaming: ${data.streaming}`)
+            : yaml.replace(/gateway:/, `gateway:\n  streaming: ${data.streaming}`);
+        }
+        if (data.memory !== undefined) {
+          yaml = yaml.includes("memory:")
+            ? yaml.replace(/memory:\s*\n\s*enabled:\s*(true|false)/, `memory:\n  enabled: ${data.memory}`)
+            : yaml + `\nmemory:\n  enabled: ${data.memory}\n`;
+        }
+        if (data.context_compression !== undefined) {
+          yaml = yaml.includes("context_compression:")
+            ? yaml.replace(/context_compression:\s*\n\s*enabled:\s*(true|false)/, `context_compression:\n  enabled: ${data.context_compression}`)
+            : yaml + `\ncontext_compression:\n  enabled: ${data.context_compression}\n`;
+        }
+        if (data.session_idle_minutes !== undefined) {
+          yaml = yaml.replace(/idle_minutes:\s*\d+/, `idle_minutes: ${data.session_idle_minutes}`);
+        }
+        if (data.session_reset_hour !== undefined) {
+          yaml = yaml.replace(/at_hour:\s*\d+/, `at_hour: ${data.session_reset_hour}`);
+        }
+
+        fs.writeFileSync(cfgFile, yaml);
+      }
+
+      // Write API keys and model/provider to .env
+      if (data.api_keys || data.model || data.provider) {
+        const envFile = path.join(cfgDir, ".env");
+        let envContent = "";
+        try { if (fs.existsSync(envFile)) envContent = fs.readFileSync(envFile, "utf8"); } catch (e) {}
+
+        const setEnvVar = (content, key, val) => {
+          if (!val) return content;
+          const re = new RegExp(`^${key}=.*$`, "m");
+          return re.test(content) ? content.replace(re, `${key}=${val}`) : content.trimEnd() + `\n${key}=${val}`;
+        };
+
+        if (data.model) envContent = setEnvVar(envContent, "HERMES_MODEL", data.model);
+        if (data.provider) envContent = setEnvVar(envContent, "HERMES_PROVIDER", data.provider);
+
+        // API keys — only write if the value is not masked (doesn't contain "...")
+        if (data.api_keys && typeof data.api_keys === "object") {
+          for (const [key, val] of Object.entries(data.api_keys)) {
+            if (val && !val.includes("...")) {
+              envContent = setEnvVar(envContent, key, val);
+            }
+          }
+        }
+
+        // Ensure it has a header
+        if (!envContent.includes("# Hermes")) {
+          envContent = "# Hermes Agent Configuration\n\n" + envContent;
+        }
+        fs.writeFileSync(envFile, envContent.trim() + "\n");
+      }
+
+      sendJson(res, 200, { success: true });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  // ── API: Available providers and models ──
+  if (req.method === "GET" && url.pathname === "/api/providers") {
+    try {
+      const providersJson = execSync(
+        `curl -s --unix-socket /var/run/docker.sock -X POST ` +
+        `-H "Content-Type: application/json" ` +
+        `-d '{"AttachStdout":true,"AttachStderr":true,"Detach":false,"Cmd":["python3","-c","from hermes_cli.models import list_available_providers; import json; print(json.dumps(list_available_providers()))"]}' ` +
+        `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+        { encoding: "utf8", timeout: 10000 }
+      );
+      const execId = JSON.parse(providersJson).Id;
+      const output = execSync(
+        `curl -s --unix-socket /var/run/docker.sock -X POST ` +
+        `-H "Content-Type: application/json" ` +
+        `-d '{"Detach":false}' ` +
+        `"http://localhost/exec/${execId}/start"`,
+        { encoding: "utf8", timeout: 10000 }
+      );
+      // Output may have docker stream header bytes — find the JSON array
+      const jsonMatch = output.match(/\[[\s\S]*\]/);
+      const providers = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      sendJson(res, 200, { providers });
+    } catch (e) {
+      console.error("Providers fetch error:", e.message);
+      // Fallback static list
+      sendJson(res, 200, { providers: [
+        {id:"openrouter",label:"OpenRouter"},{id:"anthropic",label:"Anthropic"},{id:"minimax",label:"MiniMax"},
+        {id:"deepseek",label:"DeepSeek"},{id:"nous",label:"Nous Portal"},{id:"openai-codex",label:"OpenAI Codex"},
+        {id:"copilot",label:"GitHub Copilot"},{id:"alibaba",label:"Alibaba"},{id:"custom",label:"Custom"},
+      ]});
+    }
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/models") {
+    const provider = url.searchParams.get("provider") || "";
+    try {
+      const cmd = `python3 -c "from hermes_cli.models import curated_models_for_provider; import json; print(json.dumps([{'id':m[0],'desc':m[1]} for m in curated_models_for_provider('${provider.replace(/'/g, "")}')]))"`;
+      const createResp = execSync(
+        `curl -s --unix-socket /var/run/docker.sock -X POST ` +
+        `-H "Content-Type: application/json" ` +
+        `-d '${JSON.stringify({AttachStdout:true,AttachStderr:true,Detach:false,Cmd:["sh","-c",cmd]}).replace(/'/g, "'\\''")}' ` +
+        `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
+        { encoding: "utf8", timeout: 10000 }
+      );
+      const execId = JSON.parse(createResp).Id;
+      const output = execSync(
+        `curl -s --unix-socket /var/run/docker.sock -X POST ` +
+        `-H "Content-Type: application/json" ` +
+        `-d '{"Detach":false}' ` +
+        `"http://localhost/exec/${execId}/start"`,
+        { encoding: "utf8", timeout: 10000 }
+      );
+      const jsonMatch = output.match(/\[[\s\S]*\]/);
+      const models = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      sendJson(res, 200, { models });
+    } catch (e) {
+      console.error("Models fetch error:", e.message);
+      sendJson(res, 200, { models: [] });
+    }
     return;
   }
 
@@ -1793,7 +2155,7 @@ async function handleRequest(req, res) {
       const name = (data.name || "").trim().toLowerCase();
 
       if (!name || !PROFILE_NAME_RE.test(name)) {
-        sendJson(res, 400, { error: "Invalid profile name. Use lowercase letters, numbers, hyphens." });
+        sendJson(res, 400, { error: "Invalid profile name. Use lowercase letters, numbers, hyphens. Max 20 characters." });
         return;
       }
       if (name === "default") {
@@ -1807,25 +2169,73 @@ async function handleRequest(req, res) {
         return;
       }
 
-      fs.mkdirSync(profileDir, { recursive: true });
+      // Use hermes profile create CLI via web container
+      const cloneMode = data.cloneMode || "clone";
+      const cloneFrom = data.cloneFrom || "default";
 
-      // Create required subdirs
-      for (const dir of ["sessions", "logs", "pairing", "hooks", "image_cache", "audio_cache", "memories", "skills", "whatsapp", "cron"]) {
-        fs.mkdirSync(path.join(profileDir, dir), { recursive: true });
+      // Build the hermes profile create command
+      let createCmd = `/app/venv/bin/hermes profile create ${name}`;
+      if (cloneMode === "clone") {
+        createCmd += " --clone";
+      } else if (cloneMode === "clone-all") {
+        createCmd += " --clone-all";
+      }
+      // --clone-from if not default
+      if ((cloneMode === "clone" || cloneMode === "clone-all") && cloneFrom !== "default") {
+        createCmd += ` --clone-from ${cloneFrom}`;
       }
 
-      // Clone from default if requested
-      if (data.clone) {
-        for (const file of ["config.yaml", ".env", "SOUL.md", "USER.md", "instructions.md"]) {
-          const src = path.join(CONFIG_DIR, file);
-          if (fs.existsSync(src)) {
-            fs.copyFileSync(src, path.join(profileDir, file));
-          }
+      try {
+        execInWebContainer(createCmd);
+      } catch (e) {
+        console.error(`hermes profile create failed:`, e.message);
+        // Check if profile was partially created
+        if (!fs.existsSync(profileDir)) {
+          sendJson(res, 500, { error: "Profile creation failed: " + e.message });
+          return;
         }
-        console.log(`Created profile '${name}' (cloned from default)`);
-      } else {
-        console.log(`Created profile '${name}' (blank)`);
       }
+
+      // Strip platform tokens from cloned .env to prevent conflicts
+      // (hermes profile create --clone copies .env as-is, but sharing
+      // Telegram/WhatsApp tokens between profiles causes token lock errors)
+      if (cloneMode === "clone" || cloneMode === "clone-all") {
+        const envFile = path.join(profileDir, ".env");
+        if (fs.existsSync(envFile)) {
+          const platformTokenKeys = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID", "WHATSAPP_ENABLED", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "HERMES_REGEN_CONFIG"];
+          const envContent = fs.readFileSync(envFile, "utf8");
+          const filtered = envContent.split("\n").filter(line => {
+            const key = line.split("=")[0].trim();
+            return !platformTokenKeys.includes(key);
+          }).join("\n");
+          fs.writeFileSync(envFile, filtered);
+        }
+      }
+
+      // Copy Umbrel-specific skills (ask-agent etc.) — hermes doesn't include these
+      try {
+        const umbrelSkills = path.join(CONFIG_DIR, "skills", "umbrel");
+        if (fs.existsSync(umbrelSkills)) {
+          execInWebContainer(`cp -r ${webContainerPath(umbrelSkills)} ${webContainerPath(path.join(profileDir, "skills"))}/`);
+        }
+      } catch (e) {
+        console.error(`Failed to copy Umbrel skills to ${name}:`, e.message);
+      }
+
+      // Assign API server ports
+      const { apiPort, webhookPort } = assignProfilePorts(name);
+      const envFile = path.join(profileDir, ".env");
+      let envContent = "";
+      try { if (fs.existsSync(envFile)) envContent = fs.readFileSync(envFile, "utf8"); } catch (e) {}
+      const setEnvVar = (content, key, val) => {
+        const re = new RegExp(`^${key}=.*$`, "m");
+        return re.test(content) ? content.replace(re, `${key}=${val}`) : content.trimEnd() + `\n${key}=${val}`;
+      };
+      envContent = setEnvVar(envContent, "API_SERVER_PORT", apiPort);
+      envContent = setEnvVar(envContent, "WEBHOOK_PORT", webhookPort);
+      fs.writeFileSync(envFile, envContent.trim() + "\n");
+
+      console.log(`Created profile '${name}' (mode: ${cloneMode}, from: ${cloneFrom})`);
 
       sendJson(res, 201, { success: true, name });
     } catch (e) {
@@ -1878,10 +2288,22 @@ async function handleRequest(req, res) {
         sendJson(res, 404, { error: `Profile '${name}' not found.` });
         return;
       }
-      // Stop gateway if running
-      try { stopProfileGateway(name); } catch (e) {}
-      // Remove profile directory
-      fs.rmSync(profileDir, { recursive: true, force: true });
+      // Use hermes profile delete via web container (handles gateway stop, service cleanup, alias removal)
+      try {
+        execInWebContainer(`/app/venv/bin/hermes profile delete ${name} --yes`);
+      } catch (e) {
+        console.error(`hermes profile delete failed for ${name}:`, e.message);
+      }
+      // Fallback: direct remove if CLI didn't clean up
+      if (fs.existsSync(profileDir)) {
+        try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch (e) {}
+        try { execInWebContainer(`rm -rf "${webContainerPath(profileDir)}"`); } catch (e) {}
+      }
+      if (fs.existsSync(profileDir)) {
+        console.error(`Profile directory still exists after delete: ${profileDir}`);
+        sendJson(res, 500, { error: "Failed to delete profile directory" });
+        return;
+      }
       console.log(`Deleted profile: ${name}`);
       sendJson(res, 200, { success: true });
     } catch (e) {
@@ -1945,16 +2367,35 @@ async function handleRequest(req, res) {
       }
       const port = getProfileApiPort(name);
       const start = Date.now();
+      // Support conversation threading via previous_response_id
+      const body = { input: data.message };
+      if (data.previous_response_id) {
+        body.previous_response_id = data.previous_response_id;
+      }
       const resp = await fetch(`http://${WEB_CONTAINER}:${port}/v1/responses`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: data.message }),
+        body: JSON.stringify(body),
       });
       const result = await resp.json();
       const duration = Date.now() - start;
-      const responseText = result.output?.[0]?.content?.[0]?.text || result.output || JSON.stringify(result);
+      // Extract text from Responses API output — handles multiple output items with tool calls
+      let responseText = "";
+      if (Array.isArray(result.output)) {
+        for (const item of result.output) {
+          if (item.type === "message" && Array.isArray(item.content)) {
+            for (const c of item.content) {
+              if (c.type === "output_text" || c.type === "text") responseText += (responseText ? "\n" : "") + (c.text || "");
+            }
+          } else if (typeof item === "string") {
+            responseText += (responseText ? "\n" : "") + item;
+          }
+        }
+      }
+      if (!responseText) responseText = typeof result.output === "string" ? result.output : JSON.stringify(result);
       sendJson(res, 200, {
-        response: typeof responseText === "string" ? responseText : String(responseText),
+        response: responseText,
+        response_id: result.id || null,
         duration_ms: duration,
       });
     } catch (e) {
