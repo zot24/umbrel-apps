@@ -755,8 +755,12 @@ async function handleRequest(req, res) {
   // Once paired, it deletes the file. The status page polls this endpoint.
   // Returns a data URL (base64 PNG) so no client-side QR library is needed.
   if (req.method === "GET" && url.pathname === "/api/whatsapp-qr") {
-    const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
-    const sessionFile = path.join(CONFIG_DIR, "whatsapp", "session", "creds.json");
+    const profileFilter = url.searchParams.get("profile") || null;
+    const cfgDir = profileFilter && profileFilter !== "all"
+      ? getProfileDir(profileFilter)
+      : CONFIG_DIR;
+    const qrFile = path.join(cfgDir, "whatsapp", "qr.txt");
+    const sessionFile = path.join(cfgDir, "whatsapp", "session", "creds.json");
     const paired = fs.existsSync(sessionFile);
 
     if (paired) {

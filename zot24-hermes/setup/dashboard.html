@@ -5651,6 +5651,7 @@
     function toggleSettings() {
       if (window.location.pathname !== "/dashboard") return;
       configProfileOverride = null;
+      stopProfileQrPolling();
       const panel = document.getElementById("settingsFloat");
       const btn = document.getElementById("cornerSettings");
       const isOpen = panel.classList.contains("open");
@@ -5747,6 +5748,15 @@
             </div>
           </div>
 
+          <div id="profileQrSection" style="display:none;">
+            <div class="settings-group">
+              <div class="settings-group-label">WhatsApp Pairing</div>
+              <div id="profileQrContent" style="text-align:center;padding:12px 0;">
+                <div class="dash-empty">WAITING FOR QR CODE...</div>
+              </div>
+            </div>
+          </div>
+
           <button class="btn settings-save" onclick="saveProfileConfig('${profileName}')" style="border-color:var(--amber-dim);color:var(--amber);">Save Profile</button>
           <div id="settingsSaveStatus" style="text-align:center;font-size:10px;margin-top:6px;color:var(--text-muted);"></div>
         `;
@@ -5790,7 +5800,12 @@
         if (data.success) {
           status.textContent = "SAVED — RESTART PROFILE TO APPLY";
           status.style.color = "var(--phosphor)";
-          fetchProfiles(); // Refresh profile list to show updated model
+          fetchProfiles();
+          // Show WhatsApp QR polling if enabled
+          const waEnabled = document.getElementById("toggleWhatsApp")?.classList.contains("on");
+          if (waEnabled) {
+            startProfileQrPolling(profileName);
+          }
           setTimeout(() => { status.textContent = ""; }, 5000);
         } else {
           status.textContent = "FAILED: " + (data.error || "Unknown");
@@ -6019,6 +6034,45 @@
         status.textContent = "FAILED: " + e.message;
         status.style.color = "var(--red)";
       }
+    }
+
+    // ═══════ WHATSAPP QR POLLING ═══════
+    let profileQrTimer = null;
+
+    function startProfileQrPolling(profileName) {
+      const section = document.getElementById("profileQrSection");
+      const content = document.getElementById("profileQrContent");
+      section.style.display = "block";
+      content.innerHTML = `<div style="font-size:10px;color:var(--amber);letter-spacing:1px;margin-bottom:8px;">START THE PROFILE GATEWAY FIRST</div>
+        <div style="font-size:9px;color:var(--text-muted);">QR code will appear once the WhatsApp bridge initializes.</div>`;
+
+      clearInterval(profileQrTimer);
+      profileQrTimer = setInterval(async () => {
+        try {
+          const data = await (await fetch(`/api/whatsapp-qr?profile=${profileName}`)).json();
+          if (data.status === "paired") {
+            clearInterval(profileQrTimer);
+            content.innerHTML = `<div style="font-size:11px;color:var(--phosphor);letter-spacing:1px;">WHATSAPP LINKED</div>`;
+            fetchProfiles();
+          } else if (data.qrImage) {
+            content.innerHTML = `
+              <div style="font-size:10px;color:var(--amber);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;">SCAN TO PAIR</div>
+              <div style="background:#fff;padding:10px;display:inline-block;position:relative;">
+                <img src="${data.qrImage}" style="display:block;width:180px;height:180px;">
+              </div>
+              <div style="font-size:9px;color:var(--text-muted);margin-top:8px;line-height:1.5;">
+                Open WhatsApp > Linked Devices > Link a Device
+              </div>`;
+          } else {
+            content.innerHTML = `<div class="spinner" style="margin:12px auto;"></div>
+              <div style="font-size:9px;color:var(--text-muted);">${data.message || "Waiting for QR code..."}</div>`;
+          }
+        } catch (e) {}
+      }, 3000);
+    }
+
+    function stopProfileQrPolling() {
+      clearInterval(profileQrTimer);
     }
 
     // ═══════ FLOATING PROFILES STRIP ═══════
