@@ -2169,50 +2169,34 @@ async function handleRequest(req, res) {
         return;
       }
 
-      fs.mkdirSync(profileDir, { recursive: true });
+      // Use hermes profile create CLI via web container
+      const cloneMode = data.cloneMode || "clone";
+      const cloneFrom = data.cloneFrom || "default";
 
-      // Create required subdirs
-      for (const dir of ["sessions", "logs", "pairing", "hooks", "image_cache", "audio_cache", "memories", "skills", "whatsapp", "cron"]) {
-        fs.mkdirSync(path.join(profileDir, dir), { recursive: true });
+      // Build the hermes profile create command
+      let createCmd = `/app/venv/bin/hermes profile create ${name}`;
+      if (cloneMode === "clone") {
+        createCmd += " --clone";
+      } else if (cloneMode === "clone-all") {
+        createCmd += " --clone-all";
+      }
+      // --clone-from if not default
+      if ((cloneMode === "clone" || cloneMode === "clone-all") && cloneFrom !== "default") {
+        createCmd += ` --clone-from ${cloneFrom}`;
       }
 
-      // Clone from default based on mode
-      const cloneMode = data.cloneMode || (data.clone ? "full" : "blank");
-
-      if (cloneMode === "keys" || cloneMode === "full") {
-        // Copy config.yaml (strip platform-specific settings — no messaging channels)
-        const cfgSrc = path.join(CONFIG_DIR, "config.yaml");
-        if (fs.existsSync(cfgSrc)) {
-          let yaml = fs.readFileSync(cfgSrc, "utf8");
-          yaml = yaml.replace(/gateway:[\s\S]*?(?=\n\w|\n$|$)/, "gateway:\n  streaming: true\n  platforms:\n    # Configure platforms for this profile\n");
-          fs.writeFileSync(path.join(profileDir, "config.yaml"), yaml);
-        }
-        // Copy .env — keep model + provider + API keys, strip platform tokens
-        const envSrc = path.join(CONFIG_DIR, ".env");
-        if (fs.existsSync(envSrc)) {
-          const envContent = fs.readFileSync(envSrc, "utf8");
-          const skipKeys = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID", "WHATSAPP_ENABLED", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "HERMES_REGEN_CONFIG"];
-          const filtered = envContent.split("\n").filter(line => {
-            const key = line.split("=")[0].trim();
-            return !skipKeys.includes(key);
-          }).join("\n");
-          fs.writeFileSync(path.join(profileDir, ".env"), filtered);
+      try {
+        execInWebContainer(createCmd);
+      } catch (e) {
+        console.error(`hermes profile create failed:`, e.message);
+        // Check if profile was partially created
+        if (!fs.existsSync(profileDir)) {
+          sendJson(res, 500, { error: "Profile creation failed: " + e.message });
+          return;
         }
       }
 
-      if (cloneMode === "full") {
-        // Also copy personality and instruction files
-        for (const file of ["SOUL.md", "USER.md", "instructions.md"]) {
-          const src = path.join(CONFIG_DIR, file);
-          if (fs.existsSync(src)) {
-            try { fs.copyFileSync(src, path.join(profileDir, file)); } catch (e) {
-              console.error(`Failed to copy ${file} to profile ${name}:`, e.message);
-            }
-          }
-        }
-      }
-
-      console.log(`Created profile '${name}' (mode: ${cloneMode})`);
+      console.log(`Created profile '${name}' (mode: ${cloneMode}, from: ${cloneFrom})`);
 
       sendJson(res, 201, { success: true, name });
     } catch (e) {
