@@ -18,7 +18,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && rm -rf /var/lib/apt/lists/*
 
 # Clone hermes-agent at pinned version
-ARG HERMES_VERSION=v2026.3.23
+ARG HERMES_VERSION=v2026.3.30
 RUN git clone --depth 1 --branch "${HERMES_VERSION}" \
     https://github.com/NousResearch/hermes-agent.git /app
 
