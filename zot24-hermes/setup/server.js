@@ -1235,6 +1235,40 @@ async function handleRequest(req, res) {
         console.error("Warning: could not clean HERMES_REGEN_CONFIG from .env:", e.message);
       }
 
+      // Rewrite hardcoded paths in cron jobs to match the web container's HERMES_HOME
+      const WEB_HERMES_HOME = process.env.WEB_HERMES_HOME || "/data/.hermes";
+      try {
+        const rewriteDirs = [CONFIG_DIR];
+        const importedProfiles = path.join(CONFIG_DIR, "profiles");
+        if (fs.existsSync(importedProfiles)) {
+          for (const p of fs.readdirSync(importedProfiles)) {
+            rewriteDirs.push(path.join(importedProfiles, p));
+          }
+        }
+        for (const dir of rewriteDirs) {
+          const cronJobsFile = path.join(dir, "cron", "jobs.json");
+          if (!fs.existsSync(cronJobsFile)) continue;
+          let raw = fs.readFileSync(cronJobsFile, "utf8");
+          // Match any absolute path to a .hermes directory (covers all install types)
+          // e.g. /Users/x/.hermes, /home/x/.hermes, /root/.hermes, /data/.hermes, /opt/foo/.hermes
+          const oldPaths = new Set();
+          const re = /\/[^\s"'\\]+\/\.hermes(?=\/)/g;
+          let m;
+          while ((m = re.exec(raw)) !== null) {
+            if (m[0] !== WEB_HERMES_HOME) oldPaths.add(m[0]);
+          }
+          if (oldPaths.size) {
+            for (const oldPath of oldPaths) {
+              raw = raw.split(oldPath).join(WEB_HERMES_HOME);
+            }
+            fs.writeFileSync(cronJobsFile, raw);
+            console.log(`Rewrote cron paths: ${[...oldPaths].join(", ")} → ${WEB_HERMES_HOME}`);
+          }
+        }
+      } catch (e) {
+        console.warn("Warning: could not rewrite cron paths:", e.message);
+      }
+
       // Fix permissions — backup may have been created by a different user
       try {
         execSync(`chmod -R u+rw "${hermesDir}"`, { timeout: 30000 });
