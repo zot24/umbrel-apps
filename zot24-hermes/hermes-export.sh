@@ -60,6 +60,7 @@ tar czfh "$BACKUP_FILE" \
   --exclude='*/gateway_state.json' \
   --exclude='*/*-shm' \
   --exclude='*/*-wal' \
+  --exclude='._*' \
   default || {
   [ "$NEEDS_LINK" = true ] && rm -rf "$STAGING_DIR"
   rm -f "$BACKUP_FILE"

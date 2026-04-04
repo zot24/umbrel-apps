@@ -1135,7 +1135,8 @@ async function handleRequest(req, res) {
       try {
         const listing = execSync(`tar tzf ${tmpFile}`, { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
         const entries = listing.split("\n").filter(Boolean);
-        const firstEntry = entries[0] || "";
+        // Skip macOS resource fork entries (._*) when detecting the top-level directory
+        const firstEntry = entries.find(e => !e.startsWith("._")) || entries[0] || "";
         const topDir = firstEntry.replace(/\/$/, "").split("/")[0];
 
         if (!topDir) {
