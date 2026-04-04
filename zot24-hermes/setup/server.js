@@ -1124,7 +1124,8 @@ async function handleRequest(req, res) {
           if (!ws.write(chunk)) req.pause();
         });
         ws.on("drain", () => req.resume());
-        req.on("end", () => { ws.end(); resolve(); });
+        ws.on("finish", resolve);
+        req.on("end", () => ws.end());
         req.on("error", (e) => { ws.destroy(); reject(e); });
         ws.on("error", reject);
       });
@@ -1134,7 +1135,8 @@ async function handleRequest(req, res) {
       try {
         const listing = execSync(`tar tzf ${tmpFile}`, { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
         const entries = listing.split("\n").filter(Boolean);
-        const firstEntry = entries[0] || "";
+        // Skip macOS resource fork entries (._*) when detecting the top-level directory
+        const firstEntry = entries.find(e => !e.startsWith("._")) || entries[0] || "";
         const topDir = firstEntry.replace(/\/$/, "").split("/")[0];
 
         if (!topDir) {
@@ -1164,6 +1166,8 @@ async function handleRequest(req, res) {
         }
         console.log(`Import: detected profile "${archivePrefix}" (${entries.length} entries)`);
       } catch (e) {
+        const fileSize = fs.existsSync(tmpFile) ? fs.statSync(tmpFile).size : 0;
+        console.error(`Import: archive validation failed (${fileSize} bytes): ${e.message}`);
         cleanup();
         sendJson(res, 400, { error: "Invalid archive format" });
         return;
