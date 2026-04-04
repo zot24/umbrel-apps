@@ -667,6 +667,14 @@
       background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
       opacity: 0.6;
     }
+    /* Import active state — swap green to amber */
+    .bk-backdrop.importing .bk-box { border-color: var(--amber-dim); }
+    .bk-backdrop.importing .bk-box::before {
+      background: linear-gradient(90deg, transparent, var(--amber-dim), transparent);
+    }
+    .bk-backdrop.importing .bk-header { background: rgba(255,192,77,0.02); }
+    .bk-backdrop.importing .bk-icon { color: var(--amber); }
+    .bk-backdrop.importing .bk-title { color: var(--amber); }
     .bk-header {
       padding: 14px 18px;
       border-bottom: 1px solid var(--border);
@@ -730,13 +738,19 @@
     .bk-progress-label {
       font-family: 'Fira Code', monospace;
       font-size: 11px;
-      color: var(--amber);
+      color: var(--text-muted);
       margin-bottom: 6px;
-      animation: blink 1s step-end infinite;
+      letter-spacing: 0.5px;
       display: flex;
       align-items: center;
       gap: 6px;
     }
+    .bk-progress-label .warn-icon { display: none; font-size: 13px; }
+    .bk-progress-label.warning {
+      color: var(--amber);
+      animation: importLabelBlink 1s step-end infinite;
+    }
+    .bk-progress-label.warning .warn-icon { display: inline; }
     .bk-progress-label.success {
       color: var(--phosphor);
       animation: none;
@@ -754,22 +768,201 @@
     .bk-progress-bar {
       height: 100%;
       width: 0%;
-      background: var(--amber-dim);
+      background: var(--phosphor-dim);
       transition: width 0.3s ease;
       position: relative;
+    }
+    .bk-progress-bar.amber {
+      background: var(--amber-dim);
     }
     .bk-progress-bar::after {
       content: '';
       position: absolute;
       top: 0; right: 0; bottom: 0;
       width: 20px;
-      background: linear-gradient(90deg, transparent, var(--amber));
+      background: linear-gradient(90deg, transparent, var(--phosphor));
       animation: statusBlink 1s ease-in-out infinite;
     }
+    .bk-progress-bar.amber::after {
+      background: linear-gradient(90deg, transparent, var(--amber));
+    }
+    @keyframes progressGlow {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
     .bk-progress-bar.done { background: var(--phosphor-dim); }
-    .bk-progress-bar.done::after { background: linear-gradient(90deg, transparent, var(--phosphor)); }
+    .bk-progress-bar.done::after { display: none; }
+    .bk-progress-bar.done-amber { background: var(--amber-dim); }
+    .bk-progress-bar.done-amber::after { display: none; }
     .bk-progress-bar.error { background: var(--red-dim); }
     .bk-progress-bar.error::after { display: none; }
+
+    /* Import warning overlay — retro alert flash (matches dashboard) */
+    .import-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 20000;
+      pointer-events: none;
+    }
+    .import-overlay.active { display: block; }
+    .import-overlay-flash {
+      position: absolute;
+      inset: 0;
+      animation: importFlash 2s ease-in-out infinite;
+    }
+    @keyframes importFlash {
+      0%, 100% { background: rgba(255, 192, 77, 0); }
+      15% { background: rgba(255, 192, 77, 0.04); }
+      30% { background: rgba(255, 192, 77, 0); }
+      45% { background: rgba(255, 192, 77, 0.03); }
+      60% { background: rgba(255, 192, 77, 0); }
+    }
+    .import-overlay-scanline {
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 10%, var(--amber-dim) 50%, transparent 90%);
+      opacity: 0.3;
+      animation: importScanline 3s linear infinite;
+    }
+    @keyframes importScanline {
+      0% { top: -2px; }
+      100% { top: 100%; }
+    }
+    .import-overlay-border {
+      position: absolute;
+      inset: 0;
+      border: 2px solid transparent;
+      animation: importBorder 1.5s step-end infinite;
+    }
+    @keyframes importBorder {
+      0%, 100% { border-color: transparent; }
+      50% { border-color: rgba(255, 192, 77, 0.15); }
+    }
+    .import-overlay-label {
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Oxanium', sans-serif;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      color: var(--amber);
+      padding: 4px 14px;
+      border: 1px solid var(--amber-dim);
+      background: rgba(6, 10, 13, 0.9);
+      animation: importLabelBlink 1s step-end infinite;
+      pointer-events: none;
+    }
+    @keyframes importLabelBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Import error overlay (matches dashboard) */
+    .import-error-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 25000;
+      background: rgba(6, 10, 13, 0.9);
+      align-items: center;
+      justify-content: center;
+      animation: importErrorFadeIn 0.15s ease-out;
+    }
+    .import-error-overlay.active { display: flex; }
+    @keyframes importErrorFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .import-error-overlay .error-flash {
+      position: absolute;
+      inset: 0;
+      animation: importErrorFlash 0.15s ease-out;
+    }
+    @keyframes importErrorFlash {
+      0% { background: rgba(255, 96, 96, 0.2); }
+      100% { background: transparent; }
+    }
+    .import-error-box {
+      border: 1px solid var(--red-dim);
+      background: var(--surface);
+      max-width: 380px;
+      width: 90%;
+      overflow: hidden;
+      animation: importErrorShake 0.5s ease-out;
+      position: relative;
+    }
+    .import-error-box::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--red), transparent);
+      opacity: 0.6;
+    }
+    @keyframes importErrorShake {
+      0%, 100% { transform: translateX(0); }
+      10% { transform: translateX(-8px); }
+      20% { transform: translateX(8px); }
+      30% { transform: translateX(-6px); }
+      40% { transform: translateX(6px); }
+      50% { transform: translateX(-3px); }
+      60% { transform: translateX(3px); }
+      70% { transform: translateX(-1px); }
+      80% { transform: translateX(1px); }
+    }
+    .import-error-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 96, 96, 0.03);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .import-error-header .err-icon {
+      color: var(--red);
+      font-size: 18px;
+      animation: importLabelBlink 0.8s step-end infinite;
+    }
+    .import-error-header .err-title {
+      font-family: 'Oxanium', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--red);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .import-error-body {
+      padding: 18px;
+      font-family: 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--text);
+    }
+    .import-error-body .err-msg {
+      color: var(--red);
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--red-dim);
+      background: rgba(255, 96, 96, 0.04);
+      font-size: 11px;
+      word-break: break-all;
+    }
+    .import-error-actions {
+      padding: 0 18px 18px;
+    }
+    .import-error-actions .bk-btn {
+      border-color: var(--red-dim);
+      color: var(--red);
+    }
+    .import-error-actions .bk-btn:hover {
+      background: rgba(255, 96, 96, 0.06);
+      box-shadow: 0 0 12px rgba(255, 96, 96, 0.1);
+    }
+    .import-error-actions .bk-btn::before { color: var(--red-dim); }
+
     .bk-status {
       display: none;
       margin-top: 10px;
@@ -992,7 +1185,7 @@
         <button class="bk-btn" id="bkImportBtn" onclick="document.getElementById('bkFile').click()">Import Backup</button>
         <input type="file" id="bkFile" accept=".tar.gz,.tgz" style="display:none" onchange="wizardImport(this)">
         <div class="bk-progress" id="bkProgress">
-          <div class="bk-progress-label"><span>&#9888;</span><span id="bkProgressText"></span></div>
+          <div class="bk-progress-label" id="bkProgressLabel"><span class="warn-icon">&#9888;</span><span id="bkProgressText"></span></div>
           <div class="bk-progress-track"><div class="bk-progress-bar" id="bkProgressBar"></div></div>
         </div>
         <div class="bk-status" id="bkStatus"></div>
@@ -1395,35 +1588,77 @@
 
     //
     let bkTimer = null;
+    let bkProgressTimer = null;
+
+    function showImportOverlay(label) {
+      document.getElementById("importOverlayLabel").textContent = label;
+      document.getElementById("importOverlay").classList.add("active");
+    }
+
+    function hideImportOverlay() {
+      document.getElementById("importOverlay").classList.remove("active");
+    }
+
+    function showBkProgress(label, pct, state, isWarning) {
+      const wrap = document.getElementById("bkProgress");
+      const lbl = document.getElementById("bkProgressText");
+      const lblWrap = document.getElementById("bkProgressLabel");
+      const bar = document.getElementById("bkProgressBar");
+      wrap.classList.add("active");
+      lbl.textContent = label;
+      lblWrap.className = "bk-progress-label" + (isWarning ? " warning" : "");
+      bar.style.width = pct + "%";
+      bar.className = "bk-progress-bar" + (state ? " " + state : "") + (isWarning && !state ? " amber" : "");
+    }
+
+    function hideBkProgress() {
+      document.getElementById("bkProgress").classList.remove("active");
+    }
+
+    function simulateBkProgress(label, durationMs, isWarning) {
+      const startedAt = Date.now();
+      const minShowMs = isWarning ? 3000 : 2500;
+      showBkProgress(label, 0, "", isWarning);
+      let pct = 0;
+      const step = 50;
+      const inc = (90 / (durationMs / step));
+      bkProgressTimer = setInterval(() => {
+        pct = Math.min(pct + inc + Math.random() * inc * 0.5, 92);
+        showBkProgress(label, pct, "", isWarning);
+      }, step);
+      return {
+        complete(msg) {
+          const elapsed = Date.now() - startedAt;
+          const delay = Math.max(0, minShowMs - elapsed);
+          setTimeout(() => {
+            clearInterval(bkProgressTimer);
+            showBkProgress(msg || label, 100, isWarning ? "done-amber" : "done", isWarning);
+            setTimeout(hideBkProgress, 2000);
+          }, delay);
+        },
+        error(msg) {
+          clearInterval(bkProgressTimer);
+          showBkProgress(msg || "ERROR", 100, "error", false);
+          setTimeout(hideBkProgress, 3000);
+        }
+      };
+    }
+
     function wizardImport(input) {
       const file = input.files[0];
       if (!file) return;
       input.value = "";
 
       const btn = document.getElementById("bkImportBtn");
-      const prog = document.getElementById("bkProgress");
-      const bar = document.getElementById("bkProgressBar");
-      const label = document.getElementById("bkProgressText");
-      const status = document.getElementById("bkStatus");
-
       btn.disabled = true;
       btn.textContent = "RESTORING...";
-      prog.classList.add("active");
-      status.style.display = "none";
-      bar.style.width = "0%";
-      bar.className = "bk-progress-bar";
-      label.parentElement.className = "bk-progress-label";
-      label.textContent = "UPLOADING BACKUP...";
-      const box = document.querySelector("#bkModal .bk-box");
-      box.style.borderColor = "";
-      box.style.boxShadow = "";
+      document.getElementById("bkStatus").style.display = "none";
       document.getElementById("bkError").style.display = "none";
 
-      let pct = 0;
-      bkTimer = setInterval(() => {
-        pct = Math.min(pct + 0.4 + Math.random() * 0.3, 92);
-        bar.style.width = pct + "%";
-      }, 50);
+      // Keep modal open, switch to importing state (amber)
+      document.getElementById("bkModal").classList.add("importing");
+      showImportOverlay("RESTORING BACKUP");
+      const prog = simulateBkProgress("UPLOADING BACKUP...", 12000, true);
 
       fetch("/api/import", {
         method: "POST",
@@ -1432,76 +1667,68 @@
       })
         .then(r => r.json())
         .then(data => {
-          clearInterval(bkTimer);
           if (data.success) {
-            label.parentElement.className = "bk-progress-label success";
-            label.textContent = "RESTORE COMPLETE";
-            bar.className = "bk-progress-bar done";
-            bar.style.width = "100%";
-            setTimeout(() => { window.location.href = "/"; }, 2000);
+            prog.complete("RESTORE COMPLETE");
+            setTimeout(() => {
+              showImportOverlay("RESTARTING GATEWAY");
+              setTimeout(() => {
+                hideImportOverlay();
+                document.getElementById("bkModal").classList.remove("show", "importing");
+                window.location.href = "/";
+              }, 2500);
+            }, 3500);
           } else {
+            hideImportOverlay();
+            prog.error("RESTORE FAILED");
+            document.getElementById("bkModal").classList.remove("show", "importing");
             showImportError(data.error || "Unknown error");
           }
         })
         .catch(e => {
-          clearInterval(bkTimer);
+          hideImportOverlay();
+          prog.error("UPLOAD FAILED");
+          document.getElementById("bkModal").classList.remove("show", "importing");
           showImportError(e.message);
         });
     }
 
     function showImportError(msg) {
       const btn = document.getElementById("bkImportBtn");
-      const prog = document.getElementById("bkProgress");
-      const box = document.querySelector("#bkModal .bk-box");
-      const errEl = document.getElementById("bkError");
-
-      // Progress bar turns red — keep current position but ensure visible
-      clearInterval(bkTimer);
-      const bar = document.getElementById("bkProgressBar");
-      const label = document.getElementById("bkProgressText");
-      const currentWidth = parseFloat(bar.style.width) || 0;
-      bar.style.width = Math.max(currentWidth, 30) + "%";
-      bar.className = "bk-progress-bar error";
-      label.parentElement.className = "bk-progress-label error";
-      label.textContent = "RESTORE FAILED";
-
-      // Red flash overlay
-      const flash = document.createElement("div");
-      flash.className = "red-flash";
-      document.body.appendChild(flash);
-      setTimeout(() => flash.remove(), 700);
-
-      // Shake the modal box
-      box.style.animation = "none";
-      box.offsetHeight;
-      box.style.animation = "screenShake 0.5s ease-in-out";
-      setTimeout(() => { box.style.animation = ""; }, 600);
-
-      // Modal goes into error state (red border + glow)
-      box.style.borderColor = "rgba(255, 48, 48, 0.4)";
-      box.style.boxShadow = "0 0 20px rgba(255, 30, 20, 0.05), inset 0 0 30px rgba(255, 30, 20, 0.02)";
-
-      // Show error block (same style as wizard validation errors)
-      errEl.style.display = "block";
-      errEl.className = "error-block";
-      errEl.innerHTML = `
-        <div class="error-header">&gt; error</div>
-        <div class="error-msg">${msg}</div>
-        <div class="error-ascii">════════════════════════════════════</div>
-      `;
-
-      // Glitch cursor
-      const cursor = document.querySelector(".cursor");
-      if (cursor) {
-        cursor.style.background = "#ff4040";
-        cursor.style.boxShadow = "0 0 8px rgba(255,64,64,0.5)";
-        setTimeout(() => { cursor.style.background = ""; cursor.style.boxShadow = ""; }, 3000);
-      }
-
-      // Re-enable button for retry
+      document.getElementById("importErrorMsg").textContent = msg;
+      document.getElementById("importErrorOverlay").classList.add("active");
       btn.disabled = false;
       btn.textContent = "Import Backup";
     }
+
+    function closeImportErrorOverlay() {
+      document.getElementById("importErrorOverlay").classList.remove("active");
+    }
   </script>
+
+  <!-- Import error overlay -->
+  <div class="import-error-overlay" id="importErrorOverlay" onclick="if(event.target===this)closeImportErrorOverlay()">
+    <div class="error-flash"></div>
+    <div class="import-error-box">
+      <div class="import-error-header">
+        <span class="err-icon">&#9888;</span>
+        <span class="err-title">Restore Failed</span>
+      </div>
+      <div class="import-error-body">
+        Something went wrong while restoring your backup.
+        <div class="err-msg" id="importErrorMsg"></div>
+      </div>
+      <div class="import-error-actions">
+        <button class="bk-btn" onclick="closeImportErrorOverlay()">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import warning overlay -->
+  <div class="import-overlay" id="importOverlay">
+    <div class="import-overlay-flash"></div>
+    <div class="import-overlay-scanline"></div>
+    <div class="import-overlay-border"></div>
+    <div class="import-overlay-label" id="importOverlayLabel">RESTORING BACKUP</div>
+  </div>
 </body>
 </html>

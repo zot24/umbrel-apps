@@ -33,16 +33,20 @@ if [ -f "$STATE_DB" ] && command -v sqlite3 &>/dev/null; then
 fi
 
 # Create symlink so archive uses "default/" as top-level (hermes profile format)
-LINK_DIR="$(dirname "$HERMES_DIR")/default"
 NEEDS_LINK=false
 if [ "$(basename "$HERMES_DIR")" != "default" ]; then
   NEEDS_LINK=true
+  STAGING_DIR="$(mktemp -d)"
+  LINK_DIR="$STAGING_DIR/default"
   ln -sfn "$HERMES_DIR" "$LINK_DIR"
+  TAR_CONTEXT="$STAGING_DIR"
+else
+  TAR_CONTEXT="$(dirname "$HERMES_DIR")"
 fi
 
 echo "Creating archive..."
 tar czfh "$BACKUP_FILE" \
-  -C "$(dirname "$HERMES_DIR")" \
+  -C "$TAR_CONTEXT" \
   --exclude='*/hermes-agent' \
   --exclude='*/checkpoints' \
   --exclude='*/bin' \
@@ -56,14 +60,15 @@ tar czfh "$BACKUP_FILE" \
   --exclude='*/gateway_state.json' \
   --exclude='*/*-shm' \
   --exclude='*/*-wal' \
+  --exclude='._*' \
   default || {
-  [ "$NEEDS_LINK" = true ] && rm -f "$LINK_DIR"
+  [ "$NEEDS_LINK" = true ] && rm -rf "$STAGING_DIR"
   rm -f "$BACKUP_FILE"
   echo "ERROR: Failed to create backup archive." >&2
   exit 1
 }
 
-[ "$NEEDS_LINK" = true ] && rm -f "$LINK_DIR"
+[ "$NEEDS_LINK" = true ] && rm -rf "$STAGING_DIR"
 
 SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 
