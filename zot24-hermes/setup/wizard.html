@@ -797,71 +797,7 @@
     .bk-progress-bar.error { background: var(--red-dim); }
     .bk-progress-bar.error::after { display: none; }
 
-    /* Import warning overlay — retro alert flash (matches dashboard) */
-    .import-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 20000;
-      pointer-events: none;
-    }
-    .import-overlay.active { display: block; }
-    .import-overlay-flash {
-      position: absolute;
-      inset: 0;
-      animation: importFlash 2s ease-in-out infinite;
-    }
-    @keyframes importFlash {
-      0%, 100% { background: rgba(255, 192, 77, 0); }
-      15% { background: rgba(255, 192, 77, 0.04); }
-      30% { background: rgba(255, 192, 77, 0); }
-      45% { background: rgba(255, 192, 77, 0.03); }
-      60% { background: rgba(255, 192, 77, 0); }
-    }
-    .import-overlay-scanline {
-      position: absolute;
-      left: 0; right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent 10%, var(--amber-dim) 50%, transparent 90%);
-      opacity: 0.3;
-      animation: importScanline 3s linear infinite;
-    }
-    @keyframes importScanline {
-      0% { top: -2px; }
-      100% { top: 100%; }
-    }
-    .import-overlay-border {
-      position: absolute;
-      inset: 0;
-      border: 2px solid transparent;
-      animation: importBorder 1.5s step-end infinite;
-    }
-    @keyframes importBorder {
-      0%, 100% { border-color: transparent; }
-      50% { border-color: rgba(255, 192, 77, 0.15); }
-    }
-    .import-overlay-label {
-      position: fixed;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      font-family: 'Oxanium', sans-serif;
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 3px;
-      color: var(--amber);
-      padding: 4px 14px;
-      border: 1px solid var(--amber-dim);
-      background: rgba(6, 10, 13, 0.9);
-      animation: importLabelBlink 1s step-end infinite;
-      pointer-events: none;
-    }
-    @keyframes importLabelBlink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    /* Import error overlay (matches dashboard) */
+    /* Import error overlay */
     .import-error-overlay {
       display: none;
       position: fixed;
@@ -962,6 +898,59 @@
       box-shadow: 0 0 12px rgba(255, 96, 96, 0.1);
     }
     .import-error-actions .bk-btn::before { color: var(--red-dim); }
+
+    /* Import success toast */
+    .import-toast {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 25000;
+      background: rgba(6, 10, 13, 0.85);
+      align-items: center;
+      justify-content: center;
+      animation: importErrorFadeIn 0.3s ease-out;
+    }
+    .import-toast.active { display: flex; }
+    .import-toast-box {
+      border: 1px solid var(--phosphor-dim);
+      background: var(--surface);
+      max-width: 360px;
+      width: 90%;
+      overflow: hidden;
+      animation: bootUp 0.25s ease-out;
+      position: relative;
+    }
+    .import-toast-box::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+      opacity: 0.6;
+    }
+    .import-toast-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(80, 255, 168, 0.02);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .import-toast-header .toast-icon { color: var(--phosphor); font-size: 16px; }
+    .import-toast-header .toast-title {
+      font-family: 'Oxanium', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--phosphor);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .import-toast-body {
+      padding: 18px;
+      font-family: 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+    }
 
     .bk-status {
       display: none;
@@ -1590,15 +1579,6 @@
     let bkTimer = null;
     let bkProgressTimer = null;
 
-    function showImportOverlay(label) {
-      document.getElementById("importOverlayLabel").textContent = label;
-      document.getElementById("importOverlay").classList.add("active");
-    }
-
-    function hideImportOverlay() {
-      document.getElementById("importOverlay").classList.remove("active");
-    }
-
     function showBkProgress(label, pct, state, isWarning) {
       const wrap = document.getElementById("bkProgress");
       const lbl = document.getElementById("bkProgressText");
@@ -1657,7 +1637,6 @@
 
       // Keep modal open, switch to importing state (amber)
       document.getElementById("bkModal").classList.add("importing");
-      showImportOverlay("RESTORING BACKUP");
       const prog = simulateBkProgress("UPLOADING BACKUP...", 12000, true);
 
       fetch("/api/import", {
@@ -1670,22 +1649,18 @@
           if (data.success) {
             prog.complete("RESTORE COMPLETE");
             setTimeout(() => {
-              showImportOverlay("RESTARTING GATEWAY");
-              setTimeout(() => {
-                hideImportOverlay();
-                document.getElementById("bkModal").classList.remove("show", "importing");
-                window.location.href = "/";
-              }, 2500);
+              document.getElementById("bkModal").classList.remove("show", "importing");
+              document.getElementById("importToastBody").textContent = data.message || "Backup restored. Gateway is restarting...";
+              document.getElementById("importToast").classList.add("active");
+              setTimeout(() => { window.location.href = "/"; }, 4000);
             }, 3500);
           } else {
-            hideImportOverlay();
             prog.error("RESTORE FAILED");
             document.getElementById("bkModal").classList.remove("show", "importing");
             showImportError(data.error || "Unknown error");
           }
         })
         .catch(e => {
-          hideImportOverlay();
           prog.error("UPLOAD FAILED");
           document.getElementById("bkModal").classList.remove("show", "importing");
           showImportError(e.message);
@@ -1723,12 +1698,17 @@
     </div>
   </div>
 
-  <!-- Import warning overlay -->
-  <div class="import-overlay" id="importOverlay">
-    <div class="import-overlay-flash"></div>
-    <div class="import-overlay-scanline"></div>
-    <div class="import-overlay-border"></div>
-    <div class="import-overlay-label" id="importOverlayLabel">RESTORING BACKUP</div>
+  <!-- Import success toast -->
+  <div class="import-toast" id="importToast" onclick="this.classList.remove('active')">
+    <div class="import-toast-box">
+      <div class="import-toast-header">
+        <span class="toast-icon">&#10003;</span>
+        <span class="toast-title">Restore Complete</span>
+      </div>
+      <div class="import-toast-body" id="importToastBody">
+        Backup restored. Gateway is restarting...
+      </div>
+    </div>
   </div>
 </body>
 </html>

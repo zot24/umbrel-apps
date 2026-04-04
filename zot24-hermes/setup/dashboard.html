@@ -3147,8 +3147,7 @@
       width: 100%;
       margin-top: 4px;
     }
-    #cornerSettings { display: none; }
-    #cornerSettings.visible { display: flex; }
+    #cornerSettings { display: flex; }
     #cornerSettings.active {
       color: var(--amber);
       border-color: var(--amber-dim);
@@ -4416,15 +4415,6 @@
       document.getElementById("importErrorOverlay").classList.remove("active");
     }
 
-    function showImportOverlay(label) {
-      document.getElementById("importOverlayLabel").textContent = label;
-      document.getElementById("importOverlay").classList.add("active");
-    }
-
-    function hideImportOverlay() {
-      document.getElementById("importOverlay").classList.remove("active");
-    }
-
     function importBackup(input) {
       const file = input.files[0];
       if (!file) return;
@@ -4441,7 +4431,6 @@
 
           document.getElementById("backupModal").classList.add("importing");
           document.getElementById("exportBtn").disabled = true;
-          showImportOverlay("RESTORING BACKUP");
           const prog = simulateProgress("UPLOADING BACKUP...", 12000, true);
 
           try {
@@ -4453,25 +4442,18 @@
             const data = await resp.json();
             if (data.success) {
               prog.complete("RESTORE COMPLETE");
-              // Wait for progress bar to finish its minimum display, then show overlay transition + toast
               setTimeout(() => {
-                showImportOverlay("RESTARTING GATEWAY");
-                setTimeout(() => {
-                  hideImportOverlay();
-                  closeBackupModal();
-                  document.getElementById("importToastBody").textContent = data.message || "Backup restored. Gateway is restarting...";
-                  document.getElementById("importToast").classList.add("active");
-                  setTimeout(() => { document.getElementById("importToast").classList.remove("active"); fetchStatus(); }, 5000);
-                }, 2500);
+                closeBackupModal();
+                document.getElementById("importToastBody").textContent = data.message || "Backup restored. Gateway is restarting...";
+                document.getElementById("importToast").classList.add("active");
+                setTimeout(() => { document.getElementById("importToast").classList.remove("active"); fetchStatus(); }, 5000);
               }, 3500);
             } else {
-              hideImportOverlay();
               prog.error("RESTORE FAILED");
               closeBackupModal();
               showImportError(data.error || "Unknown error");
             }
           } catch (e) {
-            hideImportOverlay();
             prog.error("UPLOAD FAILED");
             closeBackupModal();
             showImportError(e.message);
@@ -5675,7 +5657,6 @@
     let configProfileOverride = null; // when set, settings panel targets this profile
 
     function toggleSettings() {
-      if (window.location.pathname !== "/dashboard") return;
       configProfileOverride = null;
       stopProfileQrPolling();
       const panel = document.getElementById("settingsFloat");
@@ -6257,7 +6238,6 @@
       section.classList.add("open");
       btn.classList.add("active");
       document.getElementById("cornerChat").classList.add("visible");
-      document.getElementById("cornerSettings").classList.add("visible");
       document.getElementById("profilesFloat").classList.add("visible");
       if (!dashLoaded) {
         dashLoaded = true;
@@ -6331,12 +6311,5 @@
     </div>
   </div>
 
-  <!-- Import warning overlay -->
-  <div class="import-overlay" id="importOverlay">
-    <div class="import-overlay-flash"></div>
-    <div class="import-overlay-scanline"></div>
-    <div class="import-overlay-border"></div>
-    <div class="import-overlay-label" id="importOverlayLabel">RESTORING BACKUP</div>
-  </div>
 </body>
 </html>
