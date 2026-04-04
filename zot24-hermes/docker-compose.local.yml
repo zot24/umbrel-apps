@@ -8,6 +8,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       CONFIG_DIR: /config
+      WEB_HERMES_HOME: /data/.hermes
       WEB_CONTAINER: zot24-hermes-web-1
 
   web:

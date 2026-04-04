@@ -4818,6 +4818,14 @@
       if (currentView === "jobs") fetchJobs();
     }
 
+    // Auto-refresh view-specific data when visible
+    setInterval(() => {
+      if (currentView === "sessions") fetchSessions();
+      if (currentView === "memory") fetchMemoryFiles();
+      if (currentView === "tools") fetchSkills();
+      if (currentView === "jobs") fetchJobs();
+    }, 10000);
+
     // ═══════ CHAT INTERFACE ═══════
     let chatProfile = null;
     let chatHistory = JSON.parse(localStorage.getItem("hermes_chat_history") || "{}");
