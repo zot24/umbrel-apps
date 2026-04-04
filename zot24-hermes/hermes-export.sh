@@ -4,25 +4,11 @@
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-hermes/hermes-export.sh | bash
-#   # or
-#   hermes profile export default
+#
 
 set -euo pipefail
 
-# If hermes CLI is available, use native export
-if command -v hermes &>/dev/null; then
-  echo "Hermes CLI detected — using native profile export."
-  echo ""
-  hermes profile export default
-  echo ""
-  echo "To import into Umbrel Hermes:"
-  echo "  1. Open the Hermes app in Umbrel"
-  echo "  2. Click the floppy disk icon (bottom-right)"
-  echo "  3. Click Import and select the exported file"
-  exit 0
-fi
-
-# Fallback: manual export for systems without hermes CLI
+# Optimized export — excludes caches, logs, binaries, checkpoints SQLite WAL
 HERMES_DIR="${1:-${HERMES_HOME:-$HOME/.hermes}}"
 BACKUP_FILE="default.tar.gz"
 
@@ -87,3 +73,5 @@ echo ""
 echo "Compatible with:"
 echo "  hermes profile import $BACKUP_FILE"
 echo "  Umbrel Hermes app → Import Backup"
+echo ""
+echo "Note: The Umbrel import also accepts native 'hermes profile export' files."
