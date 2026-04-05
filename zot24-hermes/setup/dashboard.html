@@ -4444,6 +4444,9 @@
               prog.complete("RESTORE COMPLETE");
               setTimeout(() => {
                 closeBackupModal();
+                // Clear stale chat response IDs after import
+                localStorage.removeItem("hermes_chat_response_ids");
+                chatResponseIds = {};
                 document.getElementById("importToastBody").textContent = data.message || "Backup restored. Gateway is restarting...";
                 document.getElementById("importToast").classList.add("active");
                 setTimeout(() => { document.getElementById("importToast").classList.remove("active"); fetchStatus(); }, 5000);
@@ -4898,12 +4901,22 @@
         if (chatResponseIds[targetProfile]) {
           chatBody.previous_response_id = chatResponseIds[targetProfile];
         }
-        const resp = await fetch(`/api/profiles/${targetProfile}/chat`, {
+        let resp = await fetch(`/api/profiles/${targetProfile}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(chatBody),
         });
-        const data = await resp.json();
+        let data = await resp.json();
+        // Stale response ID (e.g. after gateway restart/import) — retry without it
+        if (data.error && data.error.includes("Previous response not found")) {
+          delete chatResponseIds[targetProfile];
+          resp = await fetch(`/api/profiles/${targetProfile}/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: msg }),
+          });
+          data = await resp.json();
+        }
         if (data.error) {
           chatHistory[targetProfile].push({ role: "assistant", text: `[ERROR] ${data.error}` });
         } else {
