@@ -1957,6 +1957,37 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: Cron job actions (run, pause, resume, delete) ──
+  if (req.method === "POST" && url.pathname.startsWith("/api/cron/")) {
+    const parts = url.pathname.replace("/api/cron/", "").split("/");
+    const jobId = parts[0];
+    const action = parts[1]; // run, pause, resume, delete
+    const profileFilter = url.searchParams.get("profile") || null;
+
+    if (!jobId || !["run", "pause", "resume", "delete"].includes(action)) {
+      sendJson(res, 400, { error: "Invalid cron action" });
+      return;
+    }
+
+    try {
+      const webCfgDir = profileFilter && profileFilter !== "all"
+        ? webContainerPath(getProfileDir(profileFilter))
+        : webContainerPath(CONFIG_DIR);
+      const hermesCmd = action === "run" ? "run" :
+                        action === "pause" ? "pause" :
+                        action === "resume" ? "resume" :
+                        "remove";
+      const confirmFlag = action === "delete" ? " --yes" : "";
+      execInWebContainer(`HERMES_HOME=${webCfgDir} /app/venv/bin/hermes cron ${hermesCmd} ${jobId}${confirmFlag}`);
+      console.log(`Cron ${action}: ${jobId} (profile: ${profileFilter || "default"})`);
+      sendJson(res, 200, { success: true, action, job_id: jobId });
+    } catch (e) {
+      console.error(`Cron ${action} failed for ${jobId}:`, e.message);
+      sendJson(res, 500, { error: `Failed to ${action} job: ${e.message}` });
+    }
+    return;
+  }
+
   // ── API: Settings (read/write config.yaml + .env) ──
   if (req.method === "GET" && url.pathname === "/api/settings") {
     const profileFilter = url.searchParams.get("profile") || null;

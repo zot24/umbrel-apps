@@ -2802,6 +2802,30 @@
       word-break: break-word;
       border-left: 2px solid var(--border);
     }
+    .job-actions {
+      display: flex;
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .job-action-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--body);
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .job-action-btn:hover {
+      border-color: var(--phosphor-dim);
+      color: var(--phosphor);
+    }
+    .job-action-btn.run:hover { border-color: var(--amber-dim); color: var(--amber); }
+    .job-action-btn.danger:hover { border-color: var(--red-dim); color: var(--red); }
+    .job-action-btn:disabled { opacity: 0.3; pointer-events: none; }
 
     /* ── Floating profiles strip ── */
     .profiles-float {
@@ -5738,11 +5762,43 @@
             </div>
             ${lastErr ? `<div style="font-size:10px;color:var(--red);margin-top:4px;">${escapeHtml(lastErr)}</div>` : ""}
             ${output ? `<div class="job-output">${escapeHtml(output)}</div>` : ""}
+            <div class="job-actions">
+              <button class="job-action-btn run" onclick="cronAction('${j.id}','run',this)" title="Run now">RUN</button>
+              ${state === "paused"
+                ? `<button class="job-action-btn" onclick="cronAction('${j.id}','resume',this)" title="Resume">RESUME</button>`
+                : `<button class="job-action-btn" onclick="cronAction('${j.id}','pause',this)" title="Pause">PAUSE</button>`
+              }
+              <button class="job-action-btn danger" onclick="cronDelete('${j.id}','${escapeHtml(name)}')" title="Delete">DELETE</button>
+            </div>
           </div>`;
         }).join("");
       } catch (e) {
         console.error("Jobs fetch failed:", e);
       }
+    }
+
+    async function cronAction(jobId, action, btn) {
+      if (btn) { btn.disabled = true; btn.textContent = action.toUpperCase() + "..."; }
+      try {
+        const resp = await fetch(`/api/cron/${jobId}/${action}?x=1${profileParam()}`, { method: "POST" });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || "Failed");
+      } catch (e) {
+        console.error(`Cron ${action} failed:`, e.message);
+      }
+      setTimeout(fetchJobs, 1000);
+    }
+
+    async function cronDelete(jobId, name) {
+      if (!confirm(`Delete cron job "${name}"? This cannot be undone.`)) return;
+      try {
+        const resp = await fetch(`/api/cron/${jobId}/delete?x=1${profileParam()}`, { method: "POST" });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || "Failed");
+      } catch (e) {
+        console.error("Cron delete failed:", e.message);
+      }
+      setTimeout(fetchJobs, 1000);
     }
 
     // ═══════ SETTINGS PANEL ═══════
