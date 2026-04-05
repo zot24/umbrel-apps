@@ -1957,6 +1957,57 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: Cron job actions (run, pause, resume, delete) ──
+  if (req.method === "POST" && url.pathname.startsWith("/api/cron/")) {
+    const parts = url.pathname.replace("/api/cron/", "").split("/");
+    const jobId = parts[0];
+    const action = parts[1]; // run, pause, resume, delete
+    const profileFilter = url.searchParams.get("profile") || null;
+
+    if (!jobId || !["run", "pause", "resume", "delete"].includes(action)) {
+      sendJson(res, 400, { error: "Invalid cron action" });
+      return;
+    }
+
+    try {
+      const webCfgDir = profileFilter && profileFilter !== "all"
+        ? webContainerPath(getProfileDir(profileFilter))
+        : webContainerPath(CONFIG_DIR);
+      const hermesCmd = action === "run" ? "run" :
+                        action === "pause" ? "pause" :
+                        action === "resume" ? "resume" :
+                        "remove";
+      const confirmFlag = action === "delete" ? " --yes" : "";
+      execInWebContainer(`HERMES_HOME=${webCfgDir} /app/venv/bin/hermes cron ${hermesCmd} ${jobId}${confirmFlag}`);
+      console.log(`Cron ${action}: ${jobId} (profile: ${profileFilter || "default"})`);
+      sendJson(res, 200, { success: true, action, job_id: jobId });
+    } catch (e) {
+      console.error(`Cron ${action} failed for ${jobId}:`, e.message);
+      sendJson(res, 500, { error: `Failed to ${action} job: ${e.message}` });
+    }
+    return;
+  }
+
+  // ── API: Container logs ──
+  if (req.method === "GET" && url.pathname === "/api/logs") {
+    const lines = Math.min(parseInt(url.searchParams.get("lines") || "100"), 500);
+    const container = url.searchParams.get("container") || "web";
+    const target = container === "setup" ? "zot24-hermes_setup_1" : WEB_CONTAINER;
+    try {
+      const socketPath = "/var/run/docker.sock";
+      const output = execSync(
+        `curl -s --unix-socket ${socketPath} "http://localhost/containers/${target}/logs?stdout=true&stderr=true&tail=${lines}&timestamps=true"`,
+        { encoding: "utf8", timeout: 10000, maxBuffer: 2 * 1024 * 1024 }
+      );
+      // Docker log output has 8-byte header per frame — strip non-printable prefix bytes
+      const cleaned = output.replace(/[\x00-\x09\x0b\x0c\x0e-\x1f]/g, "").split("\n").filter(Boolean);
+      sendJson(res, 200, { lines: cleaned });
+    } catch (e) {
+      sendJson(res, 500, { error: e.message, lines: [] });
+    }
+    return;
+  }
+
   // ── API: Settings (read/write config.yaml + .env) ──
   if (req.method === "GET" && url.pathname === "/api/settings") {
     const profileFilter = url.searchParams.get("profile") || null;

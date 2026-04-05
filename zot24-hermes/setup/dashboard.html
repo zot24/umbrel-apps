@@ -2802,6 +2802,105 @@
       word-break: break-word;
       border-left: 2px solid var(--border);
     }
+    .job-actions {
+      display: flex;
+      gap: 4px;
+      margin-top: 8px;
+    }
+    .job-action-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--body);
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .job-action-btn:hover {
+      border-color: var(--phosphor-dim);
+      color: var(--phosphor);
+    }
+    .job-action-btn.run:hover { border-color: var(--amber-dim); color: var(--amber); }
+    .job-action-btn.danger:hover { border-color: var(--red-dim); color: var(--red); }
+    .job-action-btn:disabled { opacity: 0.3; pointer-events: none; }
+
+    /* ── Logs panel ── */
+    .logs-float {
+      display: none;
+      position: fixed;
+      bottom: 56px;
+      right: 16px;
+      width: 520px;
+      max-width: calc(100vw - 32px);
+      max-height: 400px;
+      z-index: 500;
+      border: 1px solid var(--phosphor-dim);
+      background: var(--bg);
+      flex-direction: column;
+      animation: bootUp 0.2s ease-out;
+    }
+    .logs-float.open { display: flex; }
+    .logs-float-header {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .logs-float-title {
+      font-family: var(--display);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--phosphor);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .logs-float-controls {
+      margin-left: auto;
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .logs-float-controls select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--body);
+      font-size: 9px;
+      padding: 2px 6px;
+      letter-spacing: 0.5px;
+    }
+    .logs-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
+      font-family: var(--body);
+      font-size: 10px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .logs-body .log-line { padding: 1px 0; }
+    .logs-body .log-ts { color: var(--text-muted); opacity: 0.5; }
+    .logs-body .log-err { color: var(--red); }
+    .logs-body .log-warn { color: var(--amber); }
+    .logs-body .log-ok { color: var(--phosphor-dim); }
+    .logs-live-dot {
+      width: 6px; height: 6px;
+      background: var(--phosphor);
+      animation: blink 1.5s step-end infinite;
+      flex-shrink: 0;
+    }
+    #cornerLogs { display: none; }
+    #cornerLogs.visible { display: flex; }
 
     /* ── Floating profiles strip ── */
     .profiles-float {
@@ -3785,6 +3884,9 @@
           </svg>
         </div>
       </div>
+    </div>
+    <div class="corner-btn" id="cornerLogs" onclick="toggleLogs()" title="Logs">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
     </div>
     <div class="corner-btn" onclick="openBackupModal()" title="Backup">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><rect x="4" y="2" width="16" height="20"/><rect x="7" y="2" width="10" height="7"/><rect x="7" y="14" width="10" height="4"/><line x1="13" y1="4" x2="13" y2="7"/></svg>
@@ -5738,10 +5840,87 @@
             </div>
             ${lastErr ? `<div style="font-size:10px;color:var(--red);margin-top:4px;">${escapeHtml(lastErr)}</div>` : ""}
             ${output ? `<div class="job-output">${escapeHtml(output)}</div>` : ""}
+            <div class="job-actions">
+              <button class="job-action-btn run" onclick="cronAction('${j.id}','run',this)" title="Run now">RUN</button>
+              ${state === "paused"
+                ? `<button class="job-action-btn" onclick="cronAction('${j.id}','resume',this)" title="Resume">RESUME</button>`
+                : `<button class="job-action-btn" onclick="cronAction('${j.id}','pause',this)" title="Pause">PAUSE</button>`
+              }
+              <button class="job-action-btn danger" onclick="cronDelete('${j.id}','${escapeHtml(name)}')" title="Delete">DELETE</button>
+            </div>
           </div>`;
         }).join("");
       } catch (e) {
         console.error("Jobs fetch failed:", e);
+      }
+    }
+
+    async function cronAction(jobId, action, btn) {
+      if (btn) { btn.disabled = true; btn.textContent = action.toUpperCase() + "..."; }
+      try {
+        const resp = await fetch(`/api/cron/${jobId}/${action}?x=1${profileParam()}`, { method: "POST" });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || "Failed");
+      } catch (e) {
+        console.error(`Cron ${action} failed:`, e.message);
+      }
+      setTimeout(fetchJobs, 1000);
+    }
+
+    async function cronDelete(jobId, name) {
+      if (!confirm(`Delete cron job "${name}"? This cannot be undone.`)) return;
+      try {
+        const resp = await fetch(`/api/cron/${jobId}/delete?x=1${profileParam()}`, { method: "POST" });
+        const data = await resp.json();
+        if (!data.success) throw new Error(data.error || "Failed");
+      } catch (e) {
+        console.error("Cron delete failed:", e.message);
+      }
+      setTimeout(fetchJobs, 1000);
+    }
+
+    // ═══════ LOGS PANEL ═══════
+    let logsTimer = null;
+    let logsOpen = false;
+
+    function toggleLogs() {
+      const panel = document.getElementById("logsFloat");
+      const btn = document.getElementById("cornerLogs");
+      logsOpen = !logsOpen;
+      panel.classList.toggle("open", logsOpen);
+      btn.classList.toggle("active", logsOpen);
+      if (logsOpen) {
+        fetchLogs();
+        logsTimer = setInterval(fetchLogs, 5000);
+      } else {
+        clearInterval(logsTimer);
+      }
+    }
+
+    async function fetchLogs() {
+      try {
+        const container = document.getElementById("logsContainer").value;
+        const lines = document.getElementById("logsLines").value;
+        const data = await (await fetch(`/api/logs?container=${container}&lines=${lines}`)).json();
+        const body = document.getElementById("logsBody");
+        if (!data.lines?.length) {
+          body.innerHTML = '<div class="dash-empty">NO LOGS</div>';
+          return;
+        }
+        const wasAtBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
+        body.innerHTML = data.lines.map(line => {
+          // Try to separate timestamp from message
+          const tsMatch = line.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\s*(.*)/);
+          const ts = tsMatch ? tsMatch[1].replace("T", " ").replace(/\.\d+Z?$/, "") : "";
+          const msg = tsMatch ? tsMatch[2] : line;
+          const cls = /error|fail|exception|traceback/i.test(msg) ? "log-err" :
+                      /warn|warning/i.test(msg) ? "log-warn" :
+                      /start|running|ready|success|complete/i.test(msg) ? "log-ok" : "";
+          return `<div class="log-line ${cls}">${ts ? `<span class="log-ts">${ts}</span> ` : ""}${escapeHtml(msg)}</div>`;
+        }).join("");
+        if (wasAtBottom) body.scrollTop = body.scrollHeight;
+      } catch (e) {
+        document.getElementById("logsBody").innerHTML = `<div class="dash-empty">FAILED: ${e.message}</div>`;
       }
     }
 
@@ -6333,6 +6512,7 @@
       section.classList.add("open");
       btn.classList.add("active");
       document.getElementById("cornerChat").classList.add("visible");
+      document.getElementById("cornerLogs").classList.add("visible");
       document.getElementById("profilesFloat").classList.add("visible");
       if (!dashLoaded) {
         dashLoaded = true;
@@ -6374,6 +6554,33 @@
     }
     setInterval(pollProfileHealth, 15000);
   </script>
+
+  <!-- Logs panel -->
+  <div class="logs-float" id="logsFloat">
+    <div class="logs-float-header">
+      <span class="logs-float-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        SYSTEM LOG
+      </span>
+      <div class="logs-live-dot"></div>
+      <div class="logs-float-controls">
+        <select id="logsContainer" onchange="fetchLogs()">
+          <option value="web">GATEWAY</option>
+          <option value="setup">SETUP</option>
+        </select>
+        <select id="logsLines" onchange="fetchLogs()">
+          <option value="50">50</option>
+          <option value="100" selected>100</option>
+          <option value="200">200</option>
+          <option value="500">500</option>
+        </select>
+        <button class="chat-float-ctrl" onclick="toggleLogs()" title="Close">&#10005;</button>
+      </div>
+    </div>
+    <div class="logs-body" id="logsBody">
+      <div class="dash-empty">LOADING...</div>
+    </div>
+  </div>
 
   <!-- Import error overlay -->
   <div class="import-error-overlay" id="importErrorOverlay">
