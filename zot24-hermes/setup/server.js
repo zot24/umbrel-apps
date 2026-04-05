@@ -1510,6 +1510,8 @@ async function handleRequest(req, res) {
     const offset = parseInt(url.searchParams.get("offset") || "0");
     const sourceFilter = url.searchParams.get("source") || null;
     const profileFilter = url.searchParams.get("profile") || null;
+    const days = url.searchParams.get("days") ? parseInt(url.searchParams.get("days")) : null;
+    const cutoff = days ? Date.now() / 1000 - days * 86400 : 0;
 
     const db = openStateDb(profileFilter);
     if (!db) {
@@ -1519,23 +1521,19 @@ async function handleRequest(req, res) {
 
     try {
       let total, rows;
-      if (sourceFilter) {
-        total = db.prepare("SELECT COUNT(*) as c FROM sessions WHERE source = ?").get(sourceFilter).c;
-        rows = db.prepare(
-          `SELECT id, source, model, started_at, ended_at, message_count, tool_call_count,
-                  input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
-                  estimated_cost_usd, end_reason, title
-           FROM sessions WHERE source = ? ORDER BY started_at DESC LIMIT ? OFFSET ?`
-        ).all(sourceFilter, limit, offset);
-      } else {
-        total = db.prepare("SELECT COUNT(*) as c FROM sessions").get().c;
-        rows = db.prepare(
-          `SELECT id, source, model, started_at, ended_at, message_count, tool_call_count,
-                  input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
-                  estimated_cost_usd, end_reason, title
-           FROM sessions ORDER BY started_at DESC LIMIT ? OFFSET ?`
-        ).all(limit, offset);
-      }
+      const where = [];
+      const params = [];
+      if (sourceFilter) { where.push("source = ?"); params.push(sourceFilter); }
+      if (cutoff > 0) { where.push("started_at >= ?"); params.push(cutoff); }
+      const whereClause = where.length ? "WHERE " + where.join(" AND ") : "";
+
+      total = db.prepare(`SELECT COUNT(*) as c FROM sessions ${whereClause}`).get(...params).c;
+      rows = db.prepare(
+        `SELECT id, source, model, started_at, ended_at, message_count, tool_call_count,
+                input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+                estimated_cost_usd, end_reason, title
+         FROM sessions ${whereClause} ORDER BY started_at DESC LIMIT ? OFFSET ?`
+      ).all(...params, limit, offset);
 
       const sessions = rows.map(s => ({
         ...s,

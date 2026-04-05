@@ -1959,6 +1959,43 @@
     }
 
     /* Sessions table */
+    .session-filters {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .session-filter-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--body);
+      font-size: 9px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .session-filter-btn:hover {
+      border-color: var(--phosphor-dim);
+      color: var(--text);
+    }
+    .session-filter-btn.active {
+      border-color: var(--phosphor-dim);
+      color: var(--phosphor);
+      background: rgba(80,255,168,0.06);
+    }
+    .session-group-label {
+      font-family: var(--display);
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 10px 14px 4px;
+      opacity: 0.6;
+    }
     .session-row {
       display: flex;
       align-items: center;
@@ -3555,6 +3592,7 @@
           <span class="panel-indicator" id="sessionsIndicator">SYS.HISTORY</span>
         </div>
         <div class="panel-body">
+          <div class="session-filters" id="sessionFilters"></div>
           <div id="sessionsList"><div class="dash-empty">LOADING...</div></div>
           <div id="sessionsPagination" class="pagination"></div>
         </div>
@@ -4908,7 +4946,8 @@
         });
         let data = await resp.json();
         // Stale response ID (e.g. after gateway restart/import) — retry without it
-        if (data.error && data.error.includes("Previous response not found")) {
+        const errStr = typeof data.error === "string" ? data.error : JSON.stringify(data.error || "");
+        if (data.error && errStr.includes("Previous response not found")) {
           delete chatResponseIds[targetProfile];
           resp = await fetch(`/api/profiles/${targetProfile}/chat`, {
             method: "POST",
@@ -4918,7 +4957,8 @@
           data = await resp.json();
         }
         if (data.error) {
-          chatHistory[targetProfile].push({ role: "assistant", text: `[ERROR] ${data.error}` });
+          const errMsg = typeof data.error === "string" ? data.error : (data.error.message || JSON.stringify(data.error));
+          chatHistory[targetProfile].push({ role: "assistant", text: `[ERROR] ${errMsg}` });
         } else {
           chatHistory[targetProfile].push({ role: "assistant", text: data.response, duration: data.duration_ms });
           if (data.response_id) chatResponseIds[targetProfile] = data.response_id;
@@ -4943,6 +4983,8 @@
     // ═══════ DASHBOARD ═══════
     let dashDays = 30;
     let sessionsPage = 0;
+    let sessionsSourceFilter = null;
+    let sessionsKnownSources = [];
     let currentView = "metrics";
     let insightsCache = null;
     const SESSIONS_PER_PAGE = 20;
@@ -4983,6 +5025,7 @@
       dashDays = d;
       document.querySelectorAll(".days-btn").forEach(b => b.classList.toggle("active", parseInt(b.dataset.days) === d));
       fetchInsights();
+      if (currentView === "sessions") { sessionsPage = 0; fetchSessions(); }
     }
 
     function fmtNum(n) {
@@ -5333,11 +5376,41 @@
       document.getElementById("skillModal").classList.add("show");
     }
 
+    function setSessionFilter(source) {
+      sessionsSourceFilter = sessionsSourceFilter === source ? null : source;
+      sessionsPage = 0;
+      fetchSessions();
+    }
+
+    function getDateGroup(ts) {
+      if (!ts) return "UNKNOWN";
+      const now = new Date();
+      const d = new Date(ts * 1000);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+      const weekAgo = new Date(today); weekAgo.setDate(today.getDate() - 7);
+      if (d >= today) return "TODAY";
+      if (d >= yesterday) return "YESTERDAY";
+      if (d >= weekAgo) return "THIS WEEK";
+      return d.toLocaleDateString("en", { month: "short", year: "numeric" }).toUpperCase();
+    }
+
     async function fetchSessions() {
       try {
         const offset = sessionsPage * SESSIONS_PER_PAGE;
-        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}${profileParam()}`)).json();
+        const sourceParam = sessionsSourceFilter ? `&source=${sessionsSourceFilter}` : "";
+        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}&days=${dashDays}${sourceParam}${profileParam()}`)).json();
         document.getElementById("sessionsIndicator").textContent = data.total ? `${data.total} TOTAL` : "SYS.HISTORY";
+
+        // Build source filter buttons — remember all sources from unfiltered results
+        if (!sessionsSourceFilter) {
+          sessionsKnownSources = [...new Set(data.sessions.map(s => s.source).filter(Boolean))].sort();
+        }
+        const filtersEl = document.getElementById("sessionFilters");
+        filtersEl.innerHTML = sessionsKnownSources.length > 1 ? [
+          `<button class="session-filter-btn${!sessionsSourceFilter ? " active" : ""}" onclick="setSessionFilter(null)">ALL</button>`,
+          ...sessionsKnownSources.map(s => `<button class="session-filter-btn${sessionsSourceFilter === s ? " active" : ""}" onclick="setSessionFilter('${s}')">${s.toUpperCase()}</button>`)
+        ].join("") : "";
 
         const list = document.getElementById("sessionsList");
         if (!data.total) {
@@ -5346,8 +5419,9 @@
           return;
         }
 
-        // Store session metadata for detail view
+        // Group sessions by date
         window._sessionMeta = window._sessionMeta || {};
+        let lastGroup = null;
         list.innerHTML = data.sessions.map(s => {
           const dur = s.started_at && s.ended_at ? fmtDuration(s.ended_at - s.started_at) : "-";
           const model = s.model ? (s.model.includes("/") ? s.model.split("/").pop() : s.model) : "?";
@@ -5355,7 +5429,15 @@
           const date = s.started_at ? new Date(s.started_at * 1000).toLocaleDateString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
           const cost = s.estimated_cost_usd > 0 ? "$" + s.estimated_cost_usd.toFixed(4) : "-";
           window._sessionMeta[s.id] = s;
-          return `
+
+          const group = getDateGroup(s.started_at);
+          let groupHtml = "";
+          if (group !== lastGroup) {
+            lastGroup = group;
+            groupHtml = `<div class="session-group-label">${group}</div>`;
+          }
+
+          return `${groupHtml}
             <div class="session-row" onclick="toggleSession(this, '${s.id}')">
               <span class="session-source">${s.source || "?"}</span>
               <div class="session-info">
