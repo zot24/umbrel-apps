@@ -2964,13 +2964,13 @@
       gap: 6px;
     }
     .profiles-float.dock-left .profiles-float-strip .pf-avatar img {
-      width: 40px;
-      height: 40px;
+      width: 52px;
+      height: 52px;
     }
     .profiles-float.dock-left .profiles-float-strip .pf-add {
-      width: 40px;
-      height: 40px;
-      font-size: 14px;
+      width: 52px;
+      height: 52px;
+      font-size: 18px;
     }
     .profiles-float.dock-left .profiles-float-strip .pf-name {
       bottom: auto;
@@ -3322,7 +3322,7 @@
       opacity: 0.4;
       z-index: 1;
     }
-    .chat-float.dock-left { right: auto; left: 16px; }
+    .chat-float.dock-left { right: auto; left: 80px; }
     .chat-float.dock-right { left: auto; right: 16px; }
     .chat-float.dragging { transition: none; user-select: none; }
 
@@ -3814,6 +3814,7 @@
       </span>
       <span class="chat-float-indicator" id="chatFloatIndicator"></span>
       <div class="chat-float-controls">
+        <button class="chat-float-ctrl" id="chatConfigBtn" onclick="if(chatProfile)openProfileConfig(chatProfile)" title="Configure profile" style="font-size:11px;">&#9881;</button>
         <button class="chat-float-ctrl" onclick="dockChat('left')" title="Dock left">&#9664;</button>
         <button class="chat-float-ctrl" onclick="dockChat('right')" title="Dock right">&#9654;</button>
         <button class="chat-float-ctrl" onclick="toggleChatFloat()" title="Close">&#10005;</button>
@@ -4666,8 +4667,8 @@
       }
       strip.innerHTML = profiles.map(p => {
         const state = p.gateway === "running" ? "running" : (p.gateway === "starting" ? "starting" : "stopped");
-        const sel = selectedProfile === p.name ? " selected" : "";
-        return `<div class="pf-avatar ${state}${sel}" onclick="selectProfile('${p.name}')" title="${profileDisplayNamePlain(p.name)}">
+        const sel = chatProfile === p.name ? " selected" : "";
+        return `<div class="pf-avatar ${state}${sel}" onclick="openProfileChat('${p.name}')" title="${profileDisplayNamePlain(p.name)}">
           <img src="${getProfileAvatarUrl(p.name)}" width="64" height="64" alt="${p.name}">
           <div class="pf-dot ${state}"></div>
           <div class="pf-name">${profileDisplayNamePlain(p.name)}</div>
@@ -6433,7 +6434,6 @@
     // ═══════ FLOATING CHAT PANEL ═══════
 
     function toggleChatFloat() {
-      if (window.location.pathname !== "/dashboard") return;
       const panel = document.getElementById("chatFloat");
       const btn = document.getElementById("cornerChat");
       const isOpen = panel.classList.contains("open");
@@ -6444,6 +6444,36 @@
         if (cachedProfiles.length) updateChatTabs(cachedProfiles);
         setTimeout(() => document.getElementById("chatInput").focus(), 100);
       }
+    }
+
+    function openProfileChat(name) {
+      const panel = document.getElementById("chatFloat");
+      const btn = document.getElementById("cornerChat");
+      // Open the chat panel if not already open
+      if (!panel.classList.contains("open")) {
+        panel.classList.add("open");
+        btn.classList.add("active");
+        dockChat("left");
+        fetchComms();
+      }
+      if (cachedProfiles.length) updateChatTabs(cachedProfiles);
+      // Switch to this profile's chat
+      const profile = cachedProfiles.find(p => p.name === name);
+      if (profile && profile.gateway === "running") {
+        switchChatProfile(name);
+      } else {
+        // Not running — select in strip but show status
+        chatProfile = name;
+        document.getElementById("chatFloatIndicator").textContent = profileDisplayNamePlain(name).toUpperCase();
+        document.getElementById("chatLog").innerHTML = `<div class="empty-state">${profileDisplayNamePlain(name).toUpperCase()} IS NOT RUNNING</div>`;
+        document.getElementById("chatInput").disabled = true;
+        document.getElementById("chatSendBtn").disabled = true;
+      }
+      // Highlight selected avatar in strip
+      document.querySelectorAll(".pf-avatar").forEach(el => {
+        el.classList.toggle("selected", el.title === profileDisplayNamePlain(name));
+      });
+      setTimeout(() => document.getElementById("chatInput").focus(), 100);
     }
 
     function dockChat(side) {
@@ -6514,6 +6544,8 @@
       document.getElementById("cornerChat").classList.add("visible");
       document.getElementById("cornerLogs").classList.add("visible");
       document.getElementById("profilesFloat").classList.add("visible");
+      // Auto dock profiles to left sidebar
+      dockProfiles("left");
       if (!dashLoaded) {
         dashLoaded = true;
         fetchInsights();
