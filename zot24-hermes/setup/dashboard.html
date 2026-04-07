@@ -5990,7 +5990,7 @@
         if (onDashboard) {
           fetchSettings();
         } else {
-          fetchProfileConfig("default");
+          fetchQuickConfig();
         }
       }
     }
@@ -6002,6 +6002,64 @@
       panel.classList.add("open");
       btn.classList.add("active");
       fetchProfileConfig(profileName);
+    }
+
+    async function fetchQuickConfig() {
+      const body = document.getElementById("settingsBody");
+      body.innerHTML = '<div class="dash-empty">LOADING...</div>';
+      try {
+        const [settingsResp, providersResp] = await Promise.all([
+          fetch("/api/settings?profile=default"),
+          fetch("/api/providers"),
+        ]);
+        const s = await settingsResp.json();
+        const provData = await providersResp.json();
+        const providers = (provData.providers || []).map(p => ({ id: p.id, label: p.label || p.id }));
+
+        let models = [];
+        try {
+          const modelsResp = await fetch(`/api/models?provider=${s.provider || ""}`);
+          const modelsData = await modelsResp.json();
+          models = (modelsData.models || []).map(m => m.id || m);
+        } catch (e) { models = s.model ? [s.model] : []; }
+
+        const providerKeyMap = {
+          openrouter: "OPENROUTER_API_KEY", anthropic: "ANTHROPIC_API_KEY",
+          "openai-codex": "OPENAI_API_KEY", minimax: "MINIMAX_API_KEY",
+          "minimax-cn": "MINIMAX_API_KEY", deepseek: "DEEPSEEK_API_KEY",
+          alibaba: "ALIBABA_API_KEY",
+        };
+        const activeKeyVar = providerKeyMap[s.provider] || null;
+        const activeKeyMasked = activeKeyVar && s.api_keys?.[activeKeyVar] ? s.api_keys[activeKeyVar] : "";
+
+        body.innerHTML = `
+          <div class="settings-group">
+            <div class="settings-group-label">Provider</div>
+            <div class="settings-row">
+              <span class="settings-row-label">Provider</span>
+              ${makeRetroSelect("setProvider", s.provider || "", providers, 140)}
+            </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Model</span>
+              ${makeRetroSelect("setModel", s.model || "", models.length ? models : (s.model ? [s.model] : [""]), 160)}
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-label">API Key ${!s.has_api_key ? '<span style="color:var(--red);font-size:8px;margin-left:4px;">REQUIRED</span>' : ''}</div>
+            <div class="settings-row">
+              <span class="settings-row-label" style="font-size:9px;" id="profileKeyLabel">${activeKeyVar ? activeKeyVar.replace("_API_KEY","") : "SELECT PROVIDER"}</span>
+              <input class="settings-input api-key-input" id="profileApiKey" data-key="${activeKeyVar || ""}" type="password" value="${activeKeyMasked}" placeholder="${activeKeyVar ? "enter key..." : "select provider first"}" style="width:160px;font-size:9px;" ${!activeKeyVar ? "disabled" : ""}>
+            </div>
+            <div style="font-size:8px;color:var(--text-muted);padding:4px 10px;opacity:0.6;">Leave empty to keep existing key.</div>
+          </div>
+
+          <button class="btn settings-save" onclick="saveProfileConfig('default')" style="border-color:var(--phosphor-dim);color:var(--phosphor);">Save</button>
+          <div id="settingsSaveStatus" style="text-align:center;font-size:10px;margin-top:6px;color:var(--text-muted);"></div>
+        `;
+      } catch (e) {
+        body.innerHTML = '<div class="dash-empty">FAILED TO LOAD</div>';
+      }
     }
 
     async function fetchProfileConfig(profileName) {
