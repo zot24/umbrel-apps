@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HERMES // ATLAS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --phosphor: #50ffa8;
+      --phosphor-dim: #28b870;
+      --phosphor-glow: rgba(80, 255, 168, 0.1);
+      --amber: #ffc04d;
+      --amber-dim: #b8862e;
+      --amber-glow: rgba(255, 192, 77, 0.08);
+      --red: #ff6060;
+      --red-dim: #b84040;
+      --bg: #060a0d;
+      --surface: #0b1016;
+      --surface-2: #10161c;
+      --border: #1a2530;
+      --text: #d4e0d8;
+      --text-muted: #7a8e82;
+      --body: 'Fira Code', monospace;
+      --display: 'Oxanium', sans-serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--body);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0; left: 0;
+    }
+
+    /* ── Search bar ── */
+    .search-bar {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      min-width: 360px;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.6);
+    }
+    .search-bar::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+      opacity: 0.4;
+    }
+    .search-icon {
+      color: var(--text-muted);
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .search-input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: var(--body);
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+    .search-input::placeholder { color: var(--text-muted); opacity: 0.6; }
+    .search-count {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+    .search-results {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .search-results.active { display: block; }
+    .search-result {
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-bottom: 1px solid rgba(26,37,48,0.5);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.1s;
+    }
+    .search-result:hover {
+      background: rgba(80,255,168,0.03);
+      color: var(--text);
+    }
+    .search-result .sr-dot {
+      width: 6px; height: 6px;
+      flex-shrink: 0;
+    }
+    .search-result .sr-name {
+      font-size: 11px;
+      color: var(--text);
+    }
+    .search-result .sr-type {
+      font-size: 8px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    /* ── Node detail panel ── */
+    .detail-panel {
+      display: none;
+      position: fixed;
+      right: 16px;
+      top: 16px;
+      bottom: 16px;
+      width: 340px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      z-index: 90;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.6);
+      animation: panelIn 0.2s ease-out;
+    }
+    .detail-panel.open { display: flex; }
+    @keyframes panelIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .detail-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+      opacity: 0.4;
+      z-index: 1;
+    }
+    .detail-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .detail-glyph {
+      width: 32px; height: 32px;
+      border: 2px solid var(--phosphor-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--display);
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .detail-title {
+      font-family: var(--display);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      color: var(--phosphor);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .detail-close {
+      width: 24px; height: 24px;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .detail-close:hover { color: var(--red); border-color: var(--red-dim); }
+    .detail-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 18px;
+    }
+    .detail-type {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 12px;
+    }
+    .detail-desc {
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .detail-section-label {
+      font-family: var(--display);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-meta {
+      margin-bottom: 16px;
+    }
+    .detail-meta-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      font-size: 11px;
+    }
+    .detail-meta-row .label { color: var(--text-muted); }
+    .detail-meta-row .value { color: var(--text); }
+    .detail-connections {
+      margin-bottom: 16px;
+    }
+    .detail-conn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: color 0.1s;
+    }
+    .detail-conn:hover { color: var(--phosphor); }
+    .detail-conn .dc-dot {
+      width: 6px; height: 6px;
+      flex-shrink: 0;
+    }
+    .detail-conn .dc-rel {
+      font-size: 8px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-left: auto;
+      opacity: 0.6;
+    }
+    .detail-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 16px;
+    }
+    .detail-tag {
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      padding: 2px 8px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    /* ── HUD elements ── */
+    .hud-corner {
+      position: fixed;
+      font-family: var(--body);
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      opacity: 0.4;
+      z-index: 50;
+    }
+    .hud-tl { top: 16px; left: 16px; }
+    .hud-bl { bottom: 16px; left: 16px; }
+    .hud-br { bottom: 16px; right: 16px; }
+    .hud-label {
+      font-family: var(--display);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      color: var(--phosphor-dim);
+      opacity: 0.3;
+    }
+
+    /* ── Minimap ── */
+    .minimap {
+      position: fixed;
+      bottom: 16px;
+      left: 16px;
+      width: 140px;
+      height: 100px;
+      background: rgba(6,10,13,0.8);
+      border: 1px solid var(--border);
+      z-index: 80;
+      overflow: hidden;
+    }
+    .minimap canvas {
+      width: 100%;
+      height: 100%;
+    }
+    .minimap-viewport {
+      position: absolute;
+      border: 1px solid var(--phosphor-dim);
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); }
+  </style>
+</head>
+<body>
+  <canvas id="atlas"></canvas>
+
+  <!-- Search -->
+  <div class="search-bar">
+    <span class="search-icon">&gt;_</span>
+    <input class="search-input" id="searchInput" type="text" placeholder="SEARCH NODES..." autocomplete="off">
+    <span class="search-count" id="searchCount"></span>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+
+  <!-- HUD -->
+  <div class="hud-corner hud-tl">
+    <div class="hud-label">ATLAS</div>
+  </div>
+  <div class="hud-corner hud-br" id="hudInfo">
+    NODES: 0 / EDGES: 0 / ZOOM: 1.0x
+  </div>
+
+  <!-- Minimap -->
+  <div class="minimap" id="minimap">
+    <canvas id="minimapCanvas"></canvas>
+    <div class="minimap-viewport" id="minimapViewport"></div>
+  </div>
+
+  <!-- Detail panel -->
+  <div class="detail-panel" id="detailPanel">
+    <div class="detail-header">
+      <div class="detail-glyph" id="detailGlyph"></div>
+      <div class="detail-title" id="detailTitle"></div>
+      <button class="detail-close" onclick="closeDetail()">&#10005;</button>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </div>
+
+<script>
+// ════════════════════════════════════════════
+// ATLAS — Knowledge Graph Visualization
+// ════════════════════════════════════════════
+
+const COLORS = {
+  phosphor: "#50ffa8",
+  phosphorDim: "#28b870",
+  amber: "#ffc04d",
+  amberDim: "#b8862e",
+  red: "#ff6060",
+  bg: "#060a0d",
+  surface: "#0b1016",
+  border: "#1a2530",
+  text: "#d4e0d8",
+  textMuted: "#7a8e82",
+};
+
+const TYPE_COLORS = {
+  concept: COLORS.phosphor,
+  person: COLORS.amber,
+  tool: "#6ea8fe",
+  event: COLORS.red,
+  place: "#c084fc",
+  resource: "#67e8f9",
+  default: COLORS.phosphorDim,
+};
+
+// ── Sample data (replace with real API) ──
+const sampleNodes = [
+  { id: "hermes", label: "Hermes Agent", type: "tool", desc: "AI agent gateway for Umbrel. Manages profiles, skills, cron jobs, and multi-channel messaging.", tags: ["ai", "agent", "umbrel"] },
+  { id: "telegram", label: "Telegram", type: "tool", desc: "Messaging platform channel. Bot-based integration via Telegram Bot API.", tags: ["channel", "messaging"] },
+  { id: "whatsapp", label: "WhatsApp", type: "tool", desc: "WhatsApp channel via Baileys library. QR code pairing required.", tags: ["channel", "messaging"] },
+  { id: "openrouter", label: "OpenRouter", type: "resource", desc: "LLM API aggregator providing access to 200+ models from multiple providers.", tags: ["provider", "llm", "api"] },
+  { id: "anthropic", label: "Anthropic", type: "resource", desc: "Claude model family provider. Opus, Sonnet, Haiku tiers.", tags: ["provider", "llm", "claude"] },
+  { id: "deepseek", label: "DeepSeek", type: "resource", desc: "Chinese AI lab. DeepSeek-V3 and reasoning models.", tags: ["provider", "llm"] },
+  { id: "skills", label: "Skills System", type: "concept", desc: "Plugin system for extending agent capabilities. SKILL.md format with inputs, outputs, and instructions.", tags: ["extensibility", "plugins"] },
+  { id: "cron", label: "Cron Scheduler", type: "concept", desc: "Built-in task scheduler for recurring agent jobs. Manages schedules, execution, and output logging.", tags: ["automation", "scheduling"] },
+  { id: "memory", label: "Agent Memory", type: "concept", desc: "Persistent memory system. Honcho-based semantic memory with file-backed storage.", tags: ["persistence", "context"] },
+  { id: "sessions", label: "Sessions", type: "concept", desc: "Conversation session tracking. Stores messages, token usage, costs, and tool calls in SQLite.", tags: ["history", "tracking"] },
+  { id: "profiles", label: "Profiles", type: "concept", desc: "Multi-agent profiles. Each profile has its own config, memory, sessions, and gateway.", tags: ["multi-agent", "isolation"] },
+  { id: "gateway", label: "Gateway", type: "tool", desc: "OpenAI-compatible API gateway. Routes requests to the appropriate profile and model.", tags: ["api", "routing"] },
+  { id: "sol-alert", label: "SOL/BTC Alert", type: "event", desc: "Hourly cron job monitoring SOL/BTC price ratio against configurable thresholds.", tags: ["cron", "trading", "alerts"] },
+  { id: "yt-digest", label: "YouTube Digest", type: "event", desc: "Twice-daily AI digest pipeline. Fetches, analyzes, and summarizes YouTube content.", tags: ["cron", "content", "youtube"] },
+  { id: "self-audit", label: "Self Audit", type: "event", desc: "Weekly self-audit checking skills, memory, cron state, and overall agent health.", tags: ["cron", "maintenance"] },
+  { id: "umbrel", label: "Umbrel", type: "place", desc: "Personal home server OS. Docker-based app ecosystem running on Raspberry Pi or x86.", tags: ["platform", "self-hosted"] },
+  { id: "docker", label: "Docker", type: "tool", desc: "Container runtime. Hermes uses setup + web containers with shared volume.", tags: ["infrastructure", "containers"] },
+  { id: "sqlite", label: "SQLite", type: "tool", desc: "Embedded database for session tracking, response store, and state management.", tags: ["database", "storage"] },
+  { id: "nous", label: "Nous Research", type: "person", desc: "AI research lab behind Hermes models and the hermes-agent framework.", tags: ["organization", "research"] },
+  { id: "ask-agent", label: "Ask Agent Skill", type: "tool", desc: "Inter-profile communication skill. Allows profiles to query each other.", tags: ["skill", "multi-agent"] },
+];
+
+const sampleEdges = [
+  { source: "hermes", target: "telegram", rel: "connects" },
+  { source: "hermes", target: "whatsapp", rel: "connects" },
+  { source: "hermes", target: "openrouter", rel: "uses" },
+  { source: "hermes", target: "anthropic", rel: "uses" },
+  { source: "hermes", target: "deepseek", rel: "uses" },
+  { source: "hermes", target: "skills", rel: "has" },
+  { source: "hermes", target: "cron", rel: "has" },
+  { source: "hermes", target: "memory", rel: "has" },
+  { source: "hermes", target: "sessions", rel: "tracks" },
+  { source: "hermes", target: "profiles", rel: "manages" },
+  { source: "hermes", target: "gateway", rel: "runs" },
+  { source: "cron", target: "sol-alert", rel: "schedules" },
+  { source: "cron", target: "yt-digest", rel: "schedules" },
+  { source: "cron", target: "self-audit", rel: "schedules" },
+  { source: "hermes", target: "umbrel", rel: "runs on" },
+  { source: "umbrel", target: "docker", rel: "uses" },
+  { source: "hermes", target: "docker", rel: "packaged in" },
+  { source: "sessions", target: "sqlite", rel: "stored in" },
+  { source: "hermes", target: "nous", rel: "built by" },
+  { source: "profiles", target: "ask-agent", rel: "uses" },
+  { source: "skills", target: "ask-agent", rel: "includes" },
+  { source: "gateway", target: "openrouter", rel: "routes to" },
+  { source: "gateway", target: "anthropic", rel: "routes to" },
+  { source: "gateway", target: "deepseek", rel: "routes to" },
+  { source: "memory", target: "sqlite", rel: "backed by" },
+  { source: "profiles", target: "gateway", rel: "each has" },
+  { source: "telegram", target: "sol-alert", rel: "delivers" },
+  { source: "telegram", target: "yt-digest", rel: "delivers" },
+];
+
+// ── Graph state ──
+let nodes = [];
+let edges = [];
+let camera = { x: 0, y: 0, zoom: 1 };
+let selectedNode = null;
+let hoveredNode = null;
+let searchQuery = "";
+let searchMatches = new Set();
+let dragging = null;
+let panning = false;
+let panStart = { x: 0, y: 0 };
+let time = 0;
+
+const canvas = document.getElementById("atlas");
+const ctx = canvas.getContext("2d");
+const mmCanvas = document.getElementById("minimapCanvas");
+const mmCtx = mmCanvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  mmCanvas.width = 140;
+  mmCanvas.height = 100;
+}
+window.addEventListener("resize", resize);
+resize();
+
+// ── Initialize graph ──
+function initGraph(nodeData, edgeData) {
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  nodes = nodeData.map((n, i) => {
+    const angle = (i / nodeData.length) * Math.PI * 2;
+    const radius = 200 + Math.random() * 150;
+    return {
+      ...n,
+      x: cx + Math.cos(angle) * radius + (Math.random() - 0.5) * 100,
+      y: cy + Math.sin(angle) * radius + (Math.random() - 0.5) * 100,
+      vx: 0, vy: 0,
+      connections: 0,
+      size: 8,
+    };
+  });
+
+  edges = edgeData.map(e => ({
+    ...e,
+    sourceNode: nodes.find(n => n.id === e.source),
+    targetNode: nodes.find(n => n.id === e.target),
+  })).filter(e => e.sourceNode && e.targetNode);
+
+  // Count connections for node sizing
+  for (const e of edges) {
+    e.sourceNode.connections++;
+    e.targetNode.connections++;
+  }
+  for (const n of nodes) {
+    n.size = 6 + Math.sqrt(n.connections) * 4;
+  }
+}
+
+// ── Force simulation ──
+function simulate() {
+  const alpha = 0.3;
+  const repulsion = 3000;
+  const attraction = 0.005;
+  const centerForce = 0.001;
+  const damping = 0.85;
+
+  // Center gravity
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  for (const n of nodes) {
+    n.vx += (cx - n.x) * centerForce;
+    n.vy += (cy - n.y) * centerForce;
+  }
+
+  // Repulsion between nodes
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      let dx = b.x - a.x;
+      let dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const force = repulsion / (dist * dist);
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      a.vx -= fx * alpha;
+      a.vy -= fy * alpha;
+      b.vx += fx * alpha;
+      b.vy += fy * alpha;
+    }
+  }
+
+  // Attraction along edges
+  for (const e of edges) {
+    const a = e.sourceNode, b = e.targetNode;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const force = (dist - 120) * attraction;
+    const fx = (dx / dist) * force;
+    const fy = (dy / dist) * force;
+    a.vx += fx;
+    a.vy += fy;
+    b.vx -= fx;
+    b.vy -= fy;
+  }
+
+  // Apply velocity
+  for (const n of nodes) {
+    if (n === dragging) continue;
+    n.vx *= damping;
+    n.vy *= damping;
+    n.x += n.vx;
+    n.y += n.vy;
+  }
+}
+
+// ── Rendering ──
+function drawStars(ctx, w, h) {
+  // Static background stars (seeded from dimensions)
+  ctx.fillStyle = "rgba(255,255,255,0.15)";
+  for (let i = 0; i < 200; i++) {
+    const x = ((i * 7919 + 104729) % w);
+    const y = ((i * 6271 + 97381) % h);
+    const s = ((i * 3571) % 3) * 0.3 + 0.3;
+    ctx.fillRect(x, y, s, s);
+  }
+}
+
+function worldToScreen(wx, wy) {
+  return {
+    x: (wx - camera.x) * camera.zoom + canvas.width / 2,
+    y: (wy - camera.y) * camera.zoom + canvas.height / 2,
+  };
+}
+
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - canvas.width / 2) / camera.zoom + camera.x,
+    y: (sy - canvas.height / 2) / camera.zoom + camera.y,
+  };
+}
+
+function draw() {
+  time += 0.016;
+  const w = canvas.width, h = canvas.height;
+
+  // Background
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0, 0, w, h);
+  drawStars(ctx, w, h);
+
+  // Nebula glow behind central cluster
+  const center = worldToScreen(w / 2, h / 2);
+  const grad = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, 400 * camera.zoom);
+  grad.addColorStop(0, "rgba(80,255,168,0.015)");
+  grad.addColorStop(0.5, "rgba(40,184,112,0.008)");
+  grad.addColorStop(1, "transparent");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Edges
+  for (const e of edges) {
+    const a = worldToScreen(e.sourceNode.x, e.sourceNode.y);
+    const b = worldToScreen(e.targetNode.x, e.targetNode.y);
+
+    const isHighlighted = selectedNode && (e.sourceNode === selectedNode || e.targetNode === selectedNode);
+    const isSearchMatch = searchQuery && (searchMatches.has(e.sourceNode.id) || searchMatches.has(e.targetNode.id));
+    const isDimmed = searchQuery && !isSearchMatch;
+
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    if (isHighlighted) {
+      ctx.strokeStyle = "rgba(80,255,168,0.3)";
+      ctx.lineWidth = 1.5;
+    } else if (isDimmed) {
+      ctx.strokeStyle = "rgba(26,37,48,0.2)";
+      ctx.lineWidth = 0.5;
+    } else {
+      ctx.strokeStyle = "rgba(26,37,48,0.5)";
+      ctx.lineWidth = 0.5;
+    }
+    ctx.stroke();
+
+    // Edge label on highlighted
+    if (isHighlighted && camera.zoom > 0.6) {
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      ctx.font = "8px 'Fira Code'";
+      ctx.fillStyle = "rgba(122,142,130,0.6)";
+      ctx.textAlign = "center";
+      ctx.fillText(e.rel.toUpperCase(), mx, my - 4);
+    }
+  }
+
+  // Nodes
+  for (const n of nodes) {
+    const s = worldToScreen(n.x, n.y);
+    const r = n.size * camera.zoom;
+    const color = TYPE_COLORS[n.type] || TYPE_COLORS.default;
+    const isSelected = n === selectedNode;
+    const isHovered = n === hoveredNode;
+    const isSearchMatch = searchMatches.has(n.id);
+    const isDimmed = searchQuery && !isSearchMatch;
+
+    if (isDimmed) {
+      // Dim non-matching nodes
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(26,37,48,0.3)";
+      ctx.fill();
+      continue;
+    }
+
+    // Outer glow
+    const glowR = r * (isSelected ? 3.5 : isHovered ? 2.8 : 2);
+    const glow = ctx.createRadialGradient(s.x, s.y, r * 0.5, s.x, s.y, glowR);
+    const pulse = Math.sin(time * 2 + n.x * 0.01) * 0.3 + 0.7;
+    glow.addColorStop(0, color + (isSelected ? "40" : "20"));
+    glow.addColorStop(1, "transparent");
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, glowR, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    // Orbit ring for selected
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, r * 2.2, 0, Math.PI * 2);
+      ctx.strokeStyle = color + "30";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Core
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
+    const coreGrad = ctx.createRadialGradient(s.x - r * 0.3, s.y - r * 0.3, 0, s.x, s.y, r);
+    coreGrad.addColorStop(0, color);
+    coreGrad.addColorStop(1, color + "80");
+    ctx.fillStyle = coreGrad;
+    ctx.fill();
+
+    // Bright center
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, r * 0.3, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.globalAlpha = 0.3 * pulse;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Label
+    if (camera.zoom > 0.4 || isSelected || isHovered || isSearchMatch) {
+      ctx.font = `${isSelected ? "bold " : ""}${Math.max(9, 11 * camera.zoom)}px 'Fira Code'`;
+      ctx.textAlign = "center";
+      ctx.fillStyle = isSelected ? color : isSearchMatch ? COLORS.amber : COLORS.text;
+      ctx.globalAlpha = isSelected || isSearchMatch ? 1 : 0.8;
+      ctx.fillText(n.label, s.x, s.y + r + 14 * camera.zoom);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // HUD
+  document.getElementById("hudInfo").textContent =
+    `NODES: ${nodes.length} / EDGES: ${edges.length} / ZOOM: ${camera.zoom.toFixed(1)}x`;
+}
+
+function drawMinimap() {
+  const w = 140, h = 100;
+  mmCtx.fillStyle = "rgba(6,10,13,0.9)";
+  mmCtx.fillRect(0, 0, w, h);
+
+  if (!nodes.length) return;
+
+  // Find bounds
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, n.x);
+    maxX = Math.max(maxX, n.x);
+    minY = Math.min(minY, n.y);
+    maxY = Math.max(maxY, n.y);
+  }
+  const pad = 50;
+  minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+  const sx = w / (maxX - minX);
+  const sy = h / (maxY - minY);
+  const s = Math.min(sx, sy);
+
+  // Draw edges
+  mmCtx.strokeStyle = "rgba(26,37,48,0.4)";
+  mmCtx.lineWidth = 0.5;
+  for (const e of edges) {
+    const ax = (e.sourceNode.x - minX) * s;
+    const ay = (e.sourceNode.y - minY) * s;
+    const bx = (e.targetNode.x - minX) * s;
+    const by = (e.targetNode.y - minY) * s;
+    mmCtx.beginPath();
+    mmCtx.moveTo(ax, ay);
+    mmCtx.lineTo(bx, by);
+    mmCtx.stroke();
+  }
+
+  // Draw nodes
+  for (const n of nodes) {
+    const nx = (n.x - minX) * s;
+    const ny = (n.y - minY) * s;
+    const color = TYPE_COLORS[n.type] || TYPE_COLORS.default;
+    mmCtx.fillStyle = n === selectedNode ? COLORS.amber : color;
+    mmCtx.globalAlpha = n === selectedNode ? 1 : 0.6;
+    mmCtx.fillRect(nx - 1.5, ny - 1.5, 3, 3);
+    mmCtx.globalAlpha = 1;
+  }
+
+  // Viewport rect
+  const vp = document.getElementById("minimapViewport");
+  const vpLeft = ((camera.x - canvas.width / 2 / camera.zoom) - minX) * s;
+  const vpTop = ((camera.y - canvas.height / 2 / camera.zoom) - minY) * s;
+  const vpW = (canvas.width / camera.zoom) * s;
+  const vpH = (canvas.height / camera.zoom) * s;
+  vp.style.left = Math.max(0, vpLeft) + "px";
+  vp.style.top = Math.max(0, vpTop) + "px";
+  vp.style.width = Math.min(w, vpW) + "px";
+  vp.style.height = Math.min(h, vpH) + "px";
+}
+
+// ── Interaction ──
+function getNodeAt(sx, sy) {
+  const world = screenToWorld(sx, sy);
+  let closest = null;
+  let closestDist = Infinity;
+  for (const n of nodes) {
+    const dx = world.x - n.x;
+    const dy = world.y - n.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const hitR = n.size / camera.zoom + 10;
+    if (dist < hitR && dist < closestDist) {
+      closest = n;
+      closestDist = dist;
+    }
+  }
+  return closest;
+}
+
+canvas.addEventListener("mousedown", (e) => {
+  const node = getNodeAt(e.clientX, e.clientY);
+  if (node) {
+    dragging = node;
+    selectNode(node);
+  } else {
+    panning = true;
+    panStart = { x: e.clientX, y: e.clientY };
+  }
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  if (dragging) {
+    const world = screenToWorld(e.clientX, e.clientY);
+    dragging.x = world.x;
+    dragging.y = world.y;
+    dragging.vx = 0;
+    dragging.vy = 0;
+  } else if (panning) {
+    const dx = (e.clientX - panStart.x) / camera.zoom;
+    const dy = (e.clientY - panStart.y) / camera.zoom;
+    camera.x -= dx;
+    camera.y -= dy;
+    panStart = { x: e.clientX, y: e.clientY };
+  } else {
+    const node = getNodeAt(e.clientX, e.clientY);
+    hoveredNode = node;
+    canvas.style.cursor = node ? "pointer" : "grab";
+  }
+});
+
+canvas.addEventListener("mouseup", () => {
+  dragging = null;
+  panning = false;
+});
+
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 0.9 : 1.1;
+  const newZoom = Math.max(0.15, Math.min(5, camera.zoom * factor));
+  // Zoom toward cursor
+  const world = screenToWorld(e.clientX, e.clientY);
+  camera.zoom = newZoom;
+  const newWorld = screenToWorld(e.clientX, e.clientY);
+  camera.x -= newWorld.x - world.x;
+  camera.y -= newWorld.y - world.y;
+}, { passive: false });
+
+// ── Node selection & detail panel ──
+function selectNode(node) {
+  selectedNode = node;
+  if (!node) { closeDetail(); return; }
+
+  const panel = document.getElementById("detailPanel");
+  const color = TYPE_COLORS[node.type] || TYPE_COLORS.default;
+
+  document.getElementById("detailGlyph").textContent = node.label.charAt(0).toUpperCase();
+  document.getElementById("detailGlyph").style.borderColor = color;
+  document.getElementById("detailGlyph").style.color = color;
+  document.getElementById("detailTitle").textContent = node.label;
+  document.getElementById("detailTitle").style.color = color;
+
+  // Find connections
+  const conns = edges.filter(e => e.sourceNode === node || e.targetNode === node);
+
+  let html = `
+    <div class="detail-type">${node.type}</div>
+    <div class="detail-desc">${node.desc || "No description."}</div>
+  `;
+
+  if (node.tags?.length) {
+    html += `<div class="detail-section-label">Tags</div>
+    <div class="detail-tags">${node.tags.map(t => `<div class="detail-tag">${t}</div>`).join("")}</div>`;
+  }
+
+  html += `<div class="detail-section-label">Metadata</div>
+  <div class="detail-meta">
+    <div class="detail-meta-row"><span class="label">ID</span><span class="value">${node.id}</span></div>
+    <div class="detail-meta-row"><span class="label">Connections</span><span class="value">${node.connections}</span></div>
+    <div class="detail-meta-row"><span class="label">Type</span><span class="value" style="color:${color}">${node.type}</span></div>
+  </div>`;
+
+  if (conns.length) {
+    html += `<div class="detail-section-label">Connections (${conns.length})</div>
+    <div class="detail-connections">`;
+    for (const e of conns) {
+      const other = e.sourceNode === node ? e.targetNode : e.sourceNode;
+      const otherColor = TYPE_COLORS[other.type] || TYPE_COLORS.default;
+      const direction = e.sourceNode === node ? e.rel : `${e.rel} (from)`;
+      html += `<div class="detail-conn" onclick="navigateTo('${other.id}')">
+        <div class="dc-dot" style="background:${otherColor}"></div>
+        <span>${other.label}</span>
+        <span class="dc-rel">${direction}</span>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  document.getElementById("detailBody").innerHTML = html;
+  panel.classList.add("open");
+
+  // Highlight in strip
+  document.querySelectorAll(".pf-avatar").forEach(a => a.classList.remove("selected"));
+}
+
+function closeDetail() {
+  selectedNode = null;
+  document.getElementById("detailPanel").classList.remove("open");
+}
+
+function navigateTo(nodeId) {
+  const node = nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  // Smooth fly to node
+  const targetX = node.x;
+  const targetY = node.y;
+  const steps = 30;
+  let step = 0;
+  const startX = camera.x, startY = camera.y;
+  function fly() {
+    step++;
+    const t = step / steps;
+    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    camera.x = startX + (targetX - startX) * ease;
+    camera.y = startY + (targetY - startY) * ease;
+    if (step < steps) requestAnimationFrame(fly);
+  }
+  fly();
+  selectNode(node);
+}
+
+// ── Search ──
+const searchInput = document.getElementById("searchInput");
+const searchResults = document.getElementById("searchResults");
+const searchCount = document.getElementById("searchCount");
+
+searchInput.addEventListener("input", () => {
+  searchQuery = searchInput.value.trim().toLowerCase();
+  searchMatches.clear();
+
+  if (!searchQuery) {
+    searchResults.classList.remove("active");
+    searchCount.textContent = "";
+    return;
+  }
+
+  const matches = nodes.filter(n =>
+    n.label.toLowerCase().includes(searchQuery) ||
+    n.type.toLowerCase().includes(searchQuery) ||
+    n.id.toLowerCase().includes(searchQuery) ||
+    (n.tags || []).some(t => t.toLowerCase().includes(searchQuery))
+  );
+
+  matches.forEach(n => searchMatches.add(n.id));
+  searchCount.textContent = `${matches.length} FOUND`;
+
+  if (matches.length) {
+    searchResults.innerHTML = matches.map(n => {
+      const color = TYPE_COLORS[n.type] || TYPE_COLORS.default;
+      return `<div class="search-result" onclick="navigateTo('${n.id}');searchInput.blur();">
+        <div class="sr-dot" style="background:${color}"></div>
+        <span class="sr-name">${n.label}</span>
+        <span class="sr-type">${n.type}</span>
+      </div>`;
+    }).join("");
+    searchResults.classList.add("active");
+  } else {
+    searchResults.classList.remove("active");
+  }
+});
+
+searchInput.addEventListener("blur", () => {
+  setTimeout(() => searchResults.classList.remove("active"), 200);
+});
+searchInput.addEventListener("focus", () => {
+  if (searchQuery && searchMatches.size) searchResults.classList.add("active");
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (document.getElementById("detailPanel").classList.contains("open")) {
+      closeDetail();
+    } else {
+      searchInput.value = "";
+      searchQuery = "";
+      searchMatches.clear();
+      searchCount.textContent = "";
+      searchResults.classList.remove("active");
+    }
+  }
+  if (e.key === "/" && document.activeElement !== searchInput) {
+    e.preventDefault();
+    searchInput.focus();
+  }
+});
+
+// ── Animation loop ──
+function loop() {
+  simulate();
+  draw();
+  drawMinimap();
+  requestAnimationFrame(loop);
+}
+
+// ── Init ──
+initGraph(sampleNodes, sampleEdges);
+
+// Center camera on graph
+camera.x = canvas.width / 2;
+camera.y = canvas.height / 2;
+
+loop();
+</script>
+</body>
+</html>
