@@ -21,6 +21,7 @@ const PROFILES_DIR = path.join(CONFIG_DIR, "profiles");
 const APP_VERSION = process.env.APP_VERSION || "dev";
 const WIZARD_HTML = fs.readFileSync(path.join(__dirname, "wizard.html"), "utf8").replaceAll("__APP_VERSION__", APP_VERSION);
 const DASHBOARD_HTML = fs.readFileSync(path.join(__dirname, "dashboard.html"), "utf8").replaceAll("__APP_VERSION__", APP_VERSION);
+const ATLAS_HTML = fs.readFileSync(path.join(__dirname, "atlas.html"), "utf8");
 const AVATARS_DIR = path.join(__dirname, "avatars");
 
 // ── SQLite helpers ──────────────────────────────────────────────────────────
@@ -584,6 +585,11 @@ async function handleRequest(req, res) {
 
   if (req.method === "GET" && url.pathname === "/setup") {
     sendHtml(res, WIZARD_HTML);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/atlas") {
+    sendHtml(res, ATLAS_HTML);
     return;
   }
 
