@@ -2175,6 +2175,80 @@
       color: var(--phosphor);
       background: rgba(80,255,168,0.06);
     }
+    .session-meta-filters {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .session-project-filter {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--body);
+      font-size: 9px;
+      padding: 4px 8px;
+      letter-spacing: 0.5px;
+      outline: none;
+    }
+    .session-star { color: var(--text-muted); cursor: pointer; font-size: 12px; margin-left: auto; flex-shrink: 0; }
+    .session-star:hover { color: var(--amber); }
+    .session-star.starred { color: var(--amber); }
+    .session-tags-inline { display: flex; gap: 2px; margin-top: 3px; }
+    .session-tag-badge { font-size: 7px; padding: 1px 5px; border: 1px solid var(--border); color: var(--text-muted); letter-spacing: 0.5px; }
+    .session-project-badge { font-size: 7px; padding: 1px 5px; border: 1px solid var(--phosphor-dim); color: var(--phosphor-dim); letter-spacing: 0.5px; margin-right: 4px; }
+
+    /* File system view */
+    .fs-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      margin-bottom: 10px;
+      font-family: var(--body);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .fs-crumb {
+      cursor: pointer;
+      color: var(--phosphor-dim);
+      transition: color 0.1s;
+    }
+    .fs-crumb:hover { color: var(--phosphor); }
+    .fs-crumb::after { content: '/'; color: var(--text-muted); margin: 0 2px; opacity: 0.4; }
+    .fs-crumb:last-child::after { display: none; }
+    .fs-crumb:last-child { color: var(--text); cursor: default; }
+    .fs-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--surface-2);
+      margin-bottom: 2px;
+      cursor: pointer;
+      transition: all 0.1s;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .fs-item:hover {
+      background: rgba(80,255,168,0.025);
+      border-left: 2px solid var(--phosphor-dim);
+      padding-left: 10px;
+    }
+    .fs-icon {
+      font-size: 14px;
+      width: 20px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .fs-icon.folder { color: var(--amber); }
+    .fs-icon.file { color: var(--text-muted); }
+    .fs-name { flex: 1; }
+    .fs-count {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+    }
+
     .session-group-label {
       font-family: var(--display);
       font-size: 9px;
@@ -3975,7 +4049,7 @@
           <span class="fkey">F3</span> Tools
         </button>
         <button class="dash-tab" data-view="sessions" onclick="switchView('sessions')">
-          <span class="fkey">F4</span> Sessions
+          <span class="fkey">F4</span> Chats
         </button>
         <button class="dash-tab" data-view="memory" onclick="switchView('memory')">
           <span class="fkey">F5</span> Memory
@@ -3983,8 +4057,11 @@
         <button class="dash-tab" data-view="jobs" onclick="switchView('jobs')">
           <span class="fkey">F6</span> Jobs
         </button>
+        <button class="dash-tab" data-view="files" onclick="switchView('files')">
+          <span class="fkey">F7</span> Files
+        </button>
         <button class="dash-tab" data-view="atlas" onclick="switchView('atlas')">
-          <span class="fkey">F7</span> Atlas
+          <span class="fkey">F8</span> Atlas
         </button>
       </div>
     </div>
@@ -4093,17 +4170,39 @@
       </div>
     </div>
 
-    <!-- ── VIEW: Sessions ── -->
+    <!-- ── VIEW: Sessions/Chats ── -->
     <div class="dash-view" id="view-sessions">
       <div class="panel" id="sessionsPanel">
         <div class="panel-header">
-          <span class="panel-title">Sessions</span>
+          <span class="panel-title">Chats</span>
           <span class="panel-indicator" id="sessionsIndicator">SYS.HISTORY</span>
         </div>
         <div class="panel-body">
           <div class="session-filters" id="sessionFilters"></div>
+          <div class="session-meta-filters">
+            <button class="session-filter-btn" id="filterStarred" onclick="toggleStarredFilter()">&#9733; STARRED</button>
+            <select class="session-project-filter" id="filterProject" onchange="setProjectFilter(this.value)">
+              <option value="">ALL PROJECTS</option>
+            </select>
+          </div>
           <div id="sessionsList"><div class="dash-empty">LOADING...</div></div>
           <div id="sessionsPagination" class="pagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── VIEW: Files ── -->
+    <div class="dash-view" id="view-files">
+      <div class="panel" id="filesPanel">
+        <div class="panel-header">
+          <span class="panel-title">File System</span>
+          <span class="panel-indicator" id="filesIndicator">SYS.FS</span>
+        </div>
+        <div class="panel-body">
+          <div class="fs-breadcrumb" id="fsBreadcrumb">
+            <span class="fs-crumb" onclick="fsNavigate('')">/hermes</span>
+          </div>
+          <div id="fsTree"><div class="dash-empty">LOADING...</div></div>
         </div>
       </div>
     </div>
@@ -5527,9 +5626,10 @@
       metrics: "SYS.METRICS",
       activity: "SYS.ACTIVITY",
       tools: "SYS.TOOLS",
-      sessions: "SYS.HISTORY",
+      sessions: "SYS.CHATS",
       memory: "SYS.MEMORY",
       jobs: "SYS.CRON",
+      files: "SYS.FS",
       atlas: "SYS.ATLAS",
     };
 
@@ -5543,6 +5643,7 @@
       if (view === "memory") fetchMemoryFiles();
       if (view === "tools") { fetchSkills(); if (insightsCache) renderTools(insightsCache); }
       if (view === "jobs") fetchJobs();
+      if (view === "files") fetchFilesystem();
       if (view === "atlas") initAtlasView();
       else stopAtlasView();
     }
@@ -5568,10 +5669,10 @@
         return;
       }
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.contentEditable === "true") return;
-      const views = ["metrics", "activity", "tools", "sessions", "memory", "jobs", "atlas"];
-      const fkey = e.key.match(/^F([1-7])$/);
+      const views = ["metrics", "activity", "tools", "sessions", "memory", "jobs", "files", "atlas"];
+      const fkey = e.key.match(/^F([1-8])$/);
       if (fkey) { e.preventDefault(); switchView(views[parseInt(fkey[1]) - 1]); }
-      if (e.key >= "1" && e.key <= "7" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key >= "1" && e.key <= "8" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         switchView(views[parseInt(e.key) - 1]);
       }
     });
@@ -5974,8 +6075,10 @@
       try {
         const offset = sessionsPage * SESSIONS_PER_PAGE;
         const sourceParam = sessionsSourceFilter ? `&source=${sessionsSourceFilter}` : "";
-        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}&days=${dashDays}${sourceParam}${profileParam()}`)).json();
-        document.getElementById("sessionsIndicator").textContent = data.total ? `${data.total} TOTAL` : "SYS.HISTORY";
+        const projectParam = sessionsProjectFilter ? `&project=${sessionsProjectFilter}` : "";
+        const starredParam = sessionsStarredFilter ? "&starred=1" : "";
+        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}&days=${dashDays}${sourceParam}${projectParam}${starredParam}${profileParam()}`)).json();
+        document.getElementById("sessionsIndicator").textContent = data.total ? `${data.total} CHATS` : "SYS.CHATS";
 
         // Build source filter buttons — remember all sources from unfiltered results
         if (!sessionsSourceFilter) {
@@ -6012,13 +6115,19 @@
             groupHtml = `<div class="session-group-label">${group}</div>`;
           }
 
+          const projectBadge = s.project_id ? `<span class="session-project-badge">${escapeHtml((projectsCache.find(p=>p.id===s.project_id)||{}).name||"")}</span>` : "";
+          const tagBadges = (s.tags||[]).length ? `<div class="session-tags-inline">${s.tags.map(t=>`<span class="session-tag-badge">${t}</span>`).join("")}</div>` : "";
+          const starCls = s.starred ? " starred" : "";
+
           return `${groupHtml}
             <div class="session-row" onclick="toggleSession(this, '${s.id}')">
               <span class="session-source">${s.source || "?"}</span>
               <div class="session-info">
-                <div class="session-title">${title}</div>
+                <div class="session-title">${projectBadge}${title}</div>
                 <div class="session-meta">${date} / ${dur} / ${s.message_count || 0} msgs / ${fmtNum((s.input_tokens||0)+(s.output_tokens||0))} tok</div>
+                ${tagBadges}
               </div>
+              <span class="session-star${starCls}" onclick="event.stopPropagation();toggleStar('${s.id}',this)">&#9733;</span>
               <span class="session-cost">${cost}</span>
             </div>
             <div class="session-detail" id="detail-${s.id}"></div>
@@ -6097,6 +6206,135 @@
 
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // ═══════ PROJECTS & SESSION METADATA ═══════
+
+    let sessionsProjectFilter = null;
+    let sessionsStarredFilter = false;
+    let projectsCache = [];
+
+    async function fetchProjects() {
+      try {
+        const data = await (await fetch("/api/projects")).json();
+        projectsCache = data.projects || [];
+        // Update project filter dropdown
+        const sel = document.getElementById("filterProject");
+        if (sel) {
+          const val = sel.value;
+          sel.innerHTML = '<option value="">ALL PROJECTS</option>' +
+            projectsCache.map(p => `<option value="${p.id}"${p.id === val ? " selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
+        }
+      } catch (e) {}
+    }
+
+    function setProjectFilter(projectId) {
+      sessionsProjectFilter = projectId || null;
+      sessionsPage = 0;
+      fetchSessions();
+    }
+
+    function toggleStarredFilter() {
+      sessionsStarredFilter = !sessionsStarredFilter;
+      document.getElementById("filterStarred").classList.toggle("active", sessionsStarredFilter);
+      sessionsPage = 0;
+      fetchSessions();
+    }
+
+    async function toggleStar(sessionId, el) {
+      const isStarred = el.classList.contains("starred");
+      try {
+        await fetch(`/api/sessions/${sessionId}/meta`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ starred: isStarred ? 0 : 1 }),
+        });
+        el.classList.toggle("starred");
+      } catch (e) {}
+    }
+
+    async function createProject() {
+      const name = prompt("Project name:");
+      if (!name) return;
+      try {
+        await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        fetchProjects();
+      } catch (e) {}
+    }
+
+    // Load projects on init
+    fetchProjects();
+
+    // ═══════ FILE SYSTEM VIEW ═══════
+
+    async function fetchFilesystem() {
+      try {
+        const data = await (await fetch(`/api/filesystem?x=1${profileParam()}`)).json();
+        const el = document.getElementById("fsTree");
+        if (!data.tree?.length) {
+          el.innerHTML = '<div class="dash-empty">EMPTY</div>';
+          return;
+        }
+        el.innerHTML = data.tree.map(node => renderFsNode(node, 0)).join("");
+      } catch (e) {
+        document.getElementById("fsTree").innerHTML = '<div class="dash-empty">FAILED TO LOAD</div>';
+      }
+    }
+
+    function renderFsNode(node, depth) {
+      const indent = depth * 16;
+      const isFolder = node.type === "folder";
+      const icon = isFolder ? "&#128193;" : "&#128196;";
+      const countBadge = node.count ? `<span class="fs-count">${node.count} items</span>` :
+                         node.messages ? `<span class="fs-count">${node.messages} msgs</span>` : "";
+
+      let html = `<div class="fs-item" style="padding-left:${12 + indent}px;" onclick="${isFolder ? `fsToggle(this,'${node.id}')` : `fsOpenFile('${node.id}')`}">
+        <span class="fs-icon ${node.type}">${icon}</span>
+        <span class="fs-name">${escapeHtml(node.name)}</span>
+        ${countBadge}
+      </div>`;
+
+      if (isFolder && node.children) {
+        html += `<div class="fs-children" data-parent="${node.id}">`;
+        html += node.children.map(c => renderFsNode(c, depth + 1)).join("");
+        html += '</div>';
+      }
+
+      return html;
+    }
+
+    function fsToggle(el, id) {
+      const children = el.nextElementSibling;
+      if (children && children.classList.contains("fs-children")) {
+        children.style.display = children.style.display === "none" ? "block" : "none";
+      }
+    }
+
+    function fsOpenFile(id) {
+      // Navigate to the appropriate view based on file type
+      if (id.startsWith("chats/")) {
+        const source = id.replace("chats/", "");
+        setSessionFilter(source);
+        switchView("sessions");
+      } else if (id.startsWith("projects/")) {
+        const projectId = id.replace("projects/", "");
+        document.getElementById("filterProject").value = projectId;
+        setProjectFilter(projectId);
+        switchView("sessions");
+      } else if (id.startsWith("memory/")) {
+        switchView("memory");
+      } else if (id.startsWith("scripts/") || id.startsWith("config/")) {
+        // Could open a viewer — for now just switch to memory view
+        switchView("memory");
+      }
+    }
+
+    function fsNavigate(path) {
+      fetchFilesystem();
     }
 
     // ═══════ MEMORY BROWSER ═══════
