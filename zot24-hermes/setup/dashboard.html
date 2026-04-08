@@ -1107,6 +1107,77 @@
       display: block;
       animation: dashReveal 0.4s ease-out;
     }
+
+    /* ── Expanded mode ── */
+    .container.expanded {
+      max-width: none;
+      padding: 0 16px 0 80px;
+      margin: 0;
+    }
+    .container.expanded .dash-section {
+      margin: 0;
+    }
+    .container.expanded .header,
+    .container.expanded #mainStatusSection,
+    .container.expanded .step-indicator,
+    .container.expanded .boot-footer {
+      display: none !important;
+    }
+    .container.expanded .panel {
+      background: transparent;
+      border-color: rgba(26,37,48,0.4);
+      backdrop-filter: none;
+    }
+    .container.expanded .panel::before {
+      opacity: 0.15;
+    }
+    .container.expanded .panel-header {
+      background: rgba(11,16,22,0.6);
+      border-bottom-color: rgba(26,37,48,0.3);
+    }
+    .container.expanded .panel-body {
+      background: rgba(6,10,13,0.4);
+    }
+    .container.expanded .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+    .container.expanded .stat-card {
+      background: rgba(16,22,28,0.6);
+      border: 1px solid rgba(26,37,48,0.3);
+    }
+    .container.expanded .dash-nav-bar {
+      background: rgba(11,16,22,0.6);
+      border-color: rgba(26,37,48,0.3);
+    }
+    .container.expanded .dash-controls {
+      background: rgba(11,16,22,0.4);
+      border-color: rgba(26,37,48,0.3);
+    }
+    .container.expanded .session-row,
+    .container.expanded .job-card {
+      background: rgba(16,22,28,0.5);
+    }
+    .container.expanded .session-row:hover,
+    .container.expanded .job-card:hover {
+      background: rgba(80,255,168,0.03);
+    }
+    .container.expanded .atlas-container {
+      height: calc(100vh - 160px);
+    }
+    .container.expanded .mem-viewer,
+    .container.expanded .mem-editor {
+      max-height: none;
+      min-height: 400px;
+    }
+    .container.expanded .glance-bar {
+      background: rgba(11,16,22,0.5);
+      border-color: rgba(26,37,48,0.3);
+    }
+    #expandBtn.active {
+      color: var(--amber);
+      border-color: var(--amber-dim);
+      background: rgba(255,192,77,0.06);
+    }
     @keyframes dashReveal {
       0% { opacity: 0; transform: translateY(6px); filter: blur(2px); }
       50% { filter: blur(0); }
@@ -3817,6 +3888,7 @@
         <button class="days-btn" data-days="90" onclick="setDays(90)">90d</button>
         <button class="days-btn" data-days="365" onclick="setDays(365)">1y</button>
       </div>
+      <button class="days-btn" id="expandBtn" onclick="toggleExpand()" title="Expand view" style="margin-left:4px;font-size:11px;padding:4px 8px;">&#x26F6;</button>
     </div>
 
     <!-- ── VIEW: Metrics ── -->
@@ -5393,6 +5465,22 @@
         switchView(views[parseInt(e.key) - 1]);
       }
     });
+
+    let isExpanded = false;
+    function toggleExpand() {
+      isExpanded = !isExpanded;
+      document.querySelector(".container").classList.toggle("expanded", isExpanded);
+      document.getElementById("expandBtn").classList.toggle("active", isExpanded);
+      document.getElementById("expandBtn").title = isExpanded ? "Collapse view" : "Expand view";
+      // Resize atlas canvas if active
+      if (currentView === "atlas" && atlasState) {
+        setTimeout(() => {
+          const c = document.getElementById("atlasCanvas");
+          const cont = document.querySelector(".atlas-container");
+          if (c && cont) { c.width = cont.clientWidth; c.height = cont.clientHeight; }
+        }, 100);
+      }
+    }
 
     function setDays(d) {
       dashDays = d;
