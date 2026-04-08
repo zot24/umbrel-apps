@@ -7,7 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+    input, textarea, .chat-log, .session-msg-content, .mem-viewer, .mem-editor, .job-output, .logs-body, .atlas-detail-body, .backup-terminal-body, .err-msg, .detail-desc, .ad-desc, code {
+      -webkit-user-select: text; user-select: text;
+    }
 
     /* ── Retro scrollbars ── */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -1173,6 +1176,114 @@
       background: rgba(11,16,22,0.5);
       border-color: rgba(26,37,48,0.3);
     }
+    /* Expand/collapse transition */
+    .container {
+      transition: max-width 0.3s ease, padding 0.3s ease;
+    }
+    .container.expanded .dash-section.open {
+      animation: expandReveal 0.35s ease-out;
+    }
+    @keyframes expandReveal {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* Metrics: 2-column in expanded */
+    .container.expanded #view-metrics { display: none; }
+    .container.expanded #view-metrics.active {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      align-items: start;
+    }
+    .container.expanded .stat-card .stat-value { font-size: 18px; }
+
+    /* Sessions: wider rows */
+    .container.expanded .session-title { font-size: 13px; }
+    .container.expanded .session-group-label { font-size: 10px; padding: 12px 16px 6px; }
+
+    /* Tools: more columns */
+    .container.expanded .skill-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+    .container.expanded .tools-top-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+    /* Memory: taller */
+    .container.expanded .mem-browser { min-height: 500px; }
+    .container.expanded .mem-sidebar { min-width: 200px; }
+
+    /* Jobs: 2-column grid */
+    .container.expanded #jobsList {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 6px;
+    }
+    .container.expanded .job-card { margin-bottom: 0; }
+
+    /* Activity: taller */
+    .container.expanded #activityContent { min-height: 300px; }
+
+    /* ── Chat: docked left panel in expanded mode (next to sidebar) ── */
+    .container.expanded ~ .chat-float.open {
+      position: fixed;
+      top: 0;
+      left: 80px;
+      bottom: 0;
+      right: auto;
+      width: 340px;
+      max-height: none;
+      border: none;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: none;
+      animation: none;
+    }
+    .container.expanded ~ .chat-float.open .chat-float-body .chat-log {
+      max-height: none;
+      flex: 1;
+    }
+    .container.expanded.chat-open {
+      padding-left: 420px;
+      transition: padding 0.2s ease;
+    }
+
+    /* ── Corner buttons: bottom bar in expanded mode ── */
+    .container.expanded ~ .corner-buttons {
+      bottom: 0;
+      right: 0;
+      left: 80px;
+      padding: 6px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      justify-content: flex-end;
+    }
+    .container.expanded ~ .corner-buttons .corner-btn {
+      background: none;
+      border-color: var(--border);
+      width: auto;
+      height: 26px;
+      padding: 0 10px;
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      gap: 4px;
+    }
+    .container.expanded ~ .corner-buttons .corner-btn svg {
+      width: 12px;
+      height: 12px;
+    }
+    .container.expanded ~ .corner-buttons .corner-btn:hover {
+      background: rgba(80,255,168,0.04);
+    }
+    .container.expanded ~ .corner-buttons .corner-dash .corner-dash-tip {
+      display: none;
+    }
+    .container.expanded.chat-open ~ .corner-buttons {
+      left: 420px;
+    }
+
+    /* ── Sidebar: subtle shift in expanded ── */
+    .container.expanded ~ .profiles-float {
+      border-right-color: rgba(26,37,48,0.4);
+    }
+
     #expandBtn.active {
       color: var(--amber);
       border-color: var(--amber-dim);
@@ -2995,8 +3106,7 @@
       animation: blink 1.5s step-end infinite;
       flex-shrink: 0;
     }
-    #cornerLogs { display: none; }
-    #cornerLogs.visible { display: flex; }
+    #cornerLogs { display: flex; }
 
     /* ── Atlas knowledge graph ── */
     .atlas-container {
@@ -5469,16 +5579,20 @@
     let isExpanded = false;
     function toggleExpand() {
       isExpanded = !isExpanded;
-      document.querySelector(".container").classList.toggle("expanded", isExpanded);
+      const container = document.querySelector(".container");
+      container.classList.toggle("expanded", isExpanded);
       document.getElementById("expandBtn").classList.toggle("active", isExpanded);
       document.getElementById("expandBtn").title = isExpanded ? "Collapse view" : "Expand view";
+      // Track chat-open for padding
+      const chatOpen = document.getElementById("chatFloat")?.classList.contains("open");
+      container.classList.toggle("chat-open", isExpanded && chatOpen);
       // Resize atlas canvas if active
       if (currentView === "atlas" && atlasState) {
         setTimeout(() => {
           const c = document.getElementById("atlasCanvas");
           const cont = document.querySelector(".atlas-container");
           if (c && cont) { c.width = cont.clientWidth; c.height = cont.clientHeight; }
-        }, 100);
+        }, 350);
       }
     }
 
@@ -7116,10 +7230,21 @@
       panel.classList.toggle("open");
       if (btn) btn.classList.toggle("active");
       if (sideBtn) sideBtn.classList.toggle("active", !isOpen);
+      // In expanded mode, manage chat-open for content padding
+      if (isExpanded) {
+        document.querySelector(".container").classList.toggle("chat-open", !isOpen);
+      }
       if (!isOpen) {
-        dockChat("left");
+        if (!isExpanded) dockChat("left");
         fetchComms();
-        if (cachedProfiles.length) updateChatTabs(cachedProfiles);
+        if (cachedProfiles.length) {
+          updateChatTabs(cachedProfiles);
+          // Auto-select first running profile
+          if (!chatProfile) {
+            const first = cachedProfiles.find(p => p.gateway === "running") || cachedProfiles[0];
+            if (first) switchChatProfile(first.name);
+          }
+        }
         setTimeout(() => document.getElementById("chatInput").focus(), 100);
       }
     }
