@@ -2220,6 +2220,133 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: Browse folder contents (on demand) ──
+  if (req.method === "GET" && url.pathname === "/api/filesystem/browse") {
+    const folderId = url.searchParams.get("id") || "";
+    const profileFilter = url.searchParams.get("profile") || null;
+    const baseDir = profileFilter && profileFilter !== "all" ? getProfileDir(profileFilter) : CONFIG_DIR;
+    try {
+      let items = [];
+
+      if (folderId.startsWith("chats/")) {
+        // List sessions for a source
+        const source = folderId.replace("chats/", "");
+        const db = openStateDb(profileFilter);
+        if (db) {
+          const rows = db.prepare("SELECT id, title, started_at, message_count, model FROM sessions WHERE source = ? ORDER BY started_at DESC LIMIT 50").all(source);
+          items = rows.map(r => ({
+            id: `session/${r.id}`, name: r.title || r.id,
+            type: "file", meta: (r.message_count || 0) + " msgs",
+          }));
+          db.close();
+        }
+      } else if (folderId.startsWith("skills/")) {
+        // List skills in a category
+        const cat = folderId.replace("skills/", "");
+        const catDir = path.join(SKILLS_DIR, cat);
+        if (fs.existsSync(catDir)) {
+          items = fs.readdirSync(catDir).filter(f => {
+            try { return fs.statSync(path.join(catDir, f)).isDirectory(); } catch(e) { return false; }
+          }).map(f => {
+            const hasSkill = fs.existsSync(path.join(catDir, f, "SKILL.md"));
+            return { id: `skill/${cat}/${f}`, name: f, type: "file", meta: hasSkill ? "SKILL.md" : "" };
+          });
+        }
+      } else if (folderId === "scripts") {
+        const scriptsDir = path.join(baseDir, "scripts");
+        if (fs.existsSync(scriptsDir)) {
+          items = fs.readdirSync(scriptsDir).filter(f => !f.startsWith(".") && !f.startsWith("__")).map(f => ({
+            id: `scripts/${f}`, name: f, type: "file",
+          }));
+        }
+      } else if (folderId === "memory") {
+        if (fs.existsSync(MEMORIES_DIR)) {
+          items = fs.readdirSync(MEMORIES_DIR).filter(f => !f.startsWith(".")).map(f => ({
+            id: `memory/${f}`, name: f, type: "file",
+          }));
+        }
+      } else if (folderId === "config") {
+        items = [
+          { id: "config/config.yaml", name: "config.yaml", type: "file" },
+          { id: "config/.env", name: ".env", type: "file" },
+        ];
+      } else if (folderId === "cron") {
+        items = [{ id: "cron/jobs.json", name: "jobs.json", type: "file" }];
+        // Also list output dirs
+        const cronOutputDir = path.join(baseDir, "cron", "output");
+        if (fs.existsSync(cronOutputDir)) {
+          for (const jobDir of fs.readdirSync(cronOutputDir)) {
+            items.push({ id: `cron/output/${jobDir}`, name: jobDir, type: "folder" });
+          }
+        }
+      } else if (folderId === "projects") {
+        const dashDb = openDashboardDb();
+        if (dashDb) {
+          const projects = dashDb.prepare("SELECT id, name FROM projects ORDER BY name").all();
+          items = projects.map(p => ({ id: `projects/${p.id}`, name: p.name, type: "folder" }));
+          dashDb.close();
+        }
+      }
+
+      sendJson(res, 200, { items });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
+  // ── API: Read file content ──
+  if (req.method === "GET" && url.pathname === "/api/filesystem/read") {
+    const fileId = url.searchParams.get("id") || "";
+    const profileFilter = url.searchParams.get("profile") || null;
+    const baseDir = profileFilter && profileFilter !== "all" ? getProfileDir(profileFilter) : CONFIG_DIR;
+    try {
+      let content = "";
+      let title = fileId;
+
+      if (fileId.startsWith("memory/")) {
+        const filePath = path.join(MEMORIES_DIR, fileId.replace("memory/", ""));
+        if (fs.existsSync(filePath)) content = fs.readFileSync(filePath, "utf8").replace(/^§$/gm, "---");
+        title = fileId.replace("memory/", "");
+      } else if (fileId.startsWith("skill/")) {
+        const parts = fileId.replace("skill/", "").split("/");
+        const skillPath = path.join(SKILLS_DIR, parts[0], parts[1], "SKILL.md");
+        if (fs.existsSync(skillPath)) content = fs.readFileSync(skillPath, "utf8");
+        title = parts[1] + "/SKILL.md";
+      } else if (fileId.startsWith("scripts/")) {
+        const filePath = path.join(baseDir, fileId);
+        if (fs.existsSync(filePath)) content = fs.readFileSync(filePath, "utf8");
+        title = fileId.replace("scripts/", "");
+      } else if (fileId === "config/config.yaml") {
+        if (fs.existsSync(CONFIG_FILE)) content = fs.readFileSync(CONFIG_FILE, "utf8");
+        title = "config.yaml";
+      } else if (fileId === "config/.env") {
+        if (fs.existsSync(ENV_FILE)) content = "[HIDDEN — contains secrets]";
+        title = ".env";
+      } else if (fileId === "cron/jobs.json") {
+        const cronFile = path.join(baseDir, "cron", "jobs.json");
+        if (fs.existsSync(cronFile)) content = fs.readFileSync(cronFile, "utf8");
+        title = "jobs.json";
+      } else if (fileId.startsWith("session/")) {
+        // Read session messages
+        const sessionId = fileId.replace("session/", "");
+        const db = openStateDb(profileFilter);
+        if (db) {
+          const msgs = db.prepare("SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp").all(sessionId);
+          content = msgs.map(m => {
+            let c = m.content || "";
+            c = c.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            if (!c || m.role === "session_meta") return "";
+            return `[${m.role.toUpperCase()}]\n${c}`;
+          }).filter(Boolean).join("\n\n---\n\n");
+          db.close();
+        }
+        title = sessionId;
+      }
+
+      sendJson(res, 200, { content: content || "EMPTY", title });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
   // ── API: Container logs ──
   if (req.method === "GET" && url.pathname === "/api/logs") {
     const lines = Math.min(parseInt(url.searchParams.get("lines") || "100"), 500);
