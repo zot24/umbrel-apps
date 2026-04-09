@@ -4187,7 +4187,8 @@
         <button class="dash-tab" data-view="jobs" onclick="switchView('jobs')">
           <span class="fkey">F6</span> Jobs
         </button>
-        <button class="dash-tab" data-view="atlas" onclick="switchView('atlas')">
+        <!-- Atlas: hidden prototype -->
+        <button class="dash-tab" data-view="atlas" onclick="switchView('atlas')" style="display:none;">
           <span class="fkey">F7</span> Atlas
         </button>
       </div>
@@ -5782,10 +5783,10 @@
         return;
       }
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.contentEditable === "true") return;
-      const views = ["metrics", "activity", "tools", "sessions", "memory", "jobs", "atlas"];
-      const fkey = e.key.match(/^F([1-7])$/);
+      const views = ["metrics", "activity", "tools", "sessions", "memory", "jobs"];
+      const fkey = e.key.match(/^F([1-6])$/);
       if (fkey) { e.preventDefault(); switchView(views[parseInt(fkey[1]) - 1]); }
-      if (e.key >= "1" && e.key <= "7" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key >= "1" && e.key <= "6" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         switchView(views[parseInt(e.key) - 1]);
       }
     });
