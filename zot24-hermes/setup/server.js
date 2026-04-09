@@ -48,6 +48,47 @@ function openStateDb(profileName) {
   }
 }
 
+// ── Dashboard metadata DB (projects, tags, session meta) ─────────────────────
+
+const DASHBOARD_DB_PATH = path.join(CONFIG_DIR, "dashboard.db");
+
+function openDashboardDb() {
+  if (!Database) return null;
+  try {
+    if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    const db = new Database(DASHBOARD_DB_PATH);
+    db.pragma("journal_mode = WAL");
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        color TEXT DEFAULT '#50ffa8',
+        icon TEXT DEFAULT 'folder',
+        created_at REAL NOT NULL,
+        updated_at REAL
+      );
+      CREATE TABLE IF NOT EXISTS session_meta (
+        session_id TEXT PRIMARY KEY,
+        project_id TEXT,
+        starred INTEGER DEFAULT 0,
+        archived INTEGER DEFAULT 0,
+        notes TEXT,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+      );
+      CREATE TABLE IF NOT EXISTS session_tags (
+        session_id TEXT NOT NULL,
+        tag TEXT NOT NULL,
+        PRIMARY KEY (session_id, tag)
+      );
+    `);
+    return db;
+  } catch (e) {
+    console.error("Failed to open dashboard.db:", e.message);
+    return null;
+  }
+}
+
 // ── Model pricing (subset of hermes-agent usage_pricing.py) ─────────────────
 
 const MODEL_PRICING = {
@@ -1594,7 +1635,43 @@ async function handleRequest(req, res) {
         }
       }
 
-      sendJson(res, 200, { sessions, total: sessions.length });
+      // Enrich with dashboard metadata (projects, tags, starred)
+      try {
+        const dashDb = openDashboardDb();
+        if (dashDb) {
+          const metaStmt = dashDb.prepare("SELECT project_id, starred, archived, notes FROM session_meta WHERE session_id = ?");
+          const tagsStmt = dashDb.prepare("SELECT tag FROM session_tags WHERE session_id = ?");
+          for (const s of sessions) {
+            const meta = metaStmt.get(s.id);
+            if (meta) {
+              s.project_id = meta.project_id;
+              s.starred = meta.starred;
+              s.archived = meta.archived;
+              s.notes = meta.notes;
+            }
+            s.tags = tagsStmt.all(s.id).map(t => t.tag);
+          }
+          dashDb.close();
+        }
+      } catch (e) { console.error("Dashboard meta enrichment error:", e.message); }
+
+      // Auto-generate titles for untitled sessions
+      for (const s of sessions) {
+        if (!s.title && s.id) {
+          s.title = s.source === "cron" ? s.id.replace(/^cron_/, "").replace(/_\d+$/, "").replace(/_/g, " ") : null;
+        }
+      }
+
+      // Filter by project/tag/starred if requested
+      const projectFilter = url.searchParams.get("project");
+      const tagFilter = url.searchParams.get("tag");
+      const starredFilter = url.searchParams.get("starred");
+      let filtered = sessions;
+      if (projectFilter) filtered = filtered.filter(s => s.project_id === projectFilter);
+      if (tagFilter) filtered = filtered.filter(s => s.tags?.includes(tagFilter));
+      if (starredFilter) filtered = filtered.filter(s => s.starred);
+
+      sendJson(res, 200, { sessions: filtered, total: filtered.length });
     } catch (e) {
       try { db.close(); } catch (_) {}
       sendJson(res, 500, { error: e.message });
@@ -1991,6 +2068,282 @@ async function handleRequest(req, res) {
       console.error(`Cron ${action} failed for ${jobId}:`, e.message);
       sendJson(res, 500, { error: `Failed to ${action} job: ${e.message}` });
     }
+    return;
+  }
+
+  // ── API: Projects ──
+  if (req.method === "GET" && url.pathname === "/api/projects") {
+    const db = openDashboardDb();
+    if (!db) { sendJson(res, 200, { projects: [] }); return; }
+    try {
+      const projects = db.prepare("SELECT * FROM projects ORDER BY name").all();
+      // Count sessions per project
+      for (const p of projects) {
+        p.session_count = db.prepare("SELECT COUNT(*) as c FROM session_meta WHERE project_id = ?").get(p.id).c;
+      }
+      db.close();
+      sendJson(res, 200, { projects });
+    } catch (e) {
+      try { db.close(); } catch (_) {}
+      sendJson(res, 500, { error: e.message });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/projects") {
+    let body = "";
+    req.on("data", c => body += c);
+    req.on("end", () => {
+      try {
+        const data = JSON.parse(body);
+        if (!data.name) { sendJson(res, 400, { error: "Name required" }); return; }
+        const db = openDashboardDb();
+        if (!db) { sendJson(res, 500, { error: "DB unavailable" }); return; }
+        const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        db.prepare("INSERT INTO projects (id, name, description, color, icon, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+          id, data.name, data.description || null, data.color || "#50ffa8", data.icon || "folder", Date.now() / 1000
+        );
+        db.close();
+        sendJson(res, 200, { success: true, id });
+      } catch (e) { sendJson(res, 500, { error: e.message }); }
+    });
+    return;
+  }
+
+  if (url.pathname.startsWith("/api/projects/") && req.method === "DELETE") {
+    const id = url.pathname.replace("/api/projects/", "");
+    const db = openDashboardDb();
+    if (!db) { sendJson(res, 500, { error: "DB unavailable" }); return; }
+    try {
+      db.prepare("UPDATE session_meta SET project_id = NULL WHERE project_id = ?").run(id);
+      db.prepare("DELETE FROM projects WHERE id = ?").run(id);
+      db.close();
+      sendJson(res, 200, { success: true });
+    } catch (e) { try { db.close(); } catch (_) {} sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
+  // ── API: Session metadata (tags, project, star) ──
+  if (req.method === "PUT" && url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/meta")) {
+    const sessionId = url.pathname.replace("/api/sessions/", "").replace("/meta", "");
+    let body = "";
+    req.on("data", c => body += c);
+    req.on("end", () => {
+      try {
+        const data = JSON.parse(body);
+        const db = openDashboardDb();
+        if (!db) { sendJson(res, 500, { error: "DB unavailable" }); return; }
+        // Upsert session_meta
+        db.prepare(`INSERT INTO session_meta (session_id, project_id, starred, archived, notes)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(session_id) DO UPDATE SET
+            project_id = COALESCE(excluded.project_id, project_id),
+            starred = COALESCE(excluded.starred, starred),
+            archived = COALESCE(excluded.archived, archived),
+            notes = COALESCE(excluded.notes, notes)
+        `).run(sessionId, data.project_id ?? null, data.starred ?? 0, data.archived ?? 0, data.notes ?? null);
+        // Handle tags
+        if (Array.isArray(data.tags)) {
+          db.prepare("DELETE FROM session_tags WHERE session_id = ?").run(sessionId);
+          const ins = db.prepare("INSERT OR IGNORE INTO session_tags (session_id, tag) VALUES (?, ?)");
+          for (const tag of data.tags) ins.run(sessionId, tag.trim().toLowerCase());
+        }
+        db.close();
+        sendJson(res, 200, { success: true });
+      } catch (e) { sendJson(res, 500, { error: e.message }); }
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/tags") {
+    const db = openDashboardDb();
+    if (!db) { sendJson(res, 200, { tags: [] }); return; }
+    try {
+      const tags = db.prepare("SELECT tag, COUNT(*) as count FROM session_tags GROUP BY tag ORDER BY count DESC").all();
+      db.close();
+      sendJson(res, 200, { tags });
+    } catch (e) { try { db.close(); } catch (_) {} sendJson(res, 200, { tags: [] }); }
+    return;
+  }
+
+  // ── API: File system tree ──
+  if (req.method === "GET" && url.pathname === "/api/filesystem") {
+    const profileFilter = url.searchParams.get("profile") || null;
+    const baseDir = profileFilter && profileFilter !== "all" ? getProfileDir(profileFilter) : CONFIG_DIR;
+    try {
+      const tree = [];
+      // Chats (from state.db sources)
+      const stateDb = openStateDb(profileFilter);
+      if (stateDb) {
+        const sources = stateDb.prepare("SELECT source, COUNT(*) as c, SUM(message_count) as msgs FROM sessions GROUP BY source ORDER BY c DESC").all();
+        tree.push({ id: "chats", name: "chats", type: "folder", children: sources.map(s => ({ id: `chats/${s.source}`, name: s.source, type: "folder", count: s.c, messages: s.msgs })) });
+        stateDb.close();
+      }
+      // Projects
+      const dashDb = openDashboardDb();
+      if (dashDb) {
+        const projects = dashDb.prepare("SELECT id, name FROM projects ORDER BY name").all();
+        tree.push({ id: "projects", name: "projects", type: "folder", children: projects.map(p => ({ id: `projects/${p.id}`, name: p.name, type: "folder" })) });
+        dashDb.close();
+      }
+      // Memory files
+      if (fs.existsSync(MEMORIES_DIR)) {
+        const memFiles = fs.readdirSync(MEMORIES_DIR).filter(f => !f.startsWith("."));
+        tree.push({ id: "memory", name: "memory", type: "folder", children: memFiles.map(f => ({ id: `memory/${f}`, name: f, type: "file" })) });
+      }
+      // Skills
+      if (fs.existsSync(SKILLS_DIR)) {
+        const skillCats = fs.readdirSync(SKILLS_DIR).filter(f => { try { return fs.statSync(path.join(SKILLS_DIR, f)).isDirectory(); } catch(e) { return false; } });
+        tree.push({ id: "skills", name: "skills", type: "folder", children: skillCats.map(c => {
+          const skills = fs.readdirSync(path.join(SKILLS_DIR, c)).filter(f => { try { return fs.statSync(path.join(SKILLS_DIR, c, f)).isDirectory(); } catch(e) { return false; } });
+          return { id: `skills/${c}`, name: c, type: "folder", count: skills.length };
+        })});
+      }
+      // Scripts
+      const scriptsDir = path.join(baseDir, "scripts");
+      if (fs.existsSync(scriptsDir)) {
+        const scripts = fs.readdirSync(scriptsDir).filter(f => f.endsWith(".py") || f.endsWith(".sh"));
+        tree.push({ id: "scripts", name: "scripts", type: "folder", children: scripts.map(f => ({ id: `scripts/${f}`, name: f, type: "file" })) });
+      }
+      // Cron
+      const cronDir = path.join(baseDir, "cron");
+      if (fs.existsSync(cronDir)) {
+        tree.push({ id: "cron", name: "cron", type: "folder", children: [{ id: "cron/jobs.json", name: "jobs.json", type: "file" }] });
+      }
+      // Config
+      tree.push({ id: "config", name: "config", type: "folder", children: [
+        { id: "config/config.yaml", name: "config.yaml", type: "file" },
+        { id: "config/.env", name: ".env", type: "file" },
+      ]});
+      sendJson(res, 200, { tree });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
+  // ── API: Browse folder contents (on demand) ──
+  if (req.method === "GET" && url.pathname === "/api/filesystem/browse") {
+    const folderId = url.searchParams.get("id") || "";
+    const profileFilter = url.searchParams.get("profile") || null;
+    const baseDir = profileFilter && profileFilter !== "all" ? getProfileDir(profileFilter) : CONFIG_DIR;
+    try {
+      let items = [];
+
+      if (folderId.startsWith("chats/")) {
+        // List sessions for a source
+        const source = folderId.replace("chats/", "");
+        const db = openStateDb(profileFilter);
+        if (db) {
+          const rows = db.prepare("SELECT id, title, started_at, message_count, model FROM sessions WHERE source = ? ORDER BY started_at DESC LIMIT 50").all(source);
+          items = rows.map(r => ({
+            id: `session/${r.id}`, name: r.title || r.id,
+            type: "file", meta: (r.message_count || 0) + " msgs",
+          }));
+          db.close();
+        }
+      } else if (folderId.startsWith("skills/")) {
+        // List skills in a category
+        const cat = folderId.replace("skills/", "");
+        const catDir = path.join(SKILLS_DIR, cat);
+        if (fs.existsSync(catDir)) {
+          items = fs.readdirSync(catDir).filter(f => {
+            try { return fs.statSync(path.join(catDir, f)).isDirectory(); } catch(e) { return false; }
+          }).map(f => {
+            const hasSkill = fs.existsSync(path.join(catDir, f, "SKILL.md"));
+            return { id: `skill/${cat}/${f}`, name: f, type: "file", meta: hasSkill ? "SKILL.md" : "" };
+          });
+        }
+      } else if (folderId === "scripts") {
+        const scriptsDir = path.join(baseDir, "scripts");
+        if (fs.existsSync(scriptsDir)) {
+          items = fs.readdirSync(scriptsDir).filter(f => !f.startsWith(".") && !f.startsWith("__")).map(f => ({
+            id: `scripts/${f}`, name: f, type: "file",
+          }));
+        }
+      } else if (folderId === "memory") {
+        if (fs.existsSync(MEMORIES_DIR)) {
+          items = fs.readdirSync(MEMORIES_DIR).filter(f => !f.startsWith(".")).map(f => ({
+            id: `memory/${f}`, name: f, type: "file",
+          }));
+        }
+      } else if (folderId === "config") {
+        items = [
+          { id: "config/config.yaml", name: "config.yaml", type: "file" },
+          { id: "config/.env", name: ".env", type: "file" },
+        ];
+      } else if (folderId === "cron") {
+        items = [{ id: "cron/jobs.json", name: "jobs.json", type: "file" }];
+        // Also list output dirs
+        const cronOutputDir = path.join(baseDir, "cron", "output");
+        if (fs.existsSync(cronOutputDir)) {
+          for (const jobDir of fs.readdirSync(cronOutputDir)) {
+            items.push({ id: `cron/output/${jobDir}`, name: jobDir, type: "folder" });
+          }
+        }
+      } else if (folderId === "projects") {
+        const dashDb = openDashboardDb();
+        if (dashDb) {
+          const projects = dashDb.prepare("SELECT id, name FROM projects ORDER BY name").all();
+          items = projects.map(p => ({ id: `projects/${p.id}`, name: p.name, type: "folder" }));
+          dashDb.close();
+        }
+      }
+
+      sendJson(res, 200, { items });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
+    return;
+  }
+
+  // ── API: Read file content ──
+  if (req.method === "GET" && url.pathname === "/api/filesystem/read") {
+    const fileId = url.searchParams.get("id") || "";
+    const profileFilter = url.searchParams.get("profile") || null;
+    const baseDir = profileFilter && profileFilter !== "all" ? getProfileDir(profileFilter) : CONFIG_DIR;
+    try {
+      let content = "";
+      let title = fileId;
+
+      if (fileId.startsWith("memory/")) {
+        const filePath = path.join(MEMORIES_DIR, fileId.replace("memory/", ""));
+        if (fs.existsSync(filePath)) content = fs.readFileSync(filePath, "utf8").replace(/^§$/gm, "---");
+        title = fileId.replace("memory/", "");
+      } else if (fileId.startsWith("skill/")) {
+        const parts = fileId.replace("skill/", "").split("/");
+        const skillPath = path.join(SKILLS_DIR, parts[0], parts[1], "SKILL.md");
+        if (fs.existsSync(skillPath)) content = fs.readFileSync(skillPath, "utf8");
+        title = parts[1] + "/SKILL.md";
+      } else if (fileId.startsWith("scripts/")) {
+        const filePath = path.join(baseDir, fileId);
+        if (fs.existsSync(filePath)) content = fs.readFileSync(filePath, "utf8");
+        title = fileId.replace("scripts/", "");
+      } else if (fileId === "config/config.yaml") {
+        if (fs.existsSync(CONFIG_FILE)) content = fs.readFileSync(CONFIG_FILE, "utf8");
+        title = "config.yaml";
+      } else if (fileId === "config/.env") {
+        if (fs.existsSync(ENV_FILE)) content = "[HIDDEN — contains secrets]";
+        title = ".env";
+      } else if (fileId === "cron/jobs.json") {
+        const cronFile = path.join(baseDir, "cron", "jobs.json");
+        if (fs.existsSync(cronFile)) content = fs.readFileSync(cronFile, "utf8");
+        title = "jobs.json";
+      } else if (fileId.startsWith("session/")) {
+        // Read session messages
+        const sessionId = fileId.replace("session/", "");
+        const db = openStateDb(profileFilter);
+        if (db) {
+          const msgs = db.prepare("SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp").all(sessionId);
+          content = msgs.map(m => {
+            let c = m.content || "";
+            c = c.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            if (!c || m.role === "session_meta") return "";
+            return `[${m.role.toUpperCase()}]\n${c}`;
+          }).filter(Boolean).join("\n\n---\n\n");
+          db.close();
+        }
+        title = sessionId;
+      }
+
+      sendJson(res, 200, { content: content || "EMPTY", title });
+    } catch (e) { sendJson(res, 500, { error: e.message }); }
     return;
   }
 

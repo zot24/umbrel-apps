@@ -2175,6 +2175,210 @@
       color: var(--phosphor);
       background: rgba(80,255,168,0.06);
     }
+    .session-meta-filters {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .session-project-filter {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--body);
+      font-size: 9px;
+      padding: 4px 8px;
+      letter-spacing: 0.5px;
+      outline: none;
+    }
+    .session-star { color: var(--text-muted); cursor: pointer; font-size: 12px; margin-left: auto; flex-shrink: 0; }
+    .session-star:hover { color: var(--amber); }
+    .session-star.starred { color: var(--amber); }
+    .session-tags-inline { display: flex; gap: 2px; margin-top: 3px; }
+    .session-tag-badge { font-size: 7px; padding: 1px 5px; border: 1px solid var(--border); color: var(--text-muted); letter-spacing: 0.5px; }
+    .session-project-badge { font-size: 7px; padding: 1px 5px; border: 1px solid var(--phosphor-dim); color: var(--phosphor-dim); letter-spacing: 0.5px; margin-right: 4px; }
+
+    /* ── File manager — retro CRT terminal ── */
+    .fm-window {
+      position: fixed;
+      width: 460px;
+      height: 380px;
+      background: var(--surface);
+      border: 1px solid var(--phosphor-dim);
+      z-index: var(--z-logs);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 0 1px var(--phosphor-dim);
+      resize: both;
+      overflow: hidden;
+      min-width: 280px;
+      min-height: 200px;
+    }
+    .fm-window::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+      opacity: 0.5;
+      z-index: 1;
+    }
+    .fm-window.focused { border-color: var(--phosphor); box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 0 8px var(--phosphor-glow); }
+    .fm-window:not(.focused) { border-color: var(--border); opacity: 0.85; }
+    .fm-window:not(.focused) .fm-titlebar { background: var(--surface-2); }
+
+    .fm-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      background: rgba(80,255,168,0.02);
+      border-bottom: 1px solid var(--border);
+      cursor: grab;
+      flex-shrink: 0;
+    }
+    .fm-titlebar:active { cursor: grabbing; }
+    .fm-titlebar-text {
+      font-family: var(--display);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--phosphor);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .fm-window:not(.focused) .fm-titlebar-text { color: var(--text-muted); }
+    .fm-wbtn {
+      width: 20px; height: 20px;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-family: var(--body);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .fm-wbtn:hover { color: var(--phosphor); border-color: var(--phosphor-dim); }
+    .fm-wbtn.close:hover { color: var(--red); border-color: var(--red-dim); }
+
+    .fm-addressbar {
+      display: flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-bottom: 1px solid rgba(26,37,48,0.5);
+      flex-shrink: 0;
+    }
+    .fm-address {
+      font-family: var(--body);
+      font-size: 10px;
+      color: var(--phosphor-dim);
+      letter-spacing: 0.5px;
+    }
+
+    .fm-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      gap: 4px;
+      background: var(--bg);
+    }
+
+    .fm-icon {
+      width: 76px;
+      height: 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 8px 4px 4px;
+      cursor: default;
+      border: 1px solid transparent;
+      transition: all 0.1s;
+    }
+    .fm-icon:hover { background: rgba(80,255,168,0.03); border-color: rgba(80,255,168,0.08); }
+    .fm-icon.selected {
+      background: rgba(80,255,168,0.08);
+      border-color: var(--phosphor-dim);
+    }
+    .fm-icon-glyph {
+      width: 28px;
+      height: 28px;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .fm-icon-glyph svg { width: 24px; height: 24px; }
+    .fm-icon-glyph.folder svg { stroke: var(--amber); filter: drop-shadow(0 0 3px rgba(255,192,77,0.2)); }
+    .fm-icon-glyph.file svg { stroke: var(--text-muted); }
+    .fm-icon-label {
+      font-family: var(--body);
+      font-size: 8px;
+      color: var(--text);
+      text-align: center;
+      max-width: 72px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    .fm-icon.selected .fm-icon-label { color: var(--phosphor); }
+    .fm-icon-meta {
+      font-size: 7px;
+      color: var(--text-muted);
+      text-align: center;
+      opacity: 0.6;
+    }
+
+    .fm-statusbar {
+      padding: 3px 10px;
+      border-top: 1px solid var(--border);
+      font-family: var(--body);
+      font-size: 8px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+      display: flex;
+      gap: 12px;
+    }
+
+    /* File viewer content (inside fm-window) */
+    .fm-file-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      font-family: var(--body);
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: var(--bg);
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    .fm-file-body h1, .fm-file-body h2, .fm-file-body h3 {
+      color: var(--phosphor);
+      font-family: var(--display);
+      margin: 14px 0 6px;
+      font-size: 14px;
+      letter-spacing: 1px;
+    }
+    .fm-file-body h2 { font-size: 12px; color: var(--amber); }
+    .fm-file-body h3 { font-size: 11px; color: var(--text); }
+    .fm-file-body strong { color: var(--text); }
+    .fm-file-body code { background: var(--surface-2); padding: 1px 5px; font-size: 11px; border: 1px solid var(--border); }
+    .fm-file-body a { color: var(--phosphor-dim); }
+
     .session-group-label {
       font-family: var(--display);
       font-size: 9px;
@@ -3975,7 +4179,7 @@
           <span class="fkey">F3</span> Tools
         </button>
         <button class="dash-tab" data-view="sessions" onclick="switchView('sessions')">
-          <span class="fkey">F4</span> Sessions
+          <span class="fkey">F4</span> Chats
         </button>
         <button class="dash-tab" data-view="memory" onclick="switchView('memory')">
           <span class="fkey">F5</span> Memory
@@ -3983,7 +4187,8 @@
         <button class="dash-tab" data-view="jobs" onclick="switchView('jobs')">
           <span class="fkey">F6</span> Jobs
         </button>
-        <button class="dash-tab" data-view="atlas" onclick="switchView('atlas')">
+        <!-- Atlas: hidden prototype -->
+        <button class="dash-tab" data-view="atlas" onclick="switchView('atlas')" style="display:none;">
           <span class="fkey">F7</span> Atlas
         </button>
       </div>
@@ -4093,20 +4298,27 @@
       </div>
     </div>
 
-    <!-- ── VIEW: Sessions ── -->
+    <!-- ── VIEW: Sessions/Chats ── -->
     <div class="dash-view" id="view-sessions">
       <div class="panel" id="sessionsPanel">
         <div class="panel-header">
-          <span class="panel-title">Sessions</span>
+          <span class="panel-title">Chats</span>
           <span class="panel-indicator" id="sessionsIndicator">SYS.HISTORY</span>
         </div>
         <div class="panel-body">
           <div class="session-filters" id="sessionFilters"></div>
+          <div class="session-meta-filters">
+            <button class="session-filter-btn" id="filterStarred" onclick="toggleStarredFilter()">&#9733; STARRED</button>
+            <select class="session-project-filter" id="filterProject" onchange="setProjectFilter(this.value)">
+              <option value="">ALL PROJECTS</option>
+            </select>
+          </div>
           <div id="sessionsList"><div class="dash-empty">LOADING...</div></div>
           <div id="sessionsPagination" class="pagination"></div>
         </div>
       </div>
     </div>
+
 
     <!-- ── VIEW: Memory (browser) ── -->
     <div class="dash-view" id="view-memory">
@@ -4310,6 +4522,9 @@
           </svg>
         </div>
       </div>
+    </div>
+    <div class="corner-btn" id="cornerFiles" onclick="openFileManager()" title="File Manager">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
     </div>
     <div class="corner-btn" id="cornerSettings" onclick="toggleSettings()" title="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -5527,7 +5742,7 @@
       metrics: "SYS.METRICS",
       activity: "SYS.ACTIVITY",
       tools: "SYS.TOOLS",
-      sessions: "SYS.HISTORY",
+      sessions: "SYS.CHATS",
       memory: "SYS.MEMORY",
       jobs: "SYS.CRON",
       atlas: "SYS.ATLAS",
@@ -5568,10 +5783,10 @@
         return;
       }
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.contentEditable === "true") return;
-      const views = ["metrics", "activity", "tools", "sessions", "memory", "jobs", "atlas"];
-      const fkey = e.key.match(/^F([1-7])$/);
+      const views = ["metrics", "activity", "tools", "sessions", "memory", "jobs"];
+      const fkey = e.key.match(/^F([1-6])$/);
       if (fkey) { e.preventDefault(); switchView(views[parseInt(fkey[1]) - 1]); }
-      if (e.key >= "1" && e.key <= "7" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key >= "1" && e.key <= "6" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         switchView(views[parseInt(e.key) - 1]);
       }
     });
@@ -5974,8 +6189,10 @@
       try {
         const offset = sessionsPage * SESSIONS_PER_PAGE;
         const sourceParam = sessionsSourceFilter ? `&source=${sessionsSourceFilter}` : "";
-        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}&days=${dashDays}${sourceParam}${profileParam()}`)).json();
-        document.getElementById("sessionsIndicator").textContent = data.total ? `${data.total} TOTAL` : "SYS.HISTORY";
+        const projectParam = sessionsProjectFilter ? `&project=${sessionsProjectFilter}` : "";
+        const starredParam = sessionsStarredFilter ? "&starred=1" : "";
+        const data = await (await fetch(`/api/sessions?limit=${SESSIONS_PER_PAGE}&offset=${offset}&days=${dashDays}${sourceParam}${projectParam}${starredParam}${profileParam()}`)).json();
+        document.getElementById("sessionsIndicator").textContent = data.total ? `${data.total} CHATS` : "SYS.CHATS";
 
         // Build source filter buttons — remember all sources from unfiltered results
         if (!sessionsSourceFilter) {
@@ -6012,13 +6229,19 @@
             groupHtml = `<div class="session-group-label">${group}</div>`;
           }
 
+          const projectBadge = s.project_id ? `<span class="session-project-badge">${escapeHtml((projectsCache.find(p=>p.id===s.project_id)||{}).name||"")}</span>` : "";
+          const tagBadges = (s.tags||[]).length ? `<div class="session-tags-inline">${s.tags.map(t=>`<span class="session-tag-badge">${t}</span>`).join("")}</div>` : "";
+          const starCls = s.starred ? " starred" : "";
+
           return `${groupHtml}
             <div class="session-row" onclick="toggleSession(this, '${s.id}')">
               <span class="session-source">${s.source || "?"}</span>
               <div class="session-info">
-                <div class="session-title">${title}</div>
+                <div class="session-title">${projectBadge}${title}</div>
                 <div class="session-meta">${date} / ${dur} / ${s.message_count || 0} msgs / ${fmtNum((s.input_tokens||0)+(s.output_tokens||0))} tok</div>
+                ${tagBadges}
               </div>
+              <span class="session-star${starCls}" onclick="event.stopPropagation();toggleStar('${s.id}',this)">&#9733;</span>
               <span class="session-cost">${cost}</span>
             </div>
             <div class="session-detail" id="detail-${s.id}"></div>
@@ -6098,6 +6321,273 @@
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
+
+    // ═══════ PROJECTS & SESSION METADATA ═══════
+
+    let sessionsProjectFilter = null;
+    let sessionsStarredFilter = false;
+    let projectsCache = [];
+
+    async function fetchProjects() {
+      try {
+        const data = await (await fetch("/api/projects")).json();
+        projectsCache = data.projects || [];
+        // Update project filter dropdown
+        const sel = document.getElementById("filterProject");
+        if (sel) {
+          const val = sel.value;
+          sel.innerHTML = '<option value="">ALL PROJECTS</option>' +
+            projectsCache.map(p => `<option value="${p.id}"${p.id === val ? " selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
+        }
+      } catch (e) {}
+    }
+
+    function setProjectFilter(projectId) {
+      sessionsProjectFilter = projectId || null;
+      sessionsPage = 0;
+      fetchSessions();
+    }
+
+    function toggleStarredFilter() {
+      sessionsStarredFilter = !sessionsStarredFilter;
+      document.getElementById("filterStarred").classList.toggle("active", sessionsStarredFilter);
+      sessionsPage = 0;
+      fetchSessions();
+    }
+
+    async function toggleStar(sessionId, el) {
+      const isStarred = el.classList.contains("starred");
+      try {
+        await fetch(`/api/sessions/${sessionId}/meta`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ starred: isStarred ? 0 : 1 }),
+        });
+        el.classList.toggle("starred");
+      } catch (e) {}
+    }
+
+    async function createProject() {
+      const name = prompt("Project name:");
+      if (!name) return;
+      try {
+        await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        });
+        fetchProjects();
+      } catch (e) {}
+    }
+
+    // Load projects on init
+    fetchProjects();
+
+    // ═══════ FILE MANAGER — Windows 3.1 style ═══════
+
+    let fmWinCount = 0;
+    let fmTreeCache = null;
+    let fmTopZ = 500;
+    let fmFocusedWin = null;
+
+    async function openFileManager() {
+      if (!fmTreeCache) {
+        try {
+          const data = await (await fetch(`/api/filesystem?x=1${profileParam()}`)).json();
+          fmTreeCache = data.tree || [];
+        } catch (e) { fmTreeCache = []; }
+      }
+      fmCreateWindow("C:\\HERMES", "/hermes", fmTreeCache);
+    }
+
+    function fmFocus(winId) {
+      document.querySelectorAll(".fm-window").forEach(w => w.classList.remove("focused"));
+      const el = document.getElementById(winId);
+      if (el) { el.classList.add("focused"); el.style.zIndex = ++fmTopZ; fmFocusedWin = winId; }
+    }
+
+    function fmCreateWindow(title, path, items, parentRect) {
+      fmWinCount++;
+      const id = "fmW" + fmWinCount;
+      const left = parentRect ? parentRect.left + 28 : 100 + fmWinCount * 22;
+      const top = parentRect ? parentRect.top + 24 : 60 + fmWinCount * 18;
+      const folders = items.filter(i => i.type === "folder");
+      const files = items.filter(i => i.type !== "folder");
+
+      const el = document.createElement("div");
+      el.className = "fm-window focused";
+      el.id = id;
+      el.style.left = left + "px";
+      el.style.top = top + "px";
+      el.style.zIndex = ++fmTopZ;
+      el.onmousedown = () => fmFocus(id);
+      fmFocusedWin = id;
+      document.querySelectorAll(".fm-window").forEach(w => w.classList.remove("focused"));
+
+      el.innerHTML = `
+        <div class="fm-titlebar" onmousedown="fmDragStart(event,'${id}')">
+          <span class="fm-titlebar-text">${escapeHtml(title)}</span>
+          <div class="fm-wbtn" onclick="fmMaximize('${id}')" title="Maximize">&#9633;</div>
+          <div class="fm-wbtn close" onclick="document.getElementById('${id}').remove()" title="Close">&#10005;</div>
+        </div>
+        <div class="fm-addressbar">
+          <span class="fm-address">&gt; ${escapeHtml(path)}</span>
+        </div>
+        <div class="fm-body" onclick="fmDeselectAll('${id}')">
+          ${[...folders, ...files].map(item => {
+            const isFolder = item.type === "folder";
+            const folderSvg = '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="square"><path d="M3 6h7l2-2h9v14H3z"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+            const fileSvg = '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="square"><path d="M5 3h10l4 4v14H5z"/><polyline points="14 3 14 8 19 8"/></svg>';
+            const glyph = isFolder ? folderSvg : fileSvg;
+            const cls = isFolder ? "folder" : "file";
+            const meta = item.count ? item.count : item.messages ? item.messages + " msgs" : "";
+            return `<div class="fm-icon" data-id="${escapeHtml(item.id)}" data-name="${escapeHtml(item.name)}" data-type="${item.type}"
+              onclick="event.stopPropagation();fmSelect(this,'${id}')"
+              ondblclick="event.stopPropagation();fmDblClick('${escapeHtml(item.id)}','${escapeHtml(item.name)}','${item.type}','${id}')">
+              <span class="fm-icon-glyph ${cls}">${glyph}</span>
+              <span class="fm-icon-label">${escapeHtml(item.name)}</span>
+              ${meta ? `<span class="fm-icon-meta">${meta}</span>` : ""}
+            </div>`;
+          }).join("") || '<div class="dash-empty" style="padding:30px;width:100%;">EMPTY DIRECTORY</div>'}
+        </div>
+        <div class="fm-statusbar">
+          <span>${items.length} object(s)</span>
+          <span id="${id}_sel"></span>
+        </div>
+      `;
+
+      document.getElementById("fmWindows").appendChild(el);
+    }
+
+    function fmSelect(el, winId) {
+      el.closest(".fm-body").querySelectorAll(".fm-icon").forEach(i => i.classList.remove("selected"));
+      el.classList.add("selected");
+      const sel = document.getElementById(winId + "_sel");
+      if (sel) sel.textContent = "1 object(s) selected";
+    }
+
+    function fmDeselectAll(winId) {
+      const win = document.getElementById(winId);
+      if (win) {
+        win.querySelectorAll(".fm-icon.selected").forEach(i => i.classList.remove("selected"));
+        const sel = document.getElementById(winId + "_sel");
+        if (sel) sel.textContent = "";
+      }
+    }
+
+    async function fmDblClick(id, name, type, winId) {
+      if (type === "folder") {
+        const children = fmFindNode(fmTreeCache, id);
+        if (children && children.length) {
+          const rect = document.getElementById(winId).getBoundingClientRect();
+          fmCreateWindow(name.toUpperCase(), "/" + id, children, rect);
+        } else {
+          // Fetch children on demand
+          try {
+            const data = await (await fetch(`/api/filesystem/browse?id=${encodeURIComponent(id)}${profileParam()}`)).json();
+            if (data.items?.length) {
+              const rect = document.getElementById(winId).getBoundingClientRect();
+              fmCreateWindow(name.toUpperCase(), "/" + id, data.items, rect);
+            }
+          } catch (e) {}
+        }
+      } else {
+        fmOpenFile(id, name);
+      }
+    }
+
+    function fmFindNode(tree, targetId) {
+      for (const node of tree) {
+        if (node.id === targetId && node.children) return node.children;
+        if (node.children) {
+          const found = fmFindNode(node.children, targetId);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    function fmMaximize(winId) {
+      const el = document.getElementById(winId);
+      if (!el) return;
+      if (el.dataset.maximized === "1") {
+        el.style.left = el.dataset.origLeft;
+        el.style.top = el.dataset.origTop;
+        el.style.width = el.dataset.origW;
+        el.style.height = el.dataset.origH;
+        el.dataset.maximized = "0";
+      } else {
+        el.dataset.origLeft = el.style.left;
+        el.dataset.origTop = el.style.top;
+        el.dataset.origW = el.style.width;
+        el.dataset.origH = el.style.height;
+        el.style.left = "80px";
+        el.style.top = "0";
+        el.style.width = "calc(100vw - 80px)";
+        el.style.height = "calc(100vh - 40px)";
+        el.dataset.maximized = "1";
+      }
+    }
+
+    async function fmOpenFile(id, name) {
+      fmWinCount++;
+      const winId = "fmW" + fmWinCount;
+      const el = document.createElement("div");
+      el.className = "fm-window focused";
+      el.id = winId;
+      el.style.left = (200 + fmWinCount * 18) + "px";
+      el.style.top = (100 + fmWinCount * 14) + "px";
+      el.style.width = "520px";
+      el.style.height = "400px";
+      el.style.zIndex = ++fmTopZ;
+      el.onmousedown = () => fmFocus(winId);
+      document.querySelectorAll(".fm-window").forEach(w => w.classList.remove("focused"));
+
+      el.innerHTML = `
+        <div class="fm-titlebar" onmousedown="fmDragStart(event,'${winId}')">
+          <span class="fm-titlebar-text">${escapeHtml(name)}</span>
+          <div class="fm-wbtn" onclick="fmMaximize('${winId}')" title="Maximize">&#9633;</div>
+          <div class="fm-wbtn close" onclick="document.getElementById('${winId}').remove()" title="Close">&#10005;</div>
+        </div>
+        <div class="fm-file-body" id="${winId}_body"><div class="dash-empty">LOADING...</div></div>
+      `;
+      document.getElementById("fmWindows").appendChild(el);
+
+      try {
+        const data = await (await fetch(`/api/filesystem/read?id=${encodeURIComponent(id)}${profileParam()}`)).json();
+        const content = data.content || "EMPTY";
+        el.querySelector(".fm-titlebar-text").textContent = data.title || name;
+        const lines = content.split("\n").map(line => {
+          if (/^### /.test(line)) return '<h3>' + escapeHtml(line.slice(4)) + '</h3>';
+          if (/^## /.test(line)) return '<h2>' + escapeHtml(line.slice(3)) + '</h2>';
+          if (/^# /.test(line)) return '<h1>' + escapeHtml(line.slice(2)) + '</h1>';
+          if (line === '---') return '<hr style="border:none;border-top:1px solid var(--border);margin:8px 0;opacity:0.3;">';
+          let l = escapeHtml(line);
+          l = l.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+          l = l.replace(/`(.+?)`/g, '<code>$1</code>');
+          return l;
+        }).join("\n");
+        document.getElementById(winId + "_body").innerHTML = lines;
+      } catch (e) {
+        document.getElementById(winId + "_body").innerHTML = '<div class="dash-empty">FAILED TO LOAD</div>';
+      }
+    }
+
+    // Window dragging
+    let fmDragState = null;
+    function fmDragStart(e, winId) {
+      if (e.target.closest(".fm-wbtn")) return;
+      fmFocus(winId);
+      const el = document.getElementById(winId);
+      fmDragState = { el, startX: e.clientX, startY: e.clientY, origLeft: el.offsetLeft, origTop: el.offsetTop };
+      e.preventDefault();
+    }
+    document.addEventListener("mousemove", (e) => {
+      if (!fmDragState) return;
+      fmDragState.el.style.left = Math.max(0, fmDragState.origLeft + e.clientX - fmDragState.startX) + "px";
+      fmDragState.el.style.top = Math.max(0, fmDragState.origTop + e.clientY - fmDragState.startY) + "px";
+    });
+    document.addEventListener("mouseup", () => { fmDragState = null; });
 
     // ═══════ MEMORY BROWSER ═══════
     let memFiles = [];
@@ -7422,6 +7912,10 @@
       <div class="dash-empty">LOADING...</div>
     </div>
   </div>
+
+  <!-- File manager windows container -->
+  <div id="fmWindows"></div>
+
 
   <!-- Import error overlay -->
   <div class="import-error-overlay" id="importErrorOverlay">
