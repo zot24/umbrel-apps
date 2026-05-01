@@ -26,7 +26,7 @@ services:
       CONFIG_DIR: /config
       WEB_HERMES_HOME: /data/.hermes
       WEB_CONTAINER: zot24-hermes_web_1
-      APP_VERSION: v0.11.0
+      APP_VERSION: v0.12.0
 
   web:
     image: ghcr.io/zot24/hermes-docker:v2026.4.30@sha256:7f3d1fdd1ac2ac1701745fe3928f6d80d912fcb63a35ab53a0c8c7c2b8b296f2
