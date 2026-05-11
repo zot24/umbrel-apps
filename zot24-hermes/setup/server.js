@@ -1220,9 +1220,13 @@ async function handleRequest(req, res) {
         return;
       }
 
-      // Named import: extract into .hermes/profiles/<target>/ instead of replacing .hermes/.
-      // No web container restart needed — the gateway for the new profile starts on demand.
-      const targetProfile = (url.searchParams.get("target") || "").trim().toLowerCase();
+      // Resolve the target profile name. Precedence:
+      //   1. ?target=<name> query param (explicit override; ?target=default means "replace")
+      //   2. The archive's own top-level dir (e.g. `hermes profile export residencyos` → "residencyos")
+      // An archive labeled "default" — or an explicit target=default — falls through to the
+      // replace-`.hermes/` flow below. Everything else becomes a named profile.
+      const targetOverride = (url.searchParams.get("target") || "").trim().toLowerCase();
+      const targetProfile = targetOverride || (archivePrefix || "").trim().toLowerCase();
       if (targetProfile && targetProfile !== "default") {
         if (!PROFILE_NAME_RE.test(targetProfile)) {
           cleanup();

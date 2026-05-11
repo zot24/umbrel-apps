@@ -4652,7 +4652,7 @@
             <span class="radio-mark"></span>
             <div>
               <div class="clone-option-title">Import from backup</div>
-              <div class="clone-option-desc">Restore a profile from a Hermes backup (.tar.gz). The archive's contents become this profile.</div>
+              <div class="clone-option-desc">Restore a profile from a Hermes backup (.tar.gz). Leave name blank to use the archive's own profile name, or set a name to rename on import.</div>
               <input type="file" id="importProfileFile" accept=".tar.gz,.tgz,application/gzip,application/x-gzip" style="display:none; margin-top: 10px; font-size: 11px; color: var(--text-muted);">
             </div>
           </label>
@@ -5227,7 +5227,9 @@
           const prog = simulateProgress("UPLOADING BACKUP...", 12000, true);
 
           try {
-            const resp = await fetch("/api/import", {
+            // "Restore everything" button always replaces the default profile,
+            // regardless of the archive's own name.
+            const resp = await fetch("/api/import?target=default", {
               method: "POST",
               headers: { "Content-Type": "application/octet-stream" },
               body: file,
@@ -5459,7 +5461,9 @@
       const cloneFrom = document.getElementById("cloneFromProfile").value || "default";
       const errEl = document.getElementById("createProfileError");
 
-      if (!name) {
+      // Name is required for clone/clone-all/fresh. For import, the server falls back
+      // to the archive's own profile name if name is blank.
+      if (!name && cloneMode !== "import") {
         errEl.textContent = "Profile name is required.";
         errEl.style.display = "block";
         return;
@@ -5470,7 +5474,8 @@
       errEl.style.display = "none";
 
       try {
-        // Import from backup: stream the tarball to /api/import?target=<name>
+        // Import from backup: stream the tarball to /api/import?target=<name> (or omit
+        // target to let the server use the archive's own profile name).
         if (cloneMode === "import") {
           const fileInput = document.getElementById("importProfileFile");
           const file = fileInput && fileInput.files && fileInput.files[0];
@@ -5480,7 +5485,8 @@
             btn.disabled = false; btn.textContent = "Create";
             return;
           }
-          const resp = await fetch(`/api/import?target=${encodeURIComponent(name)}`, {
+          const importUrl = name ? `/api/import?target=${encodeURIComponent(name)}` : "/api/import";
+          const resp = await fetch(importUrl, {
             method: "POST",
             headers: { "Content-Type": "application/gzip" },
             body: file,
