@@ -4647,6 +4647,15 @@
               <div class="clone-option-desc">Clean slate with bundled skills. Configure model and API key after creation.</div>
             </div>
           </label>
+          <label class="clone-option">
+            <input type="radio" name="cloneMode" value="import">
+            <span class="radio-mark"></span>
+            <div>
+              <div class="clone-option-title">Import from backup</div>
+              <div class="clone-option-desc">Restore a profile from a Hermes backup (.tar.gz). The archive's contents become this profile.</div>
+              <input type="file" id="importProfileFile" accept=".tar.gz,.tgz,application/gzip,application/x-gzip" style="display:none; margin-top: 10px; font-size: 11px; color: var(--text-muted);">
+            </div>
+          </label>
         </div>
         <div id="createProfileError" style="display: none; font-size: 12px; color: var(--red); padding: 8px 10px; border: 1px solid var(--red-dim); margin-bottom: 10px;"></div>
       </div>
@@ -5422,6 +5431,9 @@
       document.getElementById("newProfileName").value = "";
       document.querySelector('input[name="cloneMode"][value="clone"]').checked = true;
       document.getElementById("createProfileError").style.display = "none";
+      // Reset the import file picker (hidden until "Import from backup" is selected)
+      const fileInput = document.getElementById("importProfileFile");
+      if (fileInput) { fileInput.value = ""; fileInput.style.display = "none"; }
       // Populate clone-from dropdown with available profiles
       const select = document.getElementById("cloneFromProfile");
       select.innerHTML = `<option value="default">${profileDisplayNamePlain("default")} (default)</option>`;
@@ -5433,6 +5445,13 @@
       document.getElementById("createProfileModal").classList.add("show");
       setTimeout(() => document.getElementById("newProfileName").focus(), 100);
     }
+
+    function updateImportFileVisibility() {
+      const mode = document.querySelector('input[name="cloneMode"]:checked')?.value;
+      const fi = document.getElementById("importProfileFile");
+      if (fi) fi.style.display = mode === "import" ? "block" : "none";
+    }
+    document.querySelectorAll('input[name="cloneMode"]').forEach(r => r.addEventListener("change", updateImportFileVisibility));
 
     async function createProfile() {
       const name = document.getElementById("newProfileName").value.trim().toLowerCase();
@@ -5447,10 +5466,37 @@
       }
 
       const btn = document.getElementById("createProfileBtn");
-      btn.disabled = true; btn.textContent = "CREATING...";
+      btn.disabled = true; btn.textContent = cloneMode === "import" ? "IMPORTING..." : "CREATING...";
       errEl.style.display = "none";
 
       try {
+        // Import from backup: stream the tarball to /api/import?target=<name>
+        if (cloneMode === "import") {
+          const fileInput = document.getElementById("importProfileFile");
+          const file = fileInput && fileInput.files && fileInput.files[0];
+          if (!file) {
+            errEl.textContent = "Pick a backup archive (.tar.gz) to import.";
+            errEl.style.display = "block";
+            btn.disabled = false; btn.textContent = "Create";
+            return;
+          }
+          const resp = await fetch(`/api/import?target=${encodeURIComponent(name)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/gzip" },
+            body: file,
+          });
+          const data = await resp.json();
+          if (data.success) {
+            document.getElementById("createProfileModal").classList.remove("show");
+            fetchProfiles();
+          } else {
+            errEl.textContent = data.error || "Failed to import profile.";
+            errEl.style.display = "block";
+          }
+          btn.disabled = false; btn.textContent = "Create";
+          return;
+        }
+
         const resp = await fetch("/api/profiles", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
