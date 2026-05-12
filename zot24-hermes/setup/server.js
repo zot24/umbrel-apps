@@ -516,12 +516,23 @@ function startProfileGateway(name) {
   const apiKey = readApiServerKey();
   // Shell-escape the key for single-quote inclusion in the exec command.
   const safeKey = apiKey.replace(/'/g, "'\\''");
+  // Mirror the entrypoint's auto-start subshell pattern: unset platform tokens
+  // and mode/allowlist env vars inherited from the default profile, then
+  // source the profile's own .env so WHATSAPP_MODE, WHATSAPP_ALLOWED_USERS,
+  // bot tokens, etc. come from the profile (not the container's parent env,
+  // which carries the default profile's values). Without this, the named
+  // profile's WhatsApp bridge spawns with the default's --mode/--port/--session.
+  //
   // No --replace: that flag SIGTERMs every running gateway on the container,
   // including the default profile that's holding the container's foreground
-  // process. Starting a named profile would kill the default and bring the
-  // whole container down. Each profile gateway runs as an independent
-  // background process, the same way the entrypoint auto-starts them.
-  const cmd = `API_SERVER_KEY='${safeKey}' HERMES_HOME=${webProfileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run &`;
+  // process. Each profile gateway runs as an independent background process.
+  const cmd = [
+    `unset TELEGRAM_BOT_TOKEN TELEGRAM_HOME_CHAT_ID WHATSAPP_ENABLED WHATSAPP_MODE WHATSAPP_ALLOWED_USERS DISCORD_BOT_TOKEN SLACK_BOT_TOKEN HERMES_REGEN_CONFIG`,
+    `set -a`,
+    `[ -f '${webProfileDir}/.env' ] && . '${webProfileDir}/.env'`,
+    `set +a`,
+    `API_SERVER_KEY='${safeKey}' API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} HERMES_HOME='${webProfileDir}' /app/venv/bin/hermes gateway run &`,
+  ].join("; ");
   // Create exec instance and start it
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
