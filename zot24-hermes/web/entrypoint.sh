@@ -181,6 +181,16 @@ source /app/venv/bin/activate
 # ── Enable the OpenAI-compatible API server on all gateway instances ──────────
 # This allows the dashboard (setup container) to chat with profiles and enables
 # inter-agent communication via the ask-agent skill.
+# Hermes refuses to bind 0.0.0.0 without an API key — generate one once and
+# share it with the setup container via the bind-mounted .hermes/.
+KEY_FILE="$HERMES_HOME/.api_server_key"
+if [ ! -f "$KEY_FILE" ]; then
+    mkdir -p "$HERMES_HOME"
+    head -c 32 /dev/urandom | base64 | tr -d '/+=\n' | head -c 43 > "$KEY_FILE"
+    chmod 600 "$KEY_FILE"
+    echo "Generated API_SERVER_KEY at $KEY_FILE"
+fi
+export API_SERVER_KEY="$(cat "$KEY_FILE")"
 export API_SERVER_ENABLED=true
 export API_SERVER_HOST=0.0.0.0
 
