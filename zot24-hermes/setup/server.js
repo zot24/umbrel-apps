@@ -1353,8 +1353,24 @@ async function handleRequest(req, res) {
         console.warn("Could not stop web container (may not be running):", e.message);
       }
 
-      // Remove existing .hermes to prevent directory merge (especially skills duplication)
+      // Preserve any named profiles before wiping .hermes/ — a "restore default" should
+      // only replace the default profile's data, not destroy other profiles the user
+      // created or imported. We move profiles/ aside and restore it after extract.
       const hermesDir = path.join(VOLUME_DIR, ".hermes");
+      const existingProfilesDir = path.join(hermesDir, "profiles");
+      let preservedProfilesPath = null;
+      if (fs.existsSync(existingProfilesDir)) {
+        preservedProfilesPath = `/tmp/hermes-profiles-preserve-${Date.now()}`;
+        try {
+          execSync(`mv "${existingProfilesDir}" "${preservedProfilesPath}"`, { timeout: 30000 });
+          console.log(`Preserved ${existingProfilesDir} → ${preservedProfilesPath}`);
+        } catch (e) {
+          console.warn("Could not preserve named profiles, they may be lost:", e.message);
+          preservedProfilesPath = null;
+        }
+      }
+
+      // Remove existing .hermes to prevent directory merge (especially skills duplication)
       if (fs.existsSync(hermesDir)) {
         fs.rmSync(hermesDir, { recursive: true, force: true });
         console.log("Cleared existing .hermes directory");
@@ -1372,6 +1388,35 @@ async function handleRequest(req, res) {
         }
       }
       cleanup();
+
+      // Restore preserved named profiles. If the imported archive also brought a
+      // profiles/ subdir (e.g. a full-system backup), merge per-profile —
+      // the preserved version wins on conflict so a user can't accidentally
+      // overwrite a live named profile by restoring an old default archive.
+      if (preservedProfilesPath && fs.existsSync(preservedProfilesPath)) {
+        try {
+          const newProfilesDir = path.join(hermesDir, "profiles");
+          if (!fs.existsSync(newProfilesDir)) {
+            execSync(`mv "${preservedProfilesPath}" "${newProfilesDir}"`, { timeout: 30000 });
+            console.log(`Restored preserved profiles → ${newProfilesDir}`);
+          } else {
+            // Archive included its own profiles/. Merge: preserved entries win.
+            for (const name of fs.readdirSync(preservedProfilesPath)) {
+              const src = path.join(preservedProfilesPath, name);
+              const dst = path.join(newProfilesDir, name);
+              if (fs.existsSync(dst)) {
+                console.log(`Skipping preserved profile "${name}" — archive provided one with same name`);
+                continue;
+              }
+              execSync(`mv "${src}" "${dst}"`, { timeout: 30000 });
+              console.log(`Restored preserved profile "${name}"`);
+            }
+            try { fs.rmSync(preservedProfilesPath, { recursive: true, force: true }); } catch (_) {}
+          }
+        } catch (e) {
+          console.warn("Failed to restore preserved profiles:", e.message);
+        }
+      }
 
       // Remove stale SQLite WAL files (they reference the old DB state)
       // Clean default profile and any imported named profiles
