@@ -1,0 +1,23 @@
+services:
+  app_proxy:
+    environment:
+      APP_HOST: zot24-playwright-renderer_playwright_1
+      APP_PORT: 3030
+
+  playwright:
+    build:
+      context: ./playwright-server
+    restart: on-failure
+    init: true
+    stop_grace_period: 30s
+    environment:
+      RENDERER_TOKEN: ${RENDERER_TOKEN}
+      NODE_ENV: production
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3030/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

@@ -1,0 +1,68 @@
+manifestVersion: 1.1
+id: zot24-playwright-renderer
+name: Playwright Renderer
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
+category: developer
+version: "0.1.0"
+tagline: Residential headless-browser renderer via Cloudflare Tunnel
+description: >-
+  Playwright Renderer is a project-agnostic residential headless-browser
+  service. It exposes a small HTTP API that fetches any URL, renders it with
+  Chromium, and returns the resulting HTML — all from your home Internet
+  connection. Pair it with a Cloudflare Tunnel and your scrapers and
+  automations get a real residential fingerprint without leaving your Umbrel.
+
+
+  Features:
+
+  - HTTP API: POST /render with a URL, get back fully rendered HTML, the final
+    URL after redirects, and the response status.
+
+  - Bearer-token auth: every request must carry a shared secret you control.
+
+  - Residential identity: traffic exits via your home ISP, sidestepping
+    datacenter-IP rate limits and bot detection.
+
+  - Pairs with the standalone Cloudflared Umbrel app — declared as a
+    dependency so installing this app installs the tunnel daemon too, and a
+    single cloudflared instance can serve every home-tunnel app on the box.
+
+  - Drop-in compatible: response shape mirrors Cloudflare Browser Rendering's
+    /content endpoint so clients can swap backends without code changes.
+
+  - Persistent volume: a /data volume is reserved for future storageState.json
+    cookie persistence if you ever need a logged-in browsing flow.
+
+
+  Setup Instructions:
+
+  1. Install the Cloudflared Umbrel app and configure your tunnel + tunnel
+     token there. (This app declares cloudflared as a dependency, so Umbrel
+     will prompt for it on install if it's not present.)
+
+  2. In the Cloudflare Zero Trust dashboard, add a public hostname to your
+     tunnel pointing at http://zot24-playwright-renderer_playwright_1:3030.
+
+  3. Generate a renderer token: openssl rand -hex 32
+
+  4. Install Playwright Renderer and paste the renderer token into the env
+     config.
+
+  5. Test with: curl -X POST https://playwright.<your-domain>/render
+     -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
+releaseNotes: Initial release
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies:
+  - cloudflared
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 3030
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
