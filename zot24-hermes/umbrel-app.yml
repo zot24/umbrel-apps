@@ -3,7 +3,7 @@ id: zot24-hermes
 name: Hermes Agent
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/icon.svg
 category: ai
-version: "0.13.0"
+version: "0.13.1"
 tagline: Self-improving AI agent with Telegram & WhatsApp
 description: >-
   Hermes Agent by Nous Research is a self-improving AI assistant that connects
@@ -40,7 +40,7 @@ description: >-
 
   4. Start chatting with your agent!
 releaseNotes: >-
-  The Tenacity Release — Hermes Agent now finishes what it starts. Kanban ships as a durable multi-agent board (heartbeat, reclaim, zombie detection, auto-block on incomplete exit, per-task retries, hallucination recovery). `/goal` keeps the agent locked on a target across turns (Ralph loop). Checkpoints v2 rewrites state persistence with real pruning. Gateway auto-resumes interrupted sessions after restart. Cron grows a `no_agent` watchdog mode. A security wave closes 8 P0s — redaction is now
+  Multi-profile import — add additional Hermes profiles from backups without wiping your current agent (profile sidebar → + New Profile → "Import from backup"). Fixes a gateway startup failure on Hermes v2026.4+ by auto-generating the required API_SERVER_KEY on first boot. Logs panel: text is now selectable and the panel has a maximize button. Better error messages when Docker exec calls fail.
 developer: Nous Research
 website: https://hermes-agent.nousresearch.com
 dependencies: []
