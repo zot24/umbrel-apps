@@ -3,7 +3,7 @@ id: zot24-playwright-renderer
 name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
 category: developer
-version: "0.1.0"
+version: "0.1.1"
 tagline: Self-hosted headless-browser renderer with residential-IP egress
 description: >-
   Playwright Renderer is a project-agnostic self-hosted headless-browser
@@ -44,14 +44,18 @@ description: >-
   2. In the Cloudflare Zero Trust dashboard, add a public hostname to your
      tunnel pointing at http://zot24-playwright-renderer_playwright_1:3030.
 
-  3. Generate a renderer token: openssl rand -hex 32
+  3. Install Playwright Renderer. The server auto-generates a bearer token
+     on first boot and persists it to /data/.env on the app's Docker volume.
 
-  4. Install Playwright Renderer and paste the renderer token into the env
-     config.
+  4. Open the app's Logs view in the Umbrel dashboard and copy the
+     "RENDERER_TOKEN=..." banner the server prints on first start.
 
   5. Test with: curl -X POST https://playwright.<your-domain>/render
      -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
-releaseNotes: Initial release
+releaseNotes: >-
+  Auto-generates RENDERER_TOKEN on first boot and persists it to /data/.env
+  so installs succeed without a manual setup step. Read the token from the
+  app's Logs view to wire it up to your clients.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies:

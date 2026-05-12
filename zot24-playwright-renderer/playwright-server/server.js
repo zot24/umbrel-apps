@@ -1,10 +1,14 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
 const express = require("express");
 const helmet = require("helmet");
 const pinoHttp = require("pino-http");
 const pino = require("pino");
+
+const DEFAULT_TOKEN_FILE = "/data/.env";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MIN_TIMEOUT_MS = 5_000;
@@ -215,9 +219,16 @@ function createBrowserPool() {
 function startServer() {
   const port = Number(process.env.PORT) || 3030;
   const host = process.env.HOST || "0.0.0.0";
-  const token = process.env.RENDERER_TOKEN || "";
   const logger = pino({ level: process.env.LOG_LEVEL || "info" });
 
+  // Umbrel doesn't have a setup wizard for this app, so we bootstrap the
+  // token ourselves: read it from /data/.env if present, generate + persist
+  // one if not. Without this the container refuses to start on a fresh
+  // install (no env var was ever set) and the user has no obvious way to
+  // fix it from the Umbrel UI.
+  ensureRendererToken({ logger });
+
+  const token = process.env.RENDERER_TOKEN || "";
   if (!token) {
     logger.error(
       "RENDERER_TOKEN env var is required — refusing to start without auth"
@@ -245,12 +256,83 @@ function startServer() {
   process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
+/**
+ * Read KEY=VALUE lines from `filePath` into `process.env` (without
+ * overwriting existing values). Returns true when the file was read.
+ * Intentionally minimal — no quoting, no `export` prefix, no comments.
+ * The file we read is one we wrote ourselves a few lines later.
+ */
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return false;
+  const content = fs.readFileSync(filePath, "utf-8");
+  for (const line of content.split(/\r?\n/)) {
+    const match = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
+    if (match && process.env[match[1]] === undefined) {
+      process.env[match[1]] = match[2];
+    }
+  }
+  return true;
+}
+
+/**
+ * Bootstrap `RENDERER_TOKEN`:
+ *   1. If already in process.env, do nothing.
+ *   2. Else load /data/.env (if present) and re-check.
+ *   3. Else generate a fresh 256-bit token, persist to /data/.env, and
+ *      print a prominent banner so the user can grab it from the Umbrel
+ *      app logs without needing SSH.
+ *
+ * `tokenFile` defaults to /data/.env (matches the Docker volume mount in
+ * docker-compose.yml). Tests inject a temp path.
+ */
+function ensureRendererToken({ logger, tokenFile = DEFAULT_TOKEN_FILE } = {}) {
+  if (process.env.RENDERER_TOKEN) return { source: "env", token: process.env.RENDERER_TOKEN };
+
+  loadEnvFile(tokenFile);
+  if (process.env.RENDERER_TOKEN) return { source: "file", token: process.env.RENDERER_TOKEN };
+
+  const token = crypto.randomBytes(32).toString("hex");
+  let persisted = false;
+  try {
+    fs.mkdirSync(path.dirname(tokenFile), { recursive: true });
+    fs.writeFileSync(tokenFile, `RENDERER_TOKEN=${token}\n`, { mode: 0o600 });
+    persisted = true;
+  } catch (err) {
+    logger?.warn?.(
+      { err: err.message, tokenFile },
+      "could not persist RENDERER_TOKEN to disk — in-memory only for this run"
+    );
+  }
+  process.env.RENDERER_TOKEN = token;
+
+  // Print to stdout so it shows up in `docker logs` and Umbrel's app logs
+  // view (the user's only discovery path without SSH). Triple-banner makes
+  // it survive a scroll-back even when app_proxy is spamming retries.
+  const banner = [
+    "",
+    "═════════════════════════════════════════════════════════════════════",
+    `  Playwright Renderer — first-boot token generated`,
+    `    RENDERER_TOKEN=${token}`,
+    persisted
+      ? `  Persisted to ${tokenFile} (Docker volume — survives restarts).`
+      : `  NOT persisted — restart will rotate the token (volume not writable).`,
+    "  Share this with any client that calls POST /render.",
+    "═════════════════════════════════════════════════════════════════════",
+    "",
+  ].join("\n");
+  process.stdout.write(banner + "\n");
+
+  return { source: "generated", token, persisted };
+}
+
 module.exports = {
   createApp,
   createBrowserPool,
   clampTimeout,
   mapWaitUntil,
   isValidUrl,
+  ensureRendererToken,
+  loadEnvFile,
 };
 
 if (require.main === module) {
