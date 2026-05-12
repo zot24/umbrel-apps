@@ -1,0 +1,22 @@
+{
+  "name": "playwright-renderer-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Residential headless-browser HTTP renderer (Playwright + Express)",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test server.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.1",
+    "helmet": "^8.0.0",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "playwright": "1.60.0"
+  }
+}
