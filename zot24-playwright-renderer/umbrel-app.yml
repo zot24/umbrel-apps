@@ -2,7 +2,7 @@ manifestVersion: 1.1
 id: zot24-playwright-renderer
 name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
-category: developer-tools
+category: developer
 version: "0.1.0"
 tagline: Residential headless-browser renderer via Cloudflare Tunnel
 description: >-
@@ -23,9 +23,9 @@ description: >-
   - Residential identity: traffic exits via your home ISP, sidestepping
     datacenter-IP rate limits and bot detection.
 
-  - Cloudflare Tunnel sidecar: zero open ports on your router — the included
-    cloudflared service exposes the renderer at a hostname you wire up in the
-    Cloudflare dashboard.
+  - Pairs with the standalone Cloudflared Umbrel app — declared as a
+    dependency so installing this app installs the tunnel daemon too, and a
+    single cloudflared instance can serve every home-tunnel app on the box.
 
   - Drop-in compatible: response shape mirrors Cloudflare Browser Rendering's
     /content endpoint so clients can swap backends without code changes.
@@ -36,21 +36,25 @@ description: >-
 
   Setup Instructions:
 
-  1. Create a Tunnel in the Cloudflare Zero Trust dashboard and copy the
-     tunnel token.
+  1. Install the Cloudflared Umbrel app and configure your tunnel + tunnel
+     token there. (This app declares cloudflared as a dependency, so Umbrel
+     will prompt for it on install if it's not present.)
 
-  2. Generate a renderer token: openssl rand -hex 32
+  2. In the Cloudflare Zero Trust dashboard, add a public hostname to your
+     tunnel pointing at http://zot24-playwright-renderer_playwright_1:3030.
 
-  3. Install the app and paste both tokens into the env config.
+  3. Generate a renderer token: openssl rand -hex 32
 
-  4. Point a public hostname at http://playwright:3030 in your Tunnel config.
+  4. Install Playwright Renderer and paste the renderer token into the env
+     config.
 
   5. Test with: curl -X POST https://playwright.<your-domain>/render
      -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
 releaseNotes: Initial release
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
-dependencies: []
+dependencies:
+  - cloudflared
 repo: https://github.com/zot24/umbrel-apps
 support: https://github.com/zot24/umbrel-apps/issues
 port: 3030

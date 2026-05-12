@@ -21,12 +21,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    restart: on-failure
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
-    depends_on:
-      - playwright

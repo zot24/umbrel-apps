@@ -2,12 +2,18 @@
 
 A project-agnostic residential headless-browser HTTP service for
 [Umbrel](https://umbrel.com). It wraps Playwright + Chromium in a tiny
-Express server and exposes a `POST /render` endpoint via a Cloudflare Tunnel,
-so any client with the right bearer token can fetch fully rendered HTML from
-your home Internet connection.
+Express server and exposes a `POST /render` endpoint, so any client with the
+right bearer token can fetch fully rendered HTML from your home Internet
+connection.
 
 It's a drop-in alternative to Cloudflare Browser Rendering or paid scraping
 APIs for sites that fingerprint or block datacenter IPs.
+
+The public Cloudflare Tunnel is handled by the standalone
+[Cloudflared Umbrel app](https://apps.umbrel.com/app/cloudflared) — declared
+as a dependency so installing this app pulls cloudflared in if it's not
+already on your Umbrel. One tunnel daemon then fronts every home-tunnel app
+on the box.
 
 ## How it's wired
 
@@ -15,37 +21,48 @@ APIs for sites that fingerprint or block datacenter IPs.
    client (e.g. a Cloudflare Worker)
               |
               v   https://playwright.<your-domain>/render
-   Cloudflare Tunnel  ──► cloudflared (in this app)
+   Cloudflare Tunnel  ──► Cloudflared Umbrel app (separate)
                           |
-                          v
-                       playwright service  ──► chromium
+                          v   ingress: http://zot24-playwright-renderer_playwright_1:3030
+                       playwright service (this app)  ──► chromium
                        (Express on :3030)
 ```
 
 The `app_proxy` Umbrel sidecar fronts the service for the Umbrel dashboard,
-and `cloudflared` exposes it to the public Internet via a Cloudflare Tunnel.
-The renderer itself enforces bearer-token auth on every `/render` call.
+and the Cloudflared app — installed separately and shared with every other
+home-tunnel app — exposes it to the public Internet. The renderer itself
+enforces bearer-token auth on every `/render` call.
 
 ## Prerequisites
 
 - Umbrel installed (this community app store added).
 - A domain managed by Cloudflare (free plan is fine).
-- The ability to create a Tunnel in
-  [Cloudflare Zero Trust](https://one.dash.cloudflare.com).
+- A Cloudflare Tunnel already created in
+  [Cloudflare Zero Trust](https://one.dash.cloudflare.com), and the
+  [Cloudflared Umbrel app](https://apps.umbrel.com/app/cloudflared) installed
+  and bound to it. (Umbrel will offer to install Cloudflared automatically
+  when you install Playwright Renderer — this is the `dependencies` entry in
+  the manifest.)
 
 ## One-time Cloudflare setup
 
+If you haven't already wired up Cloudflared:
+
 1. In the Cloudflare Zero Trust dashboard, go to **Networks → Tunnels →
-   Create a tunnel** (cloudflared connector).
-2. Name it `playwright-renderer` (or anything you like) and copy the
-   **Tunnel token** Cloudflare shows you (it's a long opaque string starting
-   with `eyJ...`). Save this; you'll paste it into the Umbrel app config.
-3. On the next screen, add a **Public Hostname**:
-   - Subdomain: `playwright`
+   Create a tunnel** (cloudflared connector). Copy the **Tunnel token**
+   (a long opaque string starting with `eyJ...`).
+2. Install the Cloudflared Umbrel app and paste the token into its config.
+3. In the Cloudflare dashboard's tunnel detail page, add a **Public
+   Hostname**:
+   - Subdomain: `playwright` (or anything you like)
    - Domain: your domain
    - Service type: `HTTP`
-   - URL: `playwright:3030`
-4. Save. Cloudflare will create the DNS record automatically.
+   - URL: `zot24-playwright-renderer_playwright_1:3030`
+4. Save. Cloudflare creates the DNS record automatically.
+
+The renderer's container hostname (`zot24-playwright-renderer_playwright_1`)
+is also exported via `exports.sh` as `$APP_ZOT24_PLAYWRIGHT_RENDERER_IP` for
+other Umbrel apps that want to reference it without hard-coding.
 
 ## Generate a renderer token
 
@@ -62,12 +79,11 @@ Worker) need it. Treat it like any other secret.
 
 Add this community app store to Umbrel (`App Store → Community App Stores →
 Add → https://github.com/zot24/umbrel-apps`), then install **Playwright
-Renderer**. During install you'll be prompted for two env values:
+Renderer**. During install you'll be prompted for one env value:
 
 | Env var          | What to paste                                        |
 |------------------|------------------------------------------------------|
 | `RENDERER_TOKEN` | The token from `openssl rand -hex 32` above          |
-| `TUNNEL_TOKEN`   | The Cloudflare Tunnel token from step 2 above        |
 
 ## Verifying it works
 
@@ -199,5 +215,6 @@ npm test
 - **`504 render timeout`** — the page didn't reach `networkidle` (or your
   `waitForSelector` didn't match) within the timeout. Increase
   `gotoOptions.timeout` (max 60s) or simplify your selector.
-- **Tunnel down** — check `cloudflared` container logs and the Tunnel status
-  in the Cloudflare Zero Trust dashboard.
+- **Tunnel down** — check the Cloudflared Umbrel app's container logs and
+  the Tunnel status in the Cloudflare Zero Trust dashboard. (cloudflared is
+  a separate app from this one — see Prerequisites.)
