@@ -2,7 +2,7 @@
   "name": "playwright-renderer-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Residential headless-browser HTTP renderer (Playwright + Express)",
+  "description": "Self-hosted headless-browser HTTP renderer (Playwright + Express)",
   "main": "server.js",
   "type": "commonjs",
   "scripts": {
