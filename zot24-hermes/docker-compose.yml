@@ -5,7 +5,7 @@ services:
       APP_PORT: 8080
 
   setup:
-    image: ghcr.io/zot24/hermes-setup:v0.0.26@sha256:c14b581ebb2b5516d67cb5f025ef6ef3349806ae0fa1b2e041ded0fbeefabeb3
+    image: ghcr.io/zot24/hermes-setup:v0.0.27@sha256:93193f466a4224a489e448e5174aafd84472c50ee357631b8f06ea7691a30d18
     restart: on-failure
     # Security hardening: minimize blast radius of Docker socket access
     read_only: true
