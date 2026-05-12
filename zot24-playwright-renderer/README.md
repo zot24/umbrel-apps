@@ -1,10 +1,10 @@
 # Playwright Renderer
 
-A project-agnostic residential headless-browser HTTP service for
+A project-agnostic self-hosted headless-browser HTTP service for
 [Umbrel](https://umbrel.com). It wraps Playwright + Chromium in a tiny
 Express server and exposes a `POST /render` endpoint, so any client with the
 right bearer token can fetch fully rendered HTML from your home Internet
-connection.
+connection — requests carry your real residential IP, not a datacenter one.
 
 It's a drop-in alternative to Cloudflare Browser Rendering or paid scraping
 APIs for sites that fingerprint or block datacenter IPs.

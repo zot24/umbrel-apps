@@ -4,13 +4,13 @@ name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
 category: developer
 version: "0.1.0"
-tagline: Residential headless-browser renderer via Cloudflare Tunnel
+tagline: Self-hosted headless-browser renderer with residential-IP egress
 description: >-
-  Playwright Renderer is a project-agnostic residential headless-browser
+  Playwright Renderer is a project-agnostic self-hosted headless-browser
   service. It exposes a small HTTP API that fetches any URL, renders it with
   Chromium, and returns the resulting HTML — all from your home Internet
   connection. Pair it with a Cloudflare Tunnel and your scrapers and
-  automations get a real residential fingerprint without leaving your Umbrel.
+  automations get a real residential IP fingerprint without leaving your Umbrel.
 
 
   Features:
@@ -20,8 +20,9 @@ description: >-
 
   - Bearer-token auth: every request must carry a shared secret you control.
 
-  - Residential identity: traffic exits via your home ISP, sidestepping
-    datacenter-IP rate limits and bot detection.
+  - Self-hosted on your hardware: traffic exits via your home ISP, giving
+    requests a residential IP fingerprint that sidesteps datacenter-IP rate
+    limits and bot detection.
 
   - Pairs with the standalone Cloudflared Umbrel app — declared as a
     dependency so installing this app installs the tunnel daemon too, and a
