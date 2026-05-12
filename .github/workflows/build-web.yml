@@ -100,3 +100,39 @@ jobs:
             echo "Push attempt $i failed, retrying..."
             sleep 2
           done
+
+      # Bump umbrel-app.yml version so Umbrel shows "Update available" for installs.
+      # Skipped when called from watch-hermes (it already sets the version to the
+      # upstream Hermes semver) or when a specific hermes_version was dispatched.
+      # Separate commit + retry loop so a parallel build-setup bump doesn't conflict.
+      - name: Bump umbrel-app version (patch)
+        if: inputs.hermes_version == ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          SUCCESS=0
+          for i in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            CURRENT=$(grep -E '^version: ' zot24-hermes/umbrel-app.yml | sed -E 's/^version: *"([^"]+)".*/\1/')
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+            NEW="$MAJOR.$MINOR.$((PATCH + 1))"
+            sed -i "s|^version: \".*\"|version: \"$NEW\"|" zot24-hermes/umbrel-app.yml
+            git add zot24-hermes/umbrel-app.yml
+            if git diff --cached --quiet; then
+              echo "Nothing to bump (umbrel-app.yml unchanged)"
+              SUCCESS=1
+              break
+            fi
+            git commit -m "chore: bump umbrel-app version to $NEW"
+            if git push; then
+              echo "Bumped to $NEW"
+              SUCCESS=1
+              break
+            fi
+            echo "Push attempt $i failed, retrying..."
+            sleep 3
+          done
+          if [ "$SUCCESS" = "0" ]; then
+            echo "::warning::Version bump did not land after 5 attempts. Bump umbrel-app.yml manually."
+          fi
