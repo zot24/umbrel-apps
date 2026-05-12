@@ -118,9 +118,11 @@ jobs:
             IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
             NEW="$MAJOR.$MINOR.$((PATCH + 1))"
             sed -i "s|^version: \".*\"|version: \"$NEW\"|" zot24-hermes/umbrel-app.yml
-            git add zot24-hermes/umbrel-app.yml
+            # Keep APP_VERSION in docker-compose.yml in sync — the setup UI reads it.
+            sed -i "s|APP_VERSION: v.*|APP_VERSION: v$NEW|" zot24-hermes/docker-compose.yml
+            git add zot24-hermes/umbrel-app.yml zot24-hermes/docker-compose.yml
             if git diff --cached --quiet; then
-              echo "Nothing to bump (umbrel-app.yml unchanged)"
+              echo "Nothing to bump (manifest already at latest)"
               SUCCESS=1
               break
             fi
