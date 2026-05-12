@@ -1067,20 +1067,46 @@ async function handleRequest(req, res) {
   }
 
   // ── API: List pending pairing requests ──
+  // ?profile=<name> filters to one profile; ?profile=all (or omitted) walks
+  // default + all named profiles so pending requests for any agent surface
+  // in one place. Each result includes its source profile.
   if (req.method === "GET" && url.pathname === "/api/pairing") {
-    const pairingDir = path.join(CONFIG_DIR, "pairing");
+    const profileFilter = (url.searchParams.get("profile") || "").trim().toLowerCase();
+    const profilesToScan = [];
+    if (!profileFilter || profileFilter === "all") {
+      profilesToScan.push({ name: "default", dir: CONFIG_DIR });
+      try {
+        if (fs.existsSync(PROFILES_DIR)) {
+          for (const name of fs.readdirSync(PROFILES_DIR)) {
+            const dir = path.join(PROFILES_DIR, name);
+            if (fs.statSync(dir).isDirectory()) profilesToScan.push({ name, dir });
+          }
+        }
+      } catch (e) {}
+    } else if (profileFilter === "default") {
+      profilesToScan.push({ name: "default", dir: CONFIG_DIR });
+    } else {
+      if (!PROFILE_NAME_RE.test(profileFilter)) {
+        sendJson(res, 400, { error: "Invalid profile name." });
+        return;
+      }
+      profilesToScan.push({ name: profileFilter, dir: getProfileDir(profileFilter) });
+    }
+
     const results = [];
-    try {
-      if (fs.existsSync(pairingDir)) {
+    for (const { name: profileName, dir } of profilesToScan) {
+      const pairingDir = path.join(dir, "pairing");
+      try {
+        if (!fs.existsSync(pairingDir)) continue;
         const files = fs.readdirSync(pairingDir).filter(f => f.endsWith("-pending.json"));
         for (const file of files) {
           const platform = file.replace("-pending.json", "");
           const pending = JSON.parse(fs.readFileSync(path.join(pairingDir, file), "utf8"));
           const now = Date.now() / 1000;
           for (const [code, info] of Object.entries(pending)) {
-            // Skip expired codes (1 hour TTL)
             if (now - info.created_at > 3600) continue;
             results.push({
+              profile: profileName,
               platform,
               code,
               user_id: info.user_id,
@@ -1089,25 +1115,36 @@ async function handleRequest(req, res) {
             });
           }
         }
+      } catch (e) {
+        console.error(`Error reading pairing data for ${profileName}:`, e.message);
       }
-    } catch (e) {
-      console.error("Error reading pairing data:", e.message);
     }
     sendJson(res, 200, { pending: results });
     return;
   }
 
   // ── API: Approve a pairing code ──
+  // Accepts an optional `profile` in the body to target a named profile's pairing dir.
   if (req.method === "POST" && url.pathname === "/api/pairing/approve") {
     try {
       const data = await parseBody(req);
       const { platform, code } = data;
+      const targetProfile = (data.profile || "default").trim().toLowerCase();
       if (!platform || !code) {
         sendJson(res, 400, { error: "Platform and code are required" });
         return;
       }
+      if (targetProfile !== "default" && !PROFILE_NAME_RE.test(targetProfile)) {
+        sendJson(res, 400, { error: "Invalid profile name." });
+        return;
+      }
+      const profileDir = targetProfile === "default" ? CONFIG_DIR : getProfileDir(targetProfile);
+      if (targetProfile !== "default" && !fs.existsSync(profileDir)) {
+        sendJson(res, 404, { error: `Profile '${targetProfile}' not found.` });
+        return;
+      }
 
-      const pairingDir = path.join(CONFIG_DIR, "pairing");
+      const pairingDir = path.join(profileDir, "pairing");
       const pendingFile = path.join(pairingDir, `${platform}-pending.json`);
       const approvedFile = path.join(pairingDir, `${platform}-approved.json`);
 

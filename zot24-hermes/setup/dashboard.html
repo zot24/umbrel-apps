@@ -4834,11 +4834,11 @@
           list.innerHTML = data.pending.map(p => `
             <div class="pairing-item" id="pair-${p.code}">
               <div class="pairing-info">
-                <div class="pairing-platform">${p.platform}</div>
+                <div class="pairing-platform">${p.platform}${p.profile && p.profile !== "default" ? ` · ${p.profile}` : ""}</div>
                 <div class="pairing-user">${p.user_name || p.user_id}</div>
                 <div><span class="pairing-code">${p.code}</span> <span class="pairing-age">${p.age_minutes}m ago</span></div>
               </div>
-              <button class="btn-approve" onclick="approvePairing('${p.platform}', '${p.code}')">Approve</button>
+              <button class="btn-approve" onclick="approvePairing('${p.platform}', '${p.code}', '${p.profile || "default"}')">Approve</button>
             </div>
           `).join("");
         } else {
@@ -4847,13 +4847,13 @@
       } catch (e) {}
     }
 
-    async function approvePairing(platform, code) {
+    async function approvePairing(platform, code, profile) {
       const el = document.getElementById(`pair-${code}`);
       try {
         const data = await (await fetch("/api/pairing/approve", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ platform, code }),
+          body: JSON.stringify({ platform, code, profile: profile || "default" }),
         })).json();
         if (data.success) {
           if (el) {
