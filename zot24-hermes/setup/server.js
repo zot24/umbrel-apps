@@ -270,8 +270,31 @@ function restartWebContainer() {
 
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,19}$/;
 const COMMS_FILE = path.join(CONFIG_DIR, "agent-comms.json");
+const API_SERVER_KEY_FILE = path.join(CONFIG_DIR, ".api_server_key");
 const BASE_API_PORT = 8642;
 const BASE_WEBHOOK_PORT = 8644;
+
+// Shared API key used by every gateway (default + named profiles). Hermes
+// refuses to bind 0.0.0.0 without it. The web container's entrypoint creates
+// the file on first boot; if for some reason it's missing here, generate one
+// so dashboard-initiated profile starts don't break.
+function readApiServerKey() {
+  try {
+    const k = fs.readFileSync(API_SERVER_KEY_FILE, "utf8").trim();
+    if (k) return k;
+  } catch (e) {}
+  try {
+    const crypto = require("crypto");
+    const k = crypto.randomBytes(32).toString("base64").replace(/[/+=]/g, "").slice(0, 43);
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(API_SERVER_KEY_FILE, k, { mode: 0o600 });
+    console.log(`Generated API_SERVER_KEY at ${API_SERVER_KEY_FILE}`);
+    return k;
+  } catch (e) {
+    console.error("Failed to generate API_SERVER_KEY:", e.message);
+    return "";
+  }
+}
 
 function getProfileDir(name) {
   if (name === "default") return CONFIG_DIR;
@@ -428,9 +451,13 @@ function appendCommsLog(entry) {
 async function sendMessageToProfile(name, input, fromName) {
   const port = getProfileApiPort(name);
   const start = Date.now();
+  const apiKey = readApiServerKey();
   const resp = await fetch(`http://${WEB_CONTAINER}:${port}/v1/responses`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(apiKey ? { "Authorization": `Bearer ${apiKey}` } : {}),
+    },
     body: JSON.stringify({ input }),
   });
   const data = await resp.json();
@@ -486,7 +513,10 @@ function startProfileGateway(name) {
   envContent = setEnvVar(envContent, "WEBHOOK_PORT", webhookPort);
   fs.writeFileSync(envFile, envContent.trim() + "\n");
 
-  const cmd = `HERMES_HOME=${webProfileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run --replace &`;
+  const apiKey = readApiServerKey();
+  // Shell-escape the key for single-quote inclusion in the exec command.
+  const safeKey = apiKey.replace(/'/g, "'\\''");
+  const cmd = `API_SERVER_KEY='${safeKey}' HERMES_HOME=${webProfileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run --replace &`;
   // Create exec instance and start it
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
@@ -2995,9 +3025,13 @@ async function handleRequest(req, res) {
       if (data.previous_response_id) {
         body.previous_response_id = data.previous_response_id;
       }
+      const apiKey = readApiServerKey();
       const resp = await fetch(`http://${WEB_CONTAINER}:${port}/v1/responses`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { "Authorization": `Bearer ${apiKey}` } : {}),
+        },
         body: JSON.stringify(body),
       });
       const result = await resp.json();
