@@ -378,8 +378,13 @@ function execInWebContainer(cmd) {
     `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
     { encoding: "utf8", timeout: 10000 }
   );
-  const execId = JSON.parse(createResp).Id;
-  if (!execId) throw new Error("Failed to create exec instance");
+  let execId;
+  try { execId = JSON.parse(createResp).Id; } catch (_) {}
+  if (!execId) {
+    const trimmed = (createResp || "").trim();
+    console.error(`Docker exec create failed for ${WEB_CONTAINER}: ${trimmed.slice(0, 500)}`);
+    throw new Error(`Failed to create exec instance against ${WEB_CONTAINER}: ${trimmed.slice(0, 200) || "no response from Docker socket"}`);
+  }
   // Start and wait
   execSync(
     `curl -s --unix-socket ${socketPath} -X POST ` +
@@ -495,8 +500,13 @@ function startProfileGateway(name) {
     `"http://localhost/containers/${WEB_CONTAINER}/exec"`,
     { encoding: "utf8", timeout: 10000 }
   );
-  const execId = JSON.parse(createResp).Id;
-  if (!execId) throw new Error("Failed to create exec instance");
+  let execId;
+  try { execId = JSON.parse(createResp).Id; } catch (_) {}
+  if (!execId) {
+    const trimmed = (createResp || "").trim();
+    console.error(`startProfileGateway(${name}): Docker exec create failed for ${WEB_CONTAINER}: ${trimmed.slice(0, 500)}`);
+    throw new Error(`Failed to create exec instance against ${WEB_CONTAINER}: ${trimmed.slice(0, 200) || "no response from Docker socket"}`);
+  }
   execSync(
     `curl -s --unix-socket ${socketPath} -X POST ` +
     `-H "Content-Type: application/json" ` +
