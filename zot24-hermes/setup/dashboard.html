@@ -8,7 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Oxanium:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
-    input, textarea, .chat-log, .session-msg-content, .mem-viewer, .mem-editor, .job-output, .logs-body, .atlas-detail-body, .backup-terminal-body, .err-msg, .detail-desc, .ad-desc, code {
+    input, textarea, .chat-log, .session-msg-content, .mem-viewer, .mem-editor, .job-output, .logs-body, .logs-body *, .atlas-detail-body, .backup-terminal-body, .err-msg, .detail-desc, .ad-desc, code {
       -webkit-user-select: text; user-select: text;
     }
 
@@ -3254,6 +3254,16 @@
       animation: bootUp 0.2s ease-out;
     }
     .logs-float.open { display: flex; }
+    .logs-float.maximized {
+      bottom: 0;
+      right: 0;
+      width: calc(100vw - 80px);
+      max-width: calc(100vw - 80px);
+      height: calc(100vh - 40px);
+      max-height: calc(100vh - 40px);
+      left: 80px;
+      top: 0;
+    }
     .logs-float-header {
       display: flex;
       align-items: center;
@@ -6914,7 +6924,12 @@
         logsTimer = setInterval(fetchLogs, 5000);
       } else {
         clearInterval(logsTimer);
+        panel.classList.remove("maximized");
       }
+    }
+
+    function toggleLogsMaximize() {
+      document.getElementById("logsFloat").classList.toggle("maximized");
     }
 
     async function fetchLogs() {
@@ -7957,6 +7972,7 @@
           <option value="200">200</option>
           <option value="500">500</option>
         </select>
+        <button class="chat-float-ctrl" onclick="toggleLogsMaximize()" title="Maximize / restore">&#9744;</button>
         <button class="chat-float-ctrl" onclick="toggleLogs()" title="Close">&#10005;</button>
       </div>
     </div>
