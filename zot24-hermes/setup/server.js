@@ -516,7 +516,12 @@ function startProfileGateway(name) {
   const apiKey = readApiServerKey();
   // Shell-escape the key for single-quote inclusion in the exec command.
   const safeKey = apiKey.replace(/'/g, "'\\''");
-  const cmd = `API_SERVER_KEY='${safeKey}' HERMES_HOME=${webProfileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run --replace &`;
+  // No --replace: that flag SIGTERMs every running gateway on the container,
+  // including the default profile that's holding the container's foreground
+  // process. Starting a named profile would kill the default and bring the
+  // whole container down. Each profile gateway runs as an independent
+  // background process, the same way the entrypoint auto-starts them.
+  const cmd = `API_SERVER_KEY='${safeKey}' HERMES_HOME=${webProfileDir} API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} /app/venv/bin/hermes gateway run &`;
   // Create exec instance and start it
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
