@@ -278,6 +278,22 @@ const BASE_WEBHOOK_PORT = 8644;
 // refuses to bind 0.0.0.0 without it. The web container's entrypoint creates
 // the file on first boot; if for some reason it's missing here, generate one
 // so dashboard-initiated profile starts don't break.
+// Resolve WhatsApp filesystem paths for a profile dir. Hermes >= 2026.4 stores
+// bridge files (qr.txt, session/, bridge.log) under <HERMES_HOME>/platforms/whatsapp/.
+// Earlier versions / the default profile use <HERMES_HOME>/whatsapp/ directly.
+// Prefer the new layout if its directory exists, fall back to the legacy path.
+function whatsappPaths(cfgDir) {
+  const platformsDir = path.join(cfgDir, "platforms", "whatsapp");
+  const legacyDir = path.join(cfgDir, "whatsapp");
+  const baseDir = fs.existsSync(platformsDir) ? platformsDir : legacyDir;
+  return {
+    baseDir,
+    qrFile: path.join(baseDir, "qr.txt"),
+    sessionDir: path.join(baseDir, "session"),
+    credsFile: path.join(baseDir, "session", "creds.json"),
+  };
+}
+
 function readApiServerKey() {
   try {
     const k = fs.readFileSync(API_SERVER_KEY_FILE, "utf8").trim();
@@ -862,9 +878,8 @@ async function handleRequest(req, res) {
     const cfgDir = profileFilter && profileFilter !== "all"
       ? getProfileDir(profileFilter)
       : CONFIG_DIR;
-    const qrFile = path.join(cfgDir, "whatsapp", "qr.txt");
-    const sessionFile = path.join(cfgDir, "whatsapp", "session", "creds.json");
-    const paired = fs.existsSync(sessionFile);
+    const { qrFile, credsFile } = whatsappPaths(cfgDir);
+    const paired = fs.existsSync(credsFile);
 
     if (paired) {
       sendJson(res, 200, { status: "paired", qrImage: null });
@@ -900,13 +915,12 @@ async function handleRequest(req, res) {
       platforms.push({ name: "Telegram", enabled: true });
     }
     if (config.WHATSAPP_ENABLED === "true") {
-      const whatsappAuth = path.join(CONFIG_DIR, "whatsapp", "session", "creds.json");
-      const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
+      const { qrFile: defaultQrFile, credsFile: defaultCreds } = whatsappPaths(CONFIG_DIR);
       platforms.push({
         name: "WhatsApp",
         enabled: true,
-        paired: fs.existsSync(whatsappAuth),
-        hasQr: fs.existsSync(qrFile),
+        paired: fs.existsSync(defaultCreds),
+        hasQr: fs.existsSync(defaultQrFile),
       });
     }
     if (config.DISCORD_BOT_TOKEN) {
@@ -955,8 +969,7 @@ async function handleRequest(req, res) {
       }
 
       const cfgDir = isNamedProfile ? getProfileDir(profileFilter) : CONFIG_DIR;
-      const sessionDir = path.join(cfgDir, "whatsapp", "session");
-      const qrFile = path.join(cfgDir, "whatsapp", "qr.txt");
+      const { sessionDir, qrFile } = whatsappPaths(cfgDir);
 
       // For named profiles, stop the gateway before clearing so the bridge
       // releases its lock on the session files cleanly.
@@ -1040,10 +1053,9 @@ async function handleRequest(req, res) {
 
       // WhatsApp: also delete session and QR
       if (platform === "whatsapp") {
-        const sessionDir = path.join(CONFIG_DIR, "whatsapp", "session");
-        const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
-        if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
-        if (fs.existsSync(qrFile)) fs.unlinkSync(qrFile);
+        const { sessionDir: defaultSessionDir, qrFile: defaultQrFile } = whatsappPaths(CONFIG_DIR);
+        if (fs.existsSync(defaultSessionDir)) fs.rmSync(defaultSessionDir, { recursive: true, force: true });
+        if (fs.existsSync(defaultQrFile)) fs.unlinkSync(defaultQrFile);
       }
 
       const restarted = restartWebContainer();
