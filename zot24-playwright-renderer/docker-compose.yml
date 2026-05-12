@@ -5,8 +5,11 @@ services:
       APP_PORT: 3030
 
   playwright:
-    build:
-      context: ./playwright-server
+    # Image + digest are populated by .github/workflows/build-playwright-renderer.yml
+    # on every push that touches playwright-server/. Umbrel rejects unpinned
+    # images at install time, so the workflow's commit-back step is what makes
+    # this app actually installable.
+    image: ghcr.io/zot24/playwright-renderer:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
     restart: on-failure
     init: true
     stop_grace_period: 30s
