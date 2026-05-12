@@ -1,0 +1,11 @@
+services:
+  playwright:
+    build:
+      context: ./playwright-server
+    ports:
+      - "3030:3030"
+    volumes:
+      - ./local-data:/data
+    environment:
+      RENDERER_TOKEN: ${RENDERER_TOKEN:-dev-token-change-me}
+      NODE_ENV: development

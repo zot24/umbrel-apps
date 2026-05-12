@@ -1,0 +1,64 @@
+manifestVersion: 1.1
+id: zot24-playwright-renderer
+name: Playwright Renderer
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
+category: developer-tools
+version: "0.1.0"
+tagline: Residential headless-browser renderer via Cloudflare Tunnel
+description: >-
+  Playwright Renderer is a project-agnostic residential headless-browser
+  service. It exposes a small HTTP API that fetches any URL, renders it with
+  Chromium, and returns the resulting HTML — all from your home Internet
+  connection. Pair it with a Cloudflare Tunnel and your scrapers and
+  automations get a real residential fingerprint without leaving your Umbrel.
+
+
+  Features:
+
+  - HTTP API: POST /render with a URL, get back fully rendered HTML, the final
+    URL after redirects, and the response status.
+
+  - Bearer-token auth: every request must carry a shared secret you control.
+
+  - Residential identity: traffic exits via your home ISP, sidestepping
+    datacenter-IP rate limits and bot detection.
+
+  - Cloudflare Tunnel sidecar: zero open ports on your router — the included
+    cloudflared service exposes the renderer at a hostname you wire up in the
+    Cloudflare dashboard.
+
+  - Drop-in compatible: response shape mirrors Cloudflare Browser Rendering's
+    /content endpoint so clients can swap backends without code changes.
+
+  - Persistent volume: a /data volume is reserved for future storageState.json
+    cookie persistence if you ever need a logged-in browsing flow.
+
+
+  Setup Instructions:
+
+  1. Create a Tunnel in the Cloudflare Zero Trust dashboard and copy the
+     tunnel token.
+
+  2. Generate a renderer token: openssl rand -hex 32
+
+  3. Install the app and paste both tokens into the env config.
+
+  4. Point a public hostname at http://playwright:3030 in your Tunnel config.
+
+  5. Test with: curl -X POST https://playwright.<your-domain>/render
+     -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
+releaseNotes: Initial release
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 3030
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
