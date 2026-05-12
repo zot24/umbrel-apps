@@ -4911,6 +4911,34 @@
       );
     }
 
+    function relinkProfileWhatsApp(profileName) {
+      showConfirm(
+        `Relink WhatsApp for ${profileName}`,
+        `This will stop the ${profileName} gateway, clear its WhatsApp session, restart the gateway, and show a new QR code. Scan it with the bot's phone to re-pair.`,
+        "Relink",
+        async () => {
+          const status = document.getElementById("settingsSaveStatus");
+          if (status) { status.textContent = "RELINKING..."; status.style.color = "var(--amber)"; }
+          try {
+            const resp = await fetch(`/api/whatsapp-relink?profile=${encodeURIComponent(profileName)}`, { method: "POST" });
+            const data = await resp.json();
+            if (data.success) {
+              if (status) {
+                status.textContent = data.restarted ? "RELINK STARTED — SCAN QR BELOW" : "SESSION CLEARED — START THE PROFILE";
+                status.style.color = "var(--phosphor)";
+              }
+              fetchProfiles();
+              startProfileQrPolling(profileName);
+            } else {
+              if (status) { status.textContent = "FAILED: " + (data.error || "Unknown"); status.style.color = "var(--red)"; }
+            }
+          } catch (e) {
+            if (status) { status.textContent = "FAILED: " + e.message; status.style.color = "var(--red)"; }
+          }
+        }
+      );
+    }
+
     // Close tooltips on click-outside
     document.addEventListener("click", (e) => {
       const help = document.getElementById("cornerHelp");
@@ -7391,9 +7419,13 @@
               <span class="settings-row-label">WhatsApp</span>
               <div class="retro-toggle" id="toggleWhatsApp" onclick="this.classList.toggle('on')"></div>
             </div>
+            <div class="settings-row">
+              <span class="settings-row-label">Relink WhatsApp</span>
+              <button class="profile-action-btn danger" onclick="relinkProfileWhatsApp('${profileName}')" title="Clear WhatsApp session and re-pair (current pairing will be invalidated)">RELINK</button>
+            </div>
             <div style="font-size:8px;color:var(--text-muted);padding:4px 10px;opacity:0.6;">
               Each profile needs its own Telegram bot token (create one via @BotFather).
-              WhatsApp requires QR code pairing after enabling — scan from the main status page after starting the profile.
+              WhatsApp requires QR code pairing — toggle it on and save, then scan the QR below. Use RELINK to re-pair if the session breaks (phone logged out, "connected but no replies").
             </div>
           </div>
 
