@@ -1639,7 +1639,9 @@
       document.getElementById("bkModal").classList.add("importing");
       const prog = simulateBkProgress("UPLOADING BACKUP...", 12000, true);
 
-      fetch("/api/import", {
+      // First-run wizard: explicitly target the default profile so the archive's own
+      // name (e.g. "residencyos") doesn't accidentally route through the named-profile flow.
+      fetch("/api/import?target=default", {
         method: "POST",
         headers: { "Content-Type": "application/octet-stream" },
         body: file,

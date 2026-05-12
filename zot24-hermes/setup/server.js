@@ -1220,6 +1220,128 @@ async function handleRequest(req, res) {
         return;
       }
 
+      // Resolve the target profile name. Precedence:
+      //   1. ?target=<name> query param (explicit override; ?target=default means "replace")
+      //   2. The archive's own top-level dir (e.g. `hermes profile export residencyos` → "residencyos")
+      // An archive labeled "default" — or an explicit target=default — falls through to the
+      // replace-`.hermes/` flow below. Everything else becomes a named profile.
+      const targetOverride = (url.searchParams.get("target") || "").trim().toLowerCase();
+      const targetProfile = targetOverride || (archivePrefix || "").trim().toLowerCase();
+      if (targetProfile && targetProfile !== "default") {
+        if (!PROFILE_NAME_RE.test(targetProfile)) {
+          cleanup();
+          sendJson(res, 400, { error: "Invalid target profile name. Use lowercase letters, numbers, hyphens. Max 20 characters." });
+          return;
+        }
+        const targetDir = path.join(PROFILES_DIR, targetProfile);
+        if (fs.existsSync(targetDir)) {
+          cleanup();
+          sendJson(res, 409, { error: `Profile '${targetProfile}' already exists. Delete it first or pick a different name.` });
+          return;
+        }
+
+        // Extract to a staging dir so a bad archive can't corrupt the live volume
+        const stagingDir = `/tmp/hermes-staging-${Date.now()}`;
+        try {
+          fs.mkdirSync(stagingDir, { recursive: true });
+          execSync(`tar xzf ${tmpFile} -C ${stagingDir}`, { timeout: 300000 });
+          execSync(`find ${stagingDir} -name '._*' -delete 2>/dev/null || true`, { timeout: 10000 });
+
+          const extractedDir = path.join(stagingDir, archivePrefix);
+          if (!fs.existsSync(extractedDir)) {
+            throw new Error(`Archive extraction did not produce expected directory: ${archivePrefix}`);
+          }
+          fs.mkdirSync(PROFILES_DIR, { recursive: true });
+          execSync(`mv "${extractedDir}" "${targetDir}"`, { timeout: 10000 });
+          console.log(`Imported profile "${targetProfile}" from archive prefix "${archivePrefix}"`);
+        } catch (e) {
+          try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch (_) {}
+          cleanup();
+          console.error("Named import extraction failed:", e.message);
+          sendJson(res, 500, { error: "Failed to extract archive: " + e.message });
+          return;
+        } finally {
+          try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch (_) {}
+          cleanup();
+        }
+
+        // Clean stale SQLite WAL files (reference the old DB state from another host)
+        const profileDb = path.join(targetDir, "state.db");
+        try { fs.unlinkSync(profileDb + "-shm"); } catch (e) {}
+        try { fs.unlinkSync(profileDb + "-wal"); } catch (e) {}
+
+        // Clear stale gateway state (different PID/host)
+        try { fs.unlinkSync(path.join(targetDir, "gateway_state.json")); } catch (e) {}
+
+        // Strip HERMES_REGEN_CONFIG so the imported config.yaml is preserved as-is
+        const profileEnvFile = path.join(targetDir, ".env");
+        try {
+          if (fs.existsSync(profileEnvFile)) {
+            const envContent = fs.readFileSync(profileEnvFile, "utf8");
+            const cleaned = envContent.split("\n").filter(l => !l.startsWith("HERMES_REGEN_CONFIG=")).join("\n");
+            fs.writeFileSync(profileEnvFile, cleaned, { mode: 0o600 });
+          }
+        } catch (e) {
+          console.warn("Warning: could not clean .env after named import:", e.message);
+        }
+
+        // Rewrite hardcoded paths in cron jobs to match this profile's web-container HERMES_HOME
+        const WEB_HERMES_HOME = process.env.WEB_HERMES_HOME || "/data/.hermes";
+        const profileWebHome = `${WEB_HERMES_HOME}/profiles/${targetProfile}`;
+        try {
+          const cronJobsFile = path.join(targetDir, "cron", "jobs.json");
+          if (fs.existsSync(cronJobsFile)) {
+            let raw = fs.readFileSync(cronJobsFile, "utf8");
+            const oldPaths = new Set();
+            // Match any absolute path that ends in /.hermes or /.hermes/profiles/<name>
+            const re = /\/[^\s"'\\]+\/\.hermes(?:\/profiles\/[a-z0-9][a-z0-9_-]*)?(?=\/)/g;
+            let m;
+            while ((m = re.exec(raw)) !== null) {
+              if (m[0] !== profileWebHome) oldPaths.add(m[0]);
+            }
+            if (oldPaths.size) {
+              for (const oldPath of oldPaths) {
+                raw = raw.split(oldPath).join(profileWebHome);
+              }
+              fs.writeFileSync(cronJobsFile, raw);
+              console.log(`Rewrote cron paths in ${targetProfile}: ${[...oldPaths].join(", ")} → ${profileWebHome}`);
+            }
+          }
+        } catch (e) {
+          console.warn("Warning: could not rewrite cron paths after named import:", e.message);
+        }
+
+        // Assign API server + webhook ports for this profile (same scheme as POST /api/profiles)
+        const { apiPort, webhookPort } = assignProfilePorts(targetProfile);
+        let envContent = "";
+        try { if (fs.existsSync(profileEnvFile)) envContent = fs.readFileSync(profileEnvFile, "utf8"); } catch (e) {}
+        const setEnvVar = (content, key, val) => {
+          const r = new RegExp(`^${key}=.*$`, "m");
+          return r.test(content) ? content.replace(r, `${key}=${val}`) : content.trimEnd() + `\n${key}=${val}`;
+        };
+        envContent = setEnvVar(envContent, "API_SERVER_PORT", apiPort);
+        envContent = setEnvVar(envContent, "WEBHOOK_PORT", webhookPort);
+        fs.writeFileSync(profileEnvFile, envContent.trim() + "\n", { mode: 0o600 });
+
+        // Fix permissions — archive may have come from a different uid
+        try {
+          execSync(`chmod -R u+rw "${targetDir}"`, { timeout: 30000 });
+          if (fs.existsSync(profileEnvFile)) execSync(`chmod 600 "${profileEnvFile}"`, { timeout: 5000 });
+          const envLocal = path.join(targetDir, ".env.local");
+          if (fs.existsSync(envLocal)) execSync(`chmod 600 "${envLocal}"`, { timeout: 5000 });
+        } catch (e) {
+          console.warn("Warning: could not fix permissions after named import:", e.message);
+        }
+
+        sendJson(res, 200, {
+          success: true,
+          profile: targetProfile,
+          message: `Profile '${targetProfile}' imported. Start it from the profile sidebar to launch its gateway.`,
+        });
+        return;
+      }
+
+      // Default import: replace .hermes/ wholesale (first-run / "restore from backup" flow).
       // Stop the web container to release SQLite locks before replacing data
       try {
         execSync(
