@@ -931,28 +931,64 @@ async function handleRequest(req, res) {
   // ── API: Relink WhatsApp (delete session, restart to get new QR) ──
   if (req.method === "POST" && url.pathname === "/api/whatsapp-relink") {
     try {
-      const sessionDir = path.join(CONFIG_DIR, "whatsapp", "session");
-      const qrFile = path.join(CONFIG_DIR, "whatsapp", "qr.txt");
+      const profileFilter = (url.searchParams.get("profile") || "").trim().toLowerCase();
+      const isNamedProfile = profileFilter && profileFilter !== "default";
+
+      if (isNamedProfile && !PROFILE_NAME_RE.test(profileFilter)) {
+        sendJson(res, 400, { error: "Invalid profile name." });
+        return;
+      }
+      if (isNamedProfile && !fs.existsSync(getProfileDir(profileFilter))) {
+        sendJson(res, 404, { error: `Profile '${profileFilter}' not found.` });
+        return;
+      }
+
+      const cfgDir = isNamedProfile ? getProfileDir(profileFilter) : CONFIG_DIR;
+      const sessionDir = path.join(cfgDir, "whatsapp", "session");
+      const qrFile = path.join(cfgDir, "whatsapp", "qr.txt");
+
+      // For named profiles, stop the gateway before clearing so the bridge
+      // releases its lock on the session files cleanly.
+      if (isNamedProfile) {
+        try { stopProfileGateway(profileFilter); } catch (e) {
+          console.warn(`Relink: could not stop ${profileFilter} (may already be stopped):`, e.message);
+        }
+        // Give the bridge a moment to exit before we wipe the session
+        await new Promise(r => setTimeout(r, 1500));
+      }
 
       // Delete session credentials
       if (fs.existsSync(sessionDir)) {
         fs.rmSync(sessionDir, { recursive: true, force: true });
-        console.log("Deleted WhatsApp session for relinking");
+        console.log(`Deleted WhatsApp session for ${isNamedProfile ? profileFilter : "default"}`);
       }
       // Delete stale QR file
       if (fs.existsSync(qrFile)) {
         fs.unlinkSync(qrFile);
       }
 
-      // Restart the web container so bridge generates a new QR
-      const restarted = restartWebContainer();
+      let restarted = false;
+      if (isNamedProfile) {
+        // Restart just the named profile's gateway — no need to restart the whole container.
+        try {
+          startProfileGateway(profileFilter);
+          restarted = true;
+        } catch (e) {
+          console.error(`Relink: failed to restart ${profileFilter}:`, e.message);
+        }
+      } else {
+        // Default: restart the web container so the entrypoint re-runs and the
+        // foreground gateway generates a new QR.
+        restarted = restartWebContainer();
+      }
 
       sendJson(res, 200, {
         success: true,
+        profile: isNamedProfile ? profileFilter : "default",
         restarted,
         message: restarted
           ? "WhatsApp session cleared. A new QR code will appear shortly."
-          : "Session cleared. Please restart the app manually.",
+          : "Session cleared. Start the profile gateway to get a new QR code.",
       });
     } catch (e) {
       console.error("WhatsApp relink error:", e.message);
