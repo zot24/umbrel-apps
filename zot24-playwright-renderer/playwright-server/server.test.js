@@ -11,7 +11,13 @@ const {
   clampTimeout,
   mapWaitUntil,
   isValidUrl,
+  ensureRendererToken,
+  loadEnvFile,
 } = require("./server.js");
+
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 
 const silentLogger = pino({ level: "silent" });
 
@@ -407,3 +413,98 @@ test("POST /render clamps absurd timeouts into the allowed range", async () => {
     assert.equal(calls.gotoArgs[0].opts.timeout, 60_000);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ensureRendererToken — Umbrel install bootstrap
+// ---------------------------------------------------------------------------
+// Reasoning: without setup-wizard machinery Umbrel never sets
+// RENDERER_TOKEN, so the server bootstraps one on first boot and persists
+// to a Docker volume. These tests cover the three paths (env wins, file
+// wins when env empty, generate when neither) and the persistence.
+
+function withTokenFixture(testFn) {
+  return async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "renderer-token-"));
+    const tokenFile = path.join(dir, ".env");
+    const prevToken = process.env.RENDERER_TOKEN;
+    delete process.env.RENDERER_TOKEN;
+    try {
+      await testFn({ tokenFile });
+    } finally {
+      if (prevToken === undefined) delete process.env.RENDERER_TOKEN;
+      else process.env.RENDERER_TOKEN = prevToken;
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+}
+
+test(
+  "ensureRendererToken prefers process.env when set",
+  withTokenFixture(async ({ tokenFile }) => {
+    process.env.RENDERER_TOKEN = "from-env";
+    const result = ensureRendererToken({ logger: silentLogger, tokenFile });
+    assert.equal(result.source, "env");
+    assert.equal(result.token, "from-env");
+    assert.equal(fs.existsSync(tokenFile), false, "should not write a file when env was already set");
+  })
+);
+
+test(
+  "ensureRendererToken loads from token file when env is empty",
+  withTokenFixture(async ({ tokenFile }) => {
+    fs.writeFileSync(tokenFile, "RENDERER_TOKEN=from-file\n");
+    const result = ensureRendererToken({ logger: silentLogger, tokenFile });
+    assert.equal(result.source, "file");
+    assert.equal(result.token, "from-file");
+    assert.equal(process.env.RENDERER_TOKEN, "from-file");
+  })
+);
+
+test(
+  "ensureRendererToken generates and persists a 64-char hex token when neither env nor file has one",
+  withTokenFixture(async ({ tokenFile }) => {
+    const result = ensureRendererToken({ logger: silentLogger, tokenFile });
+    assert.equal(result.source, "generated");
+    assert.equal(result.persisted, true);
+    assert.match(result.token, /^[0-9a-f]{64}$/);
+    assert.equal(process.env.RENDERER_TOKEN, result.token);
+    const written = fs.readFileSync(tokenFile, "utf-8");
+    assert.equal(written.trim(), `RENDERER_TOKEN=${result.token}`);
+  })
+);
+
+test(
+  "ensureRendererToken still serves an in-memory token if persistence fails",
+  withTokenFixture(async ({ tokenFile }) => {
+    // Point at a path under a non-existent parent that mkdir -p can create —
+    // then pre-create the dir as a *read-only file* so the write fails.
+    const blockedDir = path.join(path.dirname(tokenFile), "blocked");
+    fs.mkdirSync(blockedDir);
+    fs.chmodSync(blockedDir, 0o500); // r-x for owner — write rejected
+    const result = ensureRendererToken({
+      logger: silentLogger,
+      tokenFile: path.join(blockedDir, ".env"),
+    });
+    fs.chmodSync(blockedDir, 0o700); // restore so cleanup works
+    assert.equal(result.source, "generated");
+    assert.equal(result.persisted, false);
+    assert.match(result.token, /^[0-9a-f]{64}$/);
+    assert.equal(process.env.RENDERER_TOKEN, result.token);
+  })
+);
+
+test(
+  "loadEnvFile parses KEY=VALUE lines without overwriting existing env",
+  withTokenFixture(async ({ tokenFile }) => {
+    fs.writeFileSync(tokenFile, "FOO=bar\nRENDERER_TOKEN=from-file\nBAZ=qux\n");
+    process.env.FOO = "preset"; // should NOT be overwritten
+    delete process.env.BAZ;
+    const found = loadEnvFile(tokenFile);
+    assert.equal(found, true);
+    assert.equal(process.env.FOO, "preset");
+    assert.equal(process.env.BAZ, "qux");
+    assert.equal(process.env.RENDERER_TOKEN, "from-file");
+    delete process.env.FOO;
+    delete process.env.BAZ;
+  })
+);
