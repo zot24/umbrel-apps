@@ -2917,6 +2917,29 @@ async function handleRequest(req, res) {
     return;
   }
 
+  // ── API: List env keys present in a profile's .env (values redacted) ──
+  // Used by the create-profile UI to render an opt-in checklist of keys
+  // the user can choose to copy into the new profile. Values never leave
+  // the server — only key names.
+  if (req.method === "GET" && url.pathname === "/api/profiles/source-env-keys") {
+    const fromName = (url.searchParams.get("from") || "default").trim().toLowerCase();
+    if (!PROFILE_NAME_RE.test(fromName) && fromName !== "default") {
+      sendJson(res, 400, { error: "Invalid 'from' profile name." });
+      return;
+    }
+    const sourceDir = getProfileDir(fromName);
+    if (!fs.existsSync(sourceDir)) {
+      sendJson(res, 404, { error: `Profile '${fromName}' not found.` });
+      return;
+    }
+    const env = readProfileEnv(sourceDir);
+    // Hide structural ports — they get auto-assigned for each profile.
+    const STRUCTURAL = new Set(["API_SERVER_PORT", "WEBHOOK_PORT"]);
+    const keys = Object.keys(env).filter(k => !STRUCTURAL.has(k)).sort();
+    sendJson(res, 200, { keys });
+    return;
+  }
+
   // ── API: List profiles ──
   if (req.method === "GET" && url.pathname === "/api/profiles") {
     const profiles = listProfiles();
@@ -2965,8 +2988,18 @@ async function handleRequest(req, res) {
       // Use hermes profile create CLI via web container
       const cloneMode = data.cloneMode || "clone";
       const cloneFrom = data.cloneFrom || "default";
+      // Explicit opt-in list of env keys to copy from cloneFrom. Keys NOT in
+      // this list are NOT inherited — replacing the previous behaviour where
+      // `--clone` copied the source .env wholesale and a hardcoded denylist
+      // tried to strip a few platform tokens. The denylist approach silently
+      // leaked every new secret added to the source profile; explicit
+      // enumeration makes inheritance a deliberate per-key decision.
+      const inheritKeys = Array.isArray(data.inheritKeys) ? data.inheritKeys : [];
 
-      // Build the hermes profile create command
+      // Build the hermes profile create command. Keep `--clone` / `--clone-all`
+      // so config.yaml + SOUL.md (and memories/sessions/skills for clone-all)
+      // still copy — those aren't secrets. We replace the resulting .env
+      // ourselves below so secret inheritance is opt-in.
       let createCmd = `/app/venv/bin/hermes profile create ${name}`;
       if (cloneMode === "clone") {
         createCmd += " --clone";
@@ -2989,20 +3022,22 @@ async function handleRequest(req, res) {
         }
       }
 
-      // Strip platform tokens from cloned .env to prevent conflicts
-      // (hermes profile create --clone copies .env as-is, but sharing
-      // Telegram/WhatsApp tokens between profiles causes token lock errors)
-      if (cloneMode === "clone" || cloneMode === "clone-all") {
+      // Replace the new profile's .env with only the explicitly inherited keys.
+      // Source values are looked up server-side; they never round-trip through
+      // the client. Anything not in inheritKeys (and not structural — those are
+      // added by the port-assignment block below) is dropped.
+      if (cloneMode !== "import") {
         const envFile = path.join(profileDir, ".env");
-        if (fs.existsSync(envFile)) {
-          const platformTokenKeys = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_HOME_CHAT_ID", "WHATSAPP_ENABLED", "DISCORD_BOT_TOKEN", "SLACK_BOT_TOKEN", "HERMES_REGEN_CONFIG"];
-          const envContent = fs.readFileSync(envFile, "utf8");
-          const filtered = envContent.split("\n").filter(line => {
-            const key = line.split("=")[0].trim();
-            return !platformTokenKeys.includes(key);
-          }).join("\n");
-          fs.writeFileSync(envFile, filtered);
+        const sourceEnv = readProfileEnv(getProfileDir(cloneFrom));
+        const KEY_RE = /^[A-Z_][A-Z0-9_]*$/;
+        const STRUCTURAL = new Set(["API_SERVER_PORT", "WEBHOOK_PORT"]);
+        const lines = [];
+        for (const key of inheritKeys) {
+          if (!KEY_RE.test(key)) continue;
+          if (STRUCTURAL.has(key)) continue;
+          if (key in sourceEnv) lines.push(`${key}=${sourceEnv[key]}`);
         }
+        fs.writeFileSync(envFile, lines.length ? lines.join("\n") + "\n" : "");
       }
 
       // Copy Umbrel-specific skills (ask-agent etc.) — hermes doesn't include these
