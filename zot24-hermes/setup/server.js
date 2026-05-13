@@ -532,23 +532,47 @@ function startProfileGateway(name) {
   const apiKey = readApiServerKey();
   // Shell-escape the key for single-quote inclusion in the exec command.
   const safeKey = apiKey.replace(/'/g, "'\\''");
-  // Mirror the entrypoint's auto-start subshell pattern: unset platform tokens
-  // and mode/allowlist env vars inherited from the default profile, then
-  // source the profile's own .env so WHATSAPP_MODE, WHATSAPP_ALLOWED_USERS,
-  // bot tokens, etc. come from the profile (not the container's parent env,
-  // which carries the default profile's values). Without this, the named
-  // profile's WhatsApp bridge spawns with the default's --mode/--port/--session.
+  // Start sub-profile gateways with a CLEAN env (`env -i`) and inherit only
+  // an explicit allowlist of structural / locale vars from the container.
+  // Anything the entrypoint sourced from the default profile's `.env`
+  // (DEEPSEEK_API_KEY, HONCHO_API_KEY, GH_TOKEN, …) gets dropped at this
+  // boundary; the sub-profile then sources its own `.env` for what it
+  // actually needs.
   //
-  // No --replace: that flag SIGTERMs every running gateway on the container,
-  // including the default profile that's holding the container's foreground
-  // process. Each profile gateway runs as an independent background process.
+  // Allowlist rationale:
+  //   HOME / USER / PATH / SHELL / TERM — structural; tools (Python, brew,
+  //     spawned bridges) break without them.
+  //   LANG / LC_ALL / TZ — locale & time; Python defaults to ASCII without
+  //     LANG, which breaks unicode I/O on the agent's tool outputs.
+  //   PYTHONUNBUFFERED=1 — forced; ensures gateway logs flush immediately
+  //     (matches the historical entrypoint behaviour).
+  //   HERMES_HOME / API_SERVER_* / WEBHOOK_PORT — set explicitly per profile.
+  //
+  // The previous unset-list approach (TELEGRAM_BOT_TOKEN, WHATSAPP_*, …) is
+  // a denylist and silently leaked every new secret added to the default
+  // profile's `.env`. `env -i` + allowlist is deny-by-default.
+  //
+  // No --replace on the inner gateway invocation: that flag SIGTERMs every
+  // running gateway on the container, including the default profile.
   const cmd = [
-    `unset TELEGRAM_BOT_TOKEN TELEGRAM_HOME_CHAT_ID WHATSAPP_ENABLED WHATSAPP_MODE WHATSAPP_ALLOWED_USERS DISCORD_BOT_TOKEN SLACK_BOT_TOKEN HERMES_REGEN_CONFIG`,
-    `set -a`,
-    `[ -f '${webProfileDir}/.env' ] && . '${webProfileDir}/.env'`,
-    `set +a`,
-    `API_SERVER_KEY='${safeKey}' API_SERVER_ENABLED=true API_SERVER_HOST=0.0.0.0 API_SERVER_PORT=${apiPort} WEBHOOK_PORT=${webhookPort} HERMES_HOME='${webProfileDir}' /app/venv/bin/hermes gateway run &`,
-  ].join("; ");
+    `env -i`,
+    `HOME="$HOME"`,
+    `USER="$USER"`,
+    `PATH="$PATH"`,
+    `SHELL="${"${SHELL:-/bin/sh}"}"`,
+    `TERM="${"${TERM:-xterm}"}"`,
+    `LANG="${"${LANG:-C.UTF-8}"}"`,
+    `LC_ALL="${"${LC_ALL:-C.UTF-8}"}"`,
+    `TZ="${"${TZ:-UTC}"}"`,
+    `PYTHONUNBUFFERED=1`,
+    `HERMES_HOME='${webProfileDir}'`,
+    `API_SERVER_KEY='${safeKey}'`,
+    `API_SERVER_ENABLED=true`,
+    `API_SERVER_HOST=0.0.0.0`,
+    `API_SERVER_PORT=${apiPort}`,
+    `WEBHOOK_PORT=${webhookPort}`,
+    `sh -c 'set -a; [ -f "$HERMES_HOME/.env" ] && . "$HERMES_HOME/.env"; set +a; /app/venv/bin/hermes gateway run' &`,
+  ].join(" ");
   // Create exec instance and start it
   const socketPath = "/var/run/docker.sock";
   const createPayload = JSON.stringify({
