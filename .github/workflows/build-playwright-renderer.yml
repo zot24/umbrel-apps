@@ -88,7 +88,18 @@ jobs:
       - name: Update docker-compose.yml with new image + digest
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          DIGEST="${{ steps.build.outputs.digest }}"
+          # docker/build-push-action's outputs.digest is unreliable for
+          # multi-arch builds: it can return the local image digest of one
+          # platform rather than the manifest-list digest pushed to the
+          # registry. `docker pull` resolves tags via the manifest list, so
+          # if we pin to the local digest a fresh install fails to find it.
+          # Query the registry directly for the canonical manifest digest.
+          DIGEST=$(docker buildx imagetools inspect "ghcr.io/zot24/playwright-renderer:${VERSION}" --format '{{ .Manifest.Digest }}')
+          if [ -z "$DIGEST" ]; then
+            echo "::error::Could not determine manifest digest from registry"
+            exit 1
+          fi
+          echo "Manifest digest: $DIGEST"
           sed -i "s|image: ghcr.io/zot24/playwright-renderer:.*|image: ghcr.io/zot24/playwright-renderer:${VERSION}@${DIGEST}|" zot24-playwright-renderer/docker-compose.yml
 
       - name: Commit and push
