@@ -58,6 +58,18 @@ RUN if [ -f scripts/whatsapp-bridge/bridge.js ]; then \
     scripts/whatsapp-bridge/bridge.js; \
     fi
 
+# 5. Make WhatsApp bridge port configurable via WHATSAPP_BRIDGE_PORT env var.
+#    Upstream Hermes only reads bridge_port from gateway.platforms.whatsapp.extra
+#    in config.yaml, and load_gateway_config doesn't bridge that key from the
+#    top-level `whatsapp:` section either — so multi-profile installs can't give
+#    each profile a unique port without dropping gateway.json files. We patch
+#    the WhatsApp platform __init__ to honor an env var first, config-file
+#    second, default 3000.
+RUN if [ -f gateway/platforms/whatsapp.py ]; then \
+    sed -i 's|self._bridge_port: int = config.extra.get("bridge_port", 3000)|self._bridge_port: int = int(os.getenv("WHATSAPP_BRIDGE_PORT") or config.extra.get("bridge_port") or 3000)|' \
+    gateway/platforms/whatsapp.py; \
+    fi
+
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM python:3.11-slim-bookworm
 
