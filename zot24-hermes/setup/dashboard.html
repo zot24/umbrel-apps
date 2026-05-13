@@ -4719,7 +4719,7 @@
 
     async function fetchStatus() {
       try {
-        const data = await (await fetch("/api/status")).json();
+        const data = await (await fetch(`/api/status?x=1${profileParam()}`)).json();
         updateUI(data);
       } catch (e) {
         console.error("Status fetch failed:", e);
@@ -5670,6 +5670,7 @@
     }
 
     function refreshFilteredData() {
+      fetchStatus();
       fetchInsights();
       if (currentView === "sessions") fetchSessions();
       if (currentView === "memory") fetchMemoryFiles();
