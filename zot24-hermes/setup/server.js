@@ -907,20 +907,42 @@ async function handleRequest(req, res) {
 
   // ── API: Gateway status ──
   if (req.method === "GET" && url.pathname === "/api/status") {
-    const state = readGatewayState();
-    const config = readCurrentConfig();
+    const profileFilter = (url.searchParams.get("profile") || "").trim().toLowerCase();
+    const isNamed = profileFilter && profileFilter !== "default" && profileFilter !== "all";
+    if (isNamed && !PROFILE_NAME_RE.test(profileFilter)) {
+      sendJson(res, 400, { error: "Invalid profile name." });
+      return;
+    }
+    const cfgDir = isNamed ? getProfileDir(profileFilter) : CONFIG_DIR;
+
+    // Read state + env for the targeted profile
+    let state = null;
+    try {
+      const stateFile = path.join(cfgDir, "gateway_state.json");
+      if (fs.existsSync(stateFile)) state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    } catch (e) {}
+    const config = {};
+    try {
+      const envFile = path.join(cfgDir, ".env");
+      if (fs.existsSync(envFile)) {
+        fs.readFileSync(envFile, "utf8").split("\n").forEach((line) => {
+          const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+          if (m) config[m[1]] = m[2];
+        });
+      }
+    } catch (e) {}
 
     const platforms = [];
     if (config.TELEGRAM_BOT_TOKEN) {
       platforms.push({ name: "Telegram", enabled: true });
     }
     if (config.WHATSAPP_ENABLED === "true") {
-      const { qrFile: defaultQrFile, credsFile: defaultCreds } = whatsappPaths(CONFIG_DIR);
+      const { qrFile, credsFile } = whatsappPaths(cfgDir);
       platforms.push({
         name: "WhatsApp",
         enabled: true,
-        paired: fs.existsSync(defaultCreds),
-        hasQr: fs.existsSync(defaultQrFile),
+        paired: fs.existsSync(credsFile),
+        hasQr: fs.existsSync(qrFile),
       });
     }
     if (config.DISCORD_BOT_TOKEN) {
@@ -930,12 +952,29 @@ async function handleRequest(req, res) {
       platforms.push({ name: "Slack", enabled: true });
     }
 
+    // Model fallback to config.yaml when not in .env (matches readProfileConfig)
+    let model = config.HERMES_MODEL;
+    let provider = config.HERMES_PROVIDER;
+    if (!model) {
+      try {
+        const cfgFile = path.join(cfgDir, "config.yaml");
+        if (fs.existsSync(cfgFile)) {
+          const y = fs.readFileSync(cfgFile, "utf8");
+          const m = y.match(/default:\s*"?([^"\n]+)"?/);
+          if (m) model = m[1].trim();
+          const p = y.match(/provider:\s*"?([^"\n]+)"?/);
+          if (p && !provider) provider = p[1].trim();
+        }
+      } catch (e) {}
+    }
+
     sendJson(res, 200, {
+      profile: isNamed ? profileFilter : "default",
       configured: isConfigured(),
       gateway: state,
       platforms,
-      model: config.HERMES_MODEL || "anthropic/claude-sonnet-4-20250514",
-      provider: config.HERMES_PROVIDER || "auto",
+      model: model || "anthropic/claude-sonnet-4-20250514",
+      provider: provider || "auto",
     });
     return;
   }
