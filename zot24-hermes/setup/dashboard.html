@@ -4667,6 +4667,19 @@
             </div>
           </label>
         </div>
+        <div id="inheritEnvSection" style="margin-bottom: 14px;">
+          <div style="font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Inherit env vars from source</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px; line-height: 1.5;">
+            Pick which secrets/tokens to copy from the source profile. Anything left unchecked is NOT inherited — the new profile starts without it. Values stay server-side; only key names are shown here.
+          </div>
+          <div id="inheritEnvList" style="max-height: 180px; overflow-y: auto; border: 1px solid var(--border); background: var(--surface-2); padding: 6px 10px; font-size: 12px; font-family: var(--body);">
+            <div style="color: var(--text-muted); padding: 4px 0;">Loading…</div>
+          </div>
+          <div style="margin-top: 6px; display: flex; gap: 10px;">
+            <button type="button" class="btn btn-tertiary" style="font-size: 10px; padding: 4px 8px;" onclick="toggleInheritEnv(true)">Select all</button>
+            <button type="button" class="btn btn-tertiary" style="font-size: 10px; padding: 4px 8px;" onclick="toggleInheritEnv(false)">Select none</button>
+          </div>
+        </div>
         <div id="createProfileError" style="display: none; font-size: 12px; color: var(--red); padding: 8px 10px; border: 1px solid var(--red-dim); margin-bottom: 10px;"></div>
       </div>
       <div class="modal-actions">
@@ -5483,6 +5496,8 @@
         }
       }
       document.getElementById("createProfileModal").classList.add("show");
+      updateInheritEnvVisibility();
+      loadInheritEnvKeys();
       setTimeout(() => document.getElementById("newProfileName").focus(), 100);
     }
 
@@ -5491,7 +5506,50 @@
       const fi = document.getElementById("importProfileFile");
       if (fi) fi.style.display = mode === "import" ? "block" : "none";
     }
-    document.querySelectorAll('input[name="cloneMode"]').forEach(r => r.addEventListener("change", updateImportFileVisibility));
+    document.querySelectorAll('input[name="cloneMode"]').forEach(r => r.addEventListener("change", () => {
+      updateImportFileVisibility();
+      updateInheritEnvVisibility();
+    }));
+    const cloneFromSelectEl = document.getElementById("cloneFromProfile");
+    if (cloneFromSelectEl) cloneFromSelectEl.addEventListener("change", loadInheritEnvKeys);
+
+    function updateInheritEnvVisibility() {
+      const mode = document.querySelector('input[name="cloneMode"]:checked')?.value;
+      const section = document.getElementById("inheritEnvSection");
+      if (!section) return;
+      // Import restores a full backup including its own .env; inheritance N/A.
+      section.style.display = mode === "import" ? "none" : "block";
+    }
+
+    async function loadInheritEnvKeys() {
+      const list = document.getElementById("inheritEnvList");
+      if (!list) return;
+      const from = document.getElementById("cloneFromProfile").value || "default";
+      list.innerHTML = `<div style="color: var(--text-muted); padding: 4px 0;">Loading…</div>`;
+      try {
+        const resp = await fetch(`/api/profiles/source-env-keys?from=${encodeURIComponent(from)}`);
+        const data = await resp.json();
+        const keys = Array.isArray(data.keys) ? data.keys : [];
+        if (keys.length === 0) {
+          list.innerHTML = `<div style="color: var(--text-muted); padding: 4px 0;">No env vars defined on the source profile.</div>`;
+          return;
+        }
+        list.innerHTML = keys.map(k =>
+          `<label style="display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer;">
+            <input type="checkbox" name="inheritEnvKey" value="${k}">
+            <span style="font-family: var(--mono, monospace); font-size: 12px; color: var(--text);">${k}</span>
+          </label>`
+        ).join("");
+      } catch (e) {
+        list.innerHTML = `<div style="color: var(--red); padding: 4px 0;">Failed to load: ${e.message}</div>`;
+      }
+    }
+
+    function toggleInheritEnv(checked) {
+      document.querySelectorAll('#inheritEnvList input[name="inheritEnvKey"]').forEach(cb => {
+        cb.checked = !!checked;
+      });
+    }
 
     async function createProfile() {
       const name = document.getElementById("newProfileName").value.trim().toLowerCase();
@@ -5541,10 +5599,13 @@
           return;
         }
 
+        const inheritKeys = Array.from(
+          document.querySelectorAll('#inheritEnvList input[name="inheritEnvKey"]:checked')
+        ).map(cb => cb.value);
         const resp = await fetch("/api/profiles", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, cloneMode, cloneFrom }),
+          body: JSON.stringify({ name, cloneMode, cloneFrom, inheritKeys }),
         });
         const data = await resp.json();
         if (data.success) {
