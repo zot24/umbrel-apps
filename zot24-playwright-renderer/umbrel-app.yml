@@ -3,7 +3,7 @@ id: zot24-playwright-renderer
 name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
 category: developer
-version: "0.1.1"
+version: "0.1.2"
 tagline: Self-hosted headless-browser renderer with residential-IP egress
 description: >-
   Playwright Renderer is a project-agnostic self-hosted headless-browser
@@ -53,9 +53,12 @@ description: >-
   5. Test with: curl -X POST https://playwright.<your-domain>/render
      -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
 releaseNotes: >-
-  Auto-generates RENDERER_TOKEN on first boot and persists it to /data/.env
-  so installs succeed without a manual setup step. Read the token from the
-  app's Logs view to wire it up to your clients.
+  Fixes RENDERER_TOKEN persistence: previously the token bootstrap fell back
+  to in-memory mode because the Umbrel-mounted /data volume was root-owned
+  while the server ran as the unprivileged pwuser, causing a fresh token to
+  be generated on every restart. The container now starts as root, hands
+  /data over to pwuser, then drops privileges via gosu before launching node,
+  so the token written to /data/.env on first boot now survives restarts.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies:
