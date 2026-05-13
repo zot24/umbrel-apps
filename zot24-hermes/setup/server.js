@@ -273,6 +273,10 @@ const COMMS_FILE = path.join(CONFIG_DIR, "agent-comms.json");
 const API_SERVER_KEY_FILE = path.join(CONFIG_DIR, ".api_server_key");
 const BASE_API_PORT = 8642;
 const BASE_WEBHOOK_PORT = 8644;
+// Default profile's WhatsApp bridge runs on 3000 (entrypoint default). Named
+// profiles need different ports to coexist — only one bridge can bind a port.
+// Named-profile bridges start at 3001 and step up with a hash-based offset.
+const BASE_WHATSAPP_BRIDGE_PORT = 3000;
 
 // Shared API key used by every gateway (default + named profiles). Hermes
 // refuses to bind 0.0.0.0 without it. The web container's entrypoint creates
@@ -435,12 +439,25 @@ function execInWebContainer(cmd) {
 }
 
 function assignProfilePorts(name) {
-  if (name === "default") return { apiPort: BASE_API_PORT, webhookPort: BASE_WEBHOOK_PORT };
+  if (name === "default") {
+    return {
+      apiPort: BASE_API_PORT,
+      webhookPort: BASE_WEBHOOK_PORT,
+      whatsappBridgePort: BASE_WHATSAPP_BRIDGE_PORT,
+    };
+  }
   // Stable hash of profile name → unique port offset (avoids collisions when profiles are added/removed)
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
   const offset = (Math.abs(hash) % 90 + 1) * 10; // 10-900 range, avoids 0 (default)
-  return { apiPort: BASE_API_PORT + offset, webhookPort: BASE_WEBHOOK_PORT + offset };
+  // WhatsApp bridge port offset uses 1-90 (smaller, since 3000+ has fewer free slots
+  // and we want to stay in the 3001-3090 range).
+  const waOffset = (Math.abs(hash) % 90) + 1;
+  return {
+    apiPort: BASE_API_PORT + offset,
+    webhookPort: BASE_WEBHOOK_PORT + offset,
+    whatsappBridgePort: BASE_WHATSAPP_BRIDGE_PORT + waOffset,
+  };
 }
 
 function getProfileApiPort(name) {
@@ -514,7 +531,7 @@ function webContainerPath(localPath) {
 function startProfileGateway(name) {
   const profileDir = getProfileDir(name);
   const webProfileDir = webContainerPath(profileDir);
-  const { apiPort, webhookPort } = assignProfilePorts(name);
+  const { apiPort, webhookPort, whatsappBridgePort } = assignProfilePorts(name);
 
   // Persist port assignments in the profile's .env so getProfileApiPort() can find them
   const envFile = path.join(profileDir, ".env");
@@ -527,6 +544,10 @@ function startProfileGateway(name) {
   };
   envContent = setEnvVar(envContent, "API_SERVER_PORT", apiPort);
   envContent = setEnvVar(envContent, "WEBHOOK_PORT", webhookPort);
+  // WhatsApp bridge port — the Dockerfile patches whatsapp.py to honor this env var
+  // (upstream Hermes only reads it from gateway.platforms.whatsapp.extra.bridge_port
+  // which isn't reachable from config.yaml's top-level whatsapp section).
+  envContent = setEnvVar(envContent, "WHATSAPP_BRIDGE_PORT", whatsappBridgePort);
   fs.writeFileSync(envFile, envContent.trim() + "\n");
 
   const apiKey = readApiServerKey();
@@ -1452,8 +1473,8 @@ async function handleRequest(req, res) {
           console.warn("Warning: could not rewrite cron paths after named import:", e.message);
         }
 
-        // Assign API server + webhook ports for this profile (same scheme as POST /api/profiles)
-        const { apiPort, webhookPort } = assignProfilePorts(targetProfile);
+        // Assign API server + webhook + WhatsApp bridge ports for this profile (same scheme as POST /api/profiles)
+        const { apiPort, webhookPort, whatsappBridgePort } = assignProfilePorts(targetProfile);
         let envContent = "";
         try { if (fs.existsSync(profileEnvFile)) envContent = fs.readFileSync(profileEnvFile, "utf8"); } catch (e) {}
         const setEnvVar = (content, key, val) => {
@@ -1462,6 +1483,7 @@ async function handleRequest(req, res) {
         };
         envContent = setEnvVar(envContent, "API_SERVER_PORT", apiPort);
         envContent = setEnvVar(envContent, "WEBHOOK_PORT", webhookPort);
+        envContent = setEnvVar(envContent, "WHATSAPP_BRIDGE_PORT", whatsappBridgePort);
         fs.writeFileSync(profileEnvFile, envContent.trim() + "\n", { mode: 0o600 });
 
         // Fix permissions — archive may have come from a different uid
@@ -2976,8 +2998,8 @@ async function handleRequest(req, res) {
         console.error(`Failed to copy Umbrel skills to ${name}:`, e.message);
       }
 
-      // Assign API server ports
-      const { apiPort, webhookPort } = assignProfilePorts(name);
+      // Assign API server + webhook + WhatsApp bridge ports for this profile
+      const { apiPort, webhookPort, whatsappBridgePort } = assignProfilePorts(name);
       const envFile = path.join(profileDir, ".env");
       let envContent = "";
       try { if (fs.existsSync(envFile)) envContent = fs.readFileSync(envFile, "utf8"); } catch (e) {}
@@ -2987,6 +3009,7 @@ async function handleRequest(req, res) {
       };
       envContent = setEnvVar(envContent, "API_SERVER_PORT", apiPort);
       envContent = setEnvVar(envContent, "WEBHOOK_PORT", webhookPort);
+      envContent = setEnvVar(envContent, "WHATSAPP_BRIDGE_PORT", whatsappBridgePort);
       fs.writeFileSync(envFile, envContent.trim() + "\n");
 
       console.log(`Created profile '${name}' (mode: ${cloneMode}, from: ${cloneFrom})`);
