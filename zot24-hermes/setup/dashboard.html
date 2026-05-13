@@ -5408,7 +5408,8 @@
           actions += `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','start')">START</button>` +
                     `<button class="profile-action-btn danger" onclick="event.stopPropagation();deleteProfile('${p.name}')">DEL</button>`;
         } else if (!isDefault && state === "running") {
-          actions += `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','stop')">STOP</button>`;
+          actions += `<button class="profile-action-btn amber" onclick="event.stopPropagation();profileAction('${p.name}','restart')" title="Stop then start — picks up config/.env changes">RESTART</button>` +
+                    `<button class="profile-action-btn" onclick="event.stopPropagation();profileAction('${p.name}','stop')">STOP</button>`;
         }
 
         // Live stats
