@@ -9,11 +9,64 @@ const pinoHttp = require("pino-http");
 const pino = require("pino");
 
 const DEFAULT_TOKEN_FILE = "/data/.env";
+// When clients pass `useSession: true` we mount this file into the per-request
+// Playwright context. Persisted on the Docker volume so it survives restarts.
+// Operators install/refresh it via the cookies-to-storage-state.mjs tool —
+// see STORAGESTATE.md for the ritual.
+const DEFAULT_STORAGE_STATE_FILE = "/data/storageState.json";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MIN_TIMEOUT_MS = 5_000;
 const MAX_TIMEOUT_MS = 60_000;
 const DEFAULT_VIEWPORT = { width: 1280, height: 800 };
+
+// Page-side patches that mask the most obvious Playwright/Chromium-automation
+// fingerprints. Applied to every context via `addInitScript`, so they run
+// before any of the target page's own JS.
+//
+// What this covers, and why:
+//   - `navigator.webdriver` returns `true` under automation, never under a
+//     real browser. Sites like Instagram fingerprint this directly. We
+//     override to `undefined` to match a normal browser.
+//   - `navigator.plugins` is an empty PluginArray in headless Chromium; real
+//     desktop Chrome ships with the PDF viewer plugin. Empty plugins is a
+//     well-known automation tell.
+//   - `navigator.languages` is `[]` in headless; real browsers always have
+//     at least one entry. We hardcode `["en-US", "en"]` — match the UA
+//     locale roughly. Tune via env var (`STEALTH_LANGUAGES`) if needed.
+//   - `window.chrome` is missing in headless; real Chrome always has it
+//     (even if mostly empty). We inject a minimal stub.
+//
+// This is a deliberately small, well-known set — chosen because each patch
+// has a published bypass-detection-of-detection write-up. We don't ship
+// the full `puppeteer-extra-stealth` suite: dependency surface area is bigger,
+// and the patches we DO need for Instagram-class sites are the four above.
+const STEALTH_INIT_SCRIPT = `
+(() => {
+  try {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  } catch {}
+  try {
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => [
+        { name: 'PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+        { name: 'Chrome PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+        { name: 'Chromium PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+        { name: 'Microsoft Edge PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+        { name: 'WebKit built-in PDF', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+      ],
+    });
+  } catch {}
+  try {
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+  } catch {}
+  try {
+    if (!window.chrome) {
+      window.chrome = { runtime: {} };
+    }
+  } catch {}
+})();
+`;
 
 function clampTimeout(value) {
   const n = Number(value);
@@ -66,8 +119,12 @@ function isTimeoutError(err) {
  *   Returns a shared Browser instance. Caller is responsible for lifecycle.
  * @param {string} opts.token  Bearer token to require on /render.
  * @param {import('pino').Logger} [opts.logger]
+ * @param {string} [opts.storageStateFile]
+ *   Path to a Playwright `storageState` JSON file used when a request opts
+ *   in via `useSession: true`. Defaults to `/data/storageState.json`. Tests
+ *   inject a temp path; absence at request time returns 503.
  */
-function createApp({ getBrowser, token, logger }) {
+function createApp({ getBrowser, token, logger, storageStateFile = DEFAULT_STORAGE_STATE_FILE }) {
   const app = express();
   const log = logger || pino({ level: process.env.LOG_LEVEL || "info" });
 
@@ -98,12 +155,29 @@ function createApp({ getBrowser, token, logger }) {
         .json({ success: false, error: "invalid JSON body" });
     }
 
-    const { url, gotoOptions, waitForSelector, viewport, userAgent } = body;
+    const { url, gotoOptions, waitForSelector, viewport, userAgent, useSession } = body;
 
     if (!isValidUrl(url)) {
       return res.status(422).json({
         success: false,
         error: "missing or invalid 'url' (must be http(s) URL)",
+      });
+    }
+
+    // Session opt-in is a separate failure mode from "renderer is down" —
+    // 503 here means the *capability* the client asked for isn't currently
+    // installed, not that Chromium misbehaved. Operators see this when they
+    // forgot to scp a fresh storageState.json after the cookie file expired.
+    // Fail loud rather than silently downgrade to no-session, otherwise an
+    // expired Instagram session looks identical to "anti-bot wall hit".
+    if (useSession === true && !fs.existsSync(storageStateFile)) {
+      req.log?.warn(
+        { storageStateFile },
+        "useSession=true but storage state file missing"
+      );
+      return res.status(503).json({
+        success: false,
+        error: `useSession requested but ${storageStateFile} is missing — see STORAGESTATE.md`,
       });
     }
 
@@ -127,10 +201,21 @@ function createApp({ getBrowser, token, logger }) {
     let context;
     let page;
     try {
-      context = await browser.newContext({
+      const contextOptions = {
         viewport: vp,
         userAgent: typeof userAgent === "string" && userAgent.length > 0 ? userAgent : undefined,
-      });
+      };
+      if (useSession === true) {
+        // existence already validated above; pass the path through so Playwright
+        // reads + applies cookies/origins from disk on context creation.
+        contextOptions.storageState = storageStateFile;
+      }
+      context = await browser.newContext(contextOptions);
+      // Inject stealth patches BEFORE any page navigation so the target page's
+      // own JS sees the masked navigator surface. Errors here would be from a
+      // Browser-side bug (not a render failure) — bubble up to the outer catch
+      // where they'll be surfaced as 500s.
+      await context.addInitScript(STEALTH_INIT_SCRIPT);
       page = await context.newPage();
 
       const response = await page.goto(url, { waitUntil, timeout });
@@ -186,7 +271,18 @@ function createBrowserPool() {
     // Lazy-require to keep `node:test` runs (which inject a stub) cheap.
     const { chromium } = require("playwright");
     const browser = await chromium.launch({
-      args: ["--no-sandbox", "--disable-dev-shm-usage"],
+      // `--disable-blink-features=AutomationControlled` removes the Chromium
+      // automation banner AND, more importantly, stops the renderer process
+      // from advertising `Sec-CH-UA` headers that mark it as a Selenium-class
+      // client. Pairs with the page-side `STEALTH_INIT_SCRIPT` patches in
+      // createApp. The `--no-sandbox` / `--disable-dev-shm-usage` pair is
+      // required for the Microsoft Playwright base image (Chromium can't
+      // sandbox under our container's user namespace and /dev/shm is tiny).
+      args: [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-blink-features=AutomationControlled",
+      ],
     });
     browser.on("disconnected", () => {
       browserPromise = null;
@@ -333,6 +429,8 @@ module.exports = {
   isValidUrl,
   ensureRendererToken,
   loadEnvFile,
+  DEFAULT_STORAGE_STATE_FILE,
+  STEALTH_INIT_SCRIPT,
 };
 
 if (require.main === module) {
