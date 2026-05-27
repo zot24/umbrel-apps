@@ -3,7 +3,7 @@ id: zot24-playwright-renderer
 name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
 category: developer
-version: "0.1.2"
+version: "0.2.0"
 tagline: Self-hosted headless-browser renderer with residential-IP egress
 description: >-
   Playwright Renderer is a project-agnostic self-hosted headless-browser
@@ -31,8 +31,18 @@ description: >-
   - Drop-in compatible: response shape mirrors Cloudflare Browser Rendering's
     /content endpoint so clients can swap backends without code changes.
 
-  - Persistent volume: a /data volume is reserved for future storageState.json
-    cookie persistence if you ever need a logged-in browsing flow.
+  - Logged-in scraping (opt-in): set `useSession: true` in your /render request
+    and the server applies a persisted browser session from
+    /data/storageState.json. Install one with the bundled
+    tools/cookies-to-storage-state.mjs script — see STORAGESTATE.md for
+    the full ritual. Required for any site that anti-bot-walls anonymous
+    Playwright (Instagram, LinkedIn, etc.).
+
+  - Stealth patches: every context auto-applies the standard "this isn't
+    Playwright" page-side masks (navigator.webdriver, plugins, languages,
+    window.chrome). Pairs with the launch arg
+    --disable-blink-features=AutomationControlled so the headless
+    fingerprint is muted without pulling in playwright-extra.
 
 
   Setup Instructions:
@@ -53,12 +63,19 @@ description: >-
   5. Test with: curl -X POST https://playwright.<your-domain>/render
      -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
 releaseNotes: >-
-  Fixes RENDERER_TOKEN persistence: previously the token bootstrap fell back
-  to in-memory mode because the Umbrel-mounted /data volume was root-owned
-  while the server ran as the unprivileged pwuser, causing a fresh token to
-  be generated on every restart. The container now starts as root, hands
-  /data over to pwuser, then drops privileges via gosu before launching node,
-  so the token written to /data/.env on first boot now survives restarts.
+  Adds opt-in logged-in scraping via persisted browser sessions: pass
+  "useSession": true on /render and the server bootstraps the context from
+  /data/storageState.json. Install one with the bundled
+  tools/cookies-to-storage-state.mjs (Netscape cookies.txt → Playwright
+  storageState format, zero deps). When useSession is true but no file is
+  installed the server returns 503 with a clear message, so misconfiguration
+  fails loud instead of silently downgrading to anonymous. Required for
+  Instagram and other anti-bot-walled sites. Every context now also applies
+  baseline stealth patches (navigator.webdriver / plugins / languages /
+  window.chrome) and chromium launches with
+  --disable-blink-features=AutomationControlled — applied uniformly whether
+  or not the session opt-in is used. Full operator runbook in
+  STORAGESTATE.md.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies:
