@@ -3,7 +3,7 @@ id: zot24-playwright-renderer
 name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
 category: developer
-version: "0.2.0"
+version: "0.2.1"
 tagline: Self-hosted headless-browser renderer with residential-IP egress
 description: >-
   Playwright Renderer is a project-agnostic self-hosted headless-browser
@@ -63,19 +63,20 @@ description: >-
   5. Test with: curl -X POST https://playwright.<your-domain>/render
      -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
 releaseNotes: >-
-  Adds opt-in logged-in scraping via persisted browser sessions: pass
-  "useSession": true on /render and the server bootstraps the context from
-  /data/storageState.json. Install one with the bundled
-  tools/cookies-to-storage-state.mjs (Netscape cookies.txt → Playwright
-  storageState format, zero deps). When useSession is true but no file is
-  installed the server returns 503 with a clear message, so misconfiguration
-  fails loud instead of silently downgrading to anonymous. Required for
-  Instagram and other anti-bot-walled sites. Every context now also applies
-  baseline stealth patches (navigator.webdriver / plugins / languages /
-  window.chrome) and chromium launches with
-  --disable-blink-features=AutomationControlled — applied uniformly whether
-  or not the session opt-in is used. Full operator runbook in
-  STORAGESTATE.md.
+  Fixes the RENDERER_TOKEN-rotates-on-every-restart bug introduced silently
+  with the 0.1.x persistence work: docker-compose declares
+  `RENDERER_TOKEN: ${RENDERER_TOKEN}`, which on Umbrel hosts (where
+  $RENDERER_TOKEN is unset) interpolates to an EMPTY string, not unset.
+  The bootstrap's `loadEnvFile` treated empty as "already set" and didn't
+  overwrite from `/data/.env`, so the truthy check fell through and the
+  server generated + persisted a new token over the existing file. Every
+  container restart silently rotated the token, breaking any client that
+  had written down the previous value. `loadEnvFile` now treats both
+  unset AND empty env values as "not set" — a stray empty doesn't shadow
+  the on-disk value anymore. Two regression tests pin the exact case
+  (`process.env.RENDERER_TOKEN = ""` plus a populated file → file
+  wins, file is NOT rewritten). After updating, the token printed on
+  first boot survives every subsequent restart.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies:

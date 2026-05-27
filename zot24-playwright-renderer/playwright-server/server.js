@@ -353,17 +353,29 @@ function startServer() {
 }
 
 /**
- * Read KEY=VALUE lines from `filePath` into `process.env` (without
- * overwriting existing values). Returns true when the file was read.
- * Intentionally minimal — no quoting, no `export` prefix, no comments.
- * The file we read is one we wrote ourselves a few lines later.
+ * Read KEY=VALUE lines from `filePath` into `process.env`. Returns true
+ * when the file was read. Intentionally minimal — no quoting, no
+ * `export` prefix, no comments. The file we read is one we wrote
+ * ourselves a few lines later.
+ *
+ * Treats both unset AND empty-string env values as "not set" — so a
+ * stray `KEY=` in the parent environment doesn't shadow the on-disk
+ * value. This matters for the docker-compose `RENDERER_TOKEN:
+ * ${RENDERER_TOKEN}` declaration: on Umbrel hosts the variable is
+ * unset, so compose interpolates it to an empty string. With a strict
+ * `=== undefined` check the bootstrap would treat the empty env as
+ * authoritative, fail the truthy guard in `ensureRendererToken`, and
+ * generate + persist a NEW token over the existing one — rotating
+ * the token on every container restart. Fixes #TBD.
  */
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return false;
   const content = fs.readFileSync(filePath, "utf-8");
   for (const line of content.split(/\r?\n/)) {
     const match = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
-    if (match && process.env[match[1]] === undefined) {
+    if (!match) continue;
+    const existing = process.env[match[1]];
+    if (existing == null || existing === "") {
       process.env[match[1]] = match[2];
     }
   }

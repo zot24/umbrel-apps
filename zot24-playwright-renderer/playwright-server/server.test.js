@@ -504,10 +504,10 @@ test(
 );
 
 test(
-  "loadEnvFile parses KEY=VALUE lines without overwriting existing env",
+  "loadEnvFile parses KEY=VALUE lines without overwriting non-empty existing env",
   withTokenFixture(async ({ tokenFile }) => {
     fs.writeFileSync(tokenFile, "FOO=bar\nRENDERER_TOKEN=from-file\nBAZ=qux\n");
-    process.env.FOO = "preset"; // should NOT be overwritten
+    process.env.FOO = "preset"; // non-empty preset should NOT be overwritten
     delete process.env.BAZ;
     const found = loadEnvFile(tokenFile);
     assert.equal(found, true);
@@ -516,6 +516,52 @@ test(
     assert.equal(process.env.RENDERER_TOKEN, "from-file");
     delete process.env.FOO;
     delete process.env.BAZ;
+  })
+);
+
+test(
+  "loadEnvFile overwrites empty-string env vars (regression: docker-compose RENDERER_TOKEN=${RENDERER_TOKEN} interpolation)",
+  withTokenFixture(async ({ tokenFile }) => {
+    // Empirical bug: docker-compose.yml declares `RENDERER_TOKEN:
+    // ${RENDERER_TOKEN}` so the host env can override. When Umbrel
+    // doesn't set RENDERER_TOKEN on the host, compose interpolates the
+    // missing variable to an empty STRING (not unset), so the container
+    // boots with `process.env.RENDERER_TOKEN === ""`. The original
+    // strict `=== undefined` check left the empty env in place and the
+    // bootstrap fell through to "generate a new token + overwrite the
+    // persisted file", which rotated the token on every container
+    // restart. This test pins the empty-vs-unset behavior:
+    //   - empty string in env  → file value wins
+    //   - non-empty in env     → file value loses (covered by previous test)
+    //   - undefined in env     → file value wins (covered too)
+    fs.writeFileSync(tokenFile, "RENDERER_TOKEN=from-file\nFOO=bar\n");
+    process.env.RENDERER_TOKEN = ""; // exactly the docker-compose case
+    process.env.FOO = "";            // and confirm it generalises
+    const found = loadEnvFile(tokenFile);
+    assert.equal(found, true);
+    assert.equal(process.env.RENDERER_TOKEN, "from-file");
+    assert.equal(process.env.FOO, "bar");
+    delete process.env.FOO;
+  })
+);
+
+test(
+  "ensureRendererToken keeps the persisted token across boots when env is empty (regression #TBD)",
+  withTokenFixture(async ({ tokenFile }) => {
+    // End-to-end version of the empty-env regression: persist a token
+    // to the file, set the env to "" the way docker-compose does, and
+    // confirm the bootstrap picks the file value instead of rolling a
+    // new one. Before the fix this test would surface a `source:
+    // "generated"` result and the file contents would change.
+    fs.writeFileSync(tokenFile, "RENDERER_TOKEN=persisted-aaaaaaaaaaaa\n");
+    const fileBefore = fs.readFileSync(tokenFile, "utf-8");
+    process.env.RENDERER_TOKEN = ""; // docker-compose's interpolated empty
+    const result = ensureRendererToken({ logger: silentLogger, tokenFile });
+    assert.equal(result.source, "file", "must read from file, not regenerate");
+    assert.equal(result.token, "persisted-aaaaaaaaaaaa");
+    assert.equal(process.env.RENDERER_TOKEN, "persisted-aaaaaaaaaaaa");
+    // Cardinal proof: the file on disk MUST NOT have been rewritten.
+    assert.equal(fs.readFileSync(tokenFile, "utf-8"), fileBefore, "file was rewritten — token would rotate on next boot");
   })
 );
 
