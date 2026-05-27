@@ -13,6 +13,8 @@ const {
   isValidUrl,
   ensureRendererToken,
   loadEnvFile,
+  DEFAULT_STORAGE_STATE_FILE,
+  STEALTH_INIT_SCRIPT,
 } = require("./server.js");
 
 const fs = require("node:fs");
@@ -30,6 +32,7 @@ const TOKEN = "test-token-supersecret";
 function makeMockBrowser(behaviour = {}) {
   const calls = {
     newContextArgs: [],
+    initScripts: [],
     gotoArgs: [],
     waitForSelectorArgs: [],
   };
@@ -76,6 +79,12 @@ function makeMockBrowser(behaviour = {}) {
     async newContext(args) {
       calls.newContextArgs.push(args);
       return {
+        // The stealth init script is applied via `context.addInitScript`
+        // before `newPage` — record the call so tests can assert the
+        // patches actually got pushed into the page bootstrap.
+        async addInitScript(script) {
+          calls.initScripts.push(script);
+        },
         async newPage() {
           return makePage(behaviour.finalUrl);
         },
@@ -153,12 +162,13 @@ function request(port, { method = "GET", path = "/", headers = {}, body } = {}) 
   });
 }
 
-async function withServer(behaviour, fn) {
+async function withServer(behaviour, fn, opts = {}) {
   const { getBrowser, calls } = makeGetBrowser(behaviour);
   const app = createApp({
     getBrowser,
     token: TOKEN,
     logger: silentLogger,
+    storageStateFile: opts.storageStateFile,
   });
   const { server, port } = await listen(app);
   try {
@@ -508,3 +518,134 @@ test(
     delete process.env.BAZ;
   })
 );
+
+// ---------------------------------------------------------------------------
+// Stealth init script + storageState (Instagram-class sites)
+// ---------------------------------------------------------------------------
+// Reasoning: Instagram fingerprints the Playwright/Chromium-automation
+// surface aggressively. The renderer ships a small set of page-side
+// patches (`STEALTH_INIT_SCRIPT`) that are applied to every context, and
+// an opt-in `useSession: true` flag that mounts a persisted cookies
+// snapshot for logged-in scrapes. These tests pin the wire contract
+// for both.
+
+test("STEALTH_INIT_SCRIPT patches the high-signal automation tells", () => {
+  // Substring assertions — we don't want to type-check the exact JS,
+  // we want to know each named patch is still present after future
+  // refactors.
+  assert.match(STEALTH_INIT_SCRIPT, /navigator,\s*'webdriver'/);
+  assert.match(STEALTH_INIT_SCRIPT, /navigator,\s*'plugins'/);
+  assert.match(STEALTH_INIT_SCRIPT, /navigator,\s*'languages'/);
+  assert.match(STEALTH_INIT_SCRIPT, /window\.chrome/);
+});
+
+test("DEFAULT_STORAGE_STATE_FILE matches the docker-compose mount path", () => {
+  // The Umbrel app mounts ${APP_DATA_DIR}/data:/data, so the default
+  // must live under /data — otherwise the operator's scp ritual lands
+  // a file the server never reads. Hard-coded contract.
+  assert.equal(DEFAULT_STORAGE_STATE_FILE, "/data/storageState.json");
+});
+
+test("POST /render applies stealth init script to every context (no session)", async () => {
+  await withServer({}, async ({ port, calls }) => {
+    const res = await request(port, {
+      method: "POST",
+      path: "/render",
+      headers: { authorization: `Bearer ${TOKEN}` },
+      body: { url: "https://example.com" },
+    });
+    assert.equal(res.status, 200);
+    assert.equal(calls.initScripts.length, 1);
+    assert.equal(calls.initScripts[0], STEALTH_INIT_SCRIPT);
+  });
+});
+
+test("POST /render with useSession:true and a file present passes storageState path to newContext", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "renderer-session-"));
+  const stateFile = path.join(dir, "storageState.json");
+  fs.writeFileSync(stateFile, JSON.stringify({ cookies: [], origins: [] }));
+  try {
+    await withServer(
+      {},
+      async ({ port, calls }) => {
+        const res = await request(port, {
+          method: "POST",
+          path: "/render",
+          headers: { authorization: `Bearer ${TOKEN}` },
+          body: { url: "https://example.com", useSession: true },
+        });
+        assert.equal(res.status, 200);
+        assert.equal(calls.newContextArgs.length, 1);
+        assert.equal(calls.newContextArgs[0].storageState, stateFile);
+        // Stealth still applied on the session path — the masks are
+        // orthogonal to whether we're logged in.
+        assert.equal(calls.initScripts.length, 1);
+      },
+      { storageStateFile: stateFile }
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("POST /render with useSession:true and no file returns 503 (fail loud, no silent downgrade)", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "renderer-no-session-"));
+  // intentionally do NOT create the file
+  const stateFile = path.join(dir, "storageState.json");
+  try {
+    await withServer(
+      {},
+      async ({ port, calls }) => {
+        const res = await request(port, {
+          method: "POST",
+          path: "/render",
+          headers: { authorization: `Bearer ${TOKEN}` },
+          body: { url: "https://example.com", useSession: true },
+        });
+        assert.equal(res.status, 503);
+        assert.equal(res.json.success, false);
+        assert.match(res.json.error, /useSession/);
+        assert.match(res.json.error, /missing/);
+        // The browser pool MUST NOT have been touched — the 503 fires
+        // before we even ask getBrowser(). Asserts that the early exit
+        // really is early.
+        assert.equal(calls.newContextArgs.length, 0);
+      },
+      { storageStateFile: stateFile }
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("POST /render with useSession:false (or omitted) never reads storageState", async () => {
+  // Use a non-existent path on purpose — proves we never even check.
+  const stateFile = "/nonexistent/never-read.json";
+  await withServer(
+    {},
+    async ({ port, calls }) => {
+      // Default (omitted)
+      const r1 = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: { url: "https://example.com" },
+      });
+      assert.equal(r1.status, 200);
+      // Explicit false
+      const r2 = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: { url: "https://example.com", useSession: false },
+      });
+      assert.equal(r2.status, 200);
+      // Neither context request carried `storageState` — confirms we
+      // never read the file when the client didn't opt in.
+      for (const args of calls.newContextArgs) {
+        assert.equal(args.storageState, undefined);
+      }
+    },
+    { storageStateFile: stateFile }
+  );
+});
