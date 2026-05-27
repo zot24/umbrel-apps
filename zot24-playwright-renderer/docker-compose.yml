@@ -9,7 +9,7 @@ services:
     # on every push that touches playwright-server/. Umbrel rejects unpinned
     # images at install time, so the workflow's commit-back step is what makes
     # this app actually installable.
-    image: ghcr.io/zot24/playwright-renderer:0.1.2@sha256:7995dcf67fd9a7b010adffe7f315ddd9156f39b54e0178176872b1ccf9b6107c
+    image: ghcr.io/zot24/playwright-renderer:0.2.0@sha256:cc96e1997b313f508a0bef24336c76e55f451bc8586f23c679e711847a97c648
     restart: on-failure
     init: true
     stop_grace_period: 30s
