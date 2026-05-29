@@ -3,7 +3,7 @@ id: zot24-hermes
 name: Hermes Agent
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/icon.svg
 category: ai
-version: "0.14.0"
+version: "0.15.1"
 tagline: Self-improving AI agent with Telegram & WhatsApp
 description: >-
   Hermes Agent by Nous Research is a self-improving AI assistant that connects
@@ -40,7 +40,7 @@ description: >-
 
   4. Start chatting with your agent!
 releaseNotes: >-
-  The Foundation Release — Hermes Agent installs and runs anywhere now. Native Windows ships in early beta with a full PowerShell installer story, a `pip install hermes-agent` wheel lands on PyPI, lazy-deps reshape what `pip install hermes-agent` actually pulls down, the supply-chain checker scans every install/upgrade for unsafe versions, and a new OpenAI-compatible local proxy lets Codex / Aider / Cline talk to OAuth-only providers (Claude Pro, ChatGPT Pro, SuperGrok). The cold-start wave shav
+  **The Patch Release.** A same-day hotfix for v0.15.0. Headline fix: the dashboard infinite-reload loop that hit anyone running v0.15.0 in loopback mode (Docker, hosted Hermes, fresh installs). A handful of other v0.15.0 follow-ups go along for the ride — kanban worker SIGTERM, `/model` picker unification, `/yolo` session bypass, the full 19,932-entry skills.sh catalog, `.md` media delivery restoration, gateway probe-stepdown safety, web-URL redaction passthrough, kanban worker vision on refere
 developer: Nous Research
 website: https://hermes-agent.nousresearch.com
 dependencies: []
