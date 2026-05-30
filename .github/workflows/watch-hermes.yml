@@ -5,9 +5,15 @@ on:
     - cron: '30 0 * * *'  # Daily at 00:30 UTC
   workflow_dispatch:  # Manual trigger
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   check-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       new_release: ${{ steps.check.outputs.new_release }}
       version: ${{ steps.check.outputs.version }}
@@ -17,8 +23,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get latest release tag from NousResearch/hermes-agent
-          LATEST=$(gh release view -R NousResearch/hermes-agent --json tagName -q .tagName 2>/dev/null)
+          # Improved gh fetch with explicit error handling and timeout
+          set -euo pipefail
+          LATEST=$(gh release view -R NousResearch/hermes-agent --json tagName -q .tagName 2>&1) || {
+            echo "::error::Failed to fetch latest release from hermes-agent: $LATEST"
+            exit 1
+          }
 
           if [ -z "$LATEST" ]; then
             echo "::error::Failed to fetch latest release from hermes-agent"
@@ -36,8 +46,8 @@ jobs:
         run: |
           LATEST="${{ steps.fetch.outputs.version }}"
 
-          # Validate version format (must be vYYYY.M.D)
-          if ! echo "$LATEST" | grep -qE '^v[0-9]{4}\.[0-9]+\.[0-9]+$'; then
+          # Validate version format (must be vYYYY.M.D or vYYYY.M.D.N for date tags)
+          if ! echo "$LATEST" | grep -qE '^v[0-9]{4}\.[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
             echo "::error::Invalid version format: $LATEST"
             exit 1
           fi
@@ -84,14 +94,14 @@ jobs:
           VERSION="${{ needs.check-release.outputs.version }}"
 
           # Final validation before making changes
-          if [ -z "$VERSION" ] || ! echo "$VERSION" | grep -qE '^v[0-9]{4}\.[0-9]+\.[0-9]+$'; then
+          if [ -z "$VERSION" ] || ! echo "$VERSION" | grep -qE '^v[0-9]{4}\.[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
             echo "::error::Invalid or empty version: $VERSION"
             exit 1
           fi
 
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-          # Extract semver from release name (e.g. "Hermes Agent v0.5.0 (v2026.3.28)" → "0.5.0")
+          # Extract semver from release name (e.g. "Hermes Agent v0.15.2 (2026.5.29.2)" → "0.15.2")
           RELEASE_NAME=$(gh release view "$VERSION" -R NousResearch/hermes-agent --json name -q .name)
           SEMVER=$(echo "$RELEASE_NAME" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//')
           if [ -z "$SEMVER" ]; then
@@ -111,45 +121,44 @@ jobs:
           echo "$NOTES" > /tmp/release_notes.txt
           echo "Release notes: $NOTES"
 
-      - name: Update VERSION file
-        run: |
-          echo "${{ env.VERSION }}" > zot24-hermes/VERSION
+      - name: Install PyYAML
+        run: pip install pyyaml --quiet
 
-      - name: Update umbrel-app.yml and docker-compose.yml
+      - name: Update VERSION file, umbrel-app.yml and docker-compose.yml with PyYAML
         run: |
           python3 -c "
-          import os, re
+          import os
+          import yaml
 
           semver = os.environ['SEMVER']
+          version = os.environ['VERSION']
           with open('/tmp/release_notes.txt') as f:
               notes = f.read().strip()
 
-          # Update umbrel-app.yml
+          # Update umbrel-app.yml using PyYAML for robustness
           path = 'zot24-hermes/umbrel-app.yml'
           with open(path) as f:
-              content = f.read()
+              data = yaml.safe_load(f)
 
-          content = re.sub(r'^version: \".*\"', f'version: \"{semver}\"', content, flags=re.MULTILINE)
-
-          content = re.sub(
-              r'releaseNotes:.*?(?=\n[a-z])',
-              f'releaseNotes: >-\n  {notes}',
-              content,
-              flags=re.DOTALL,
-          )
+          data['version'] = semver
+          if 'releaseNotes' in data:
+              data['releaseNotes'] = notes
+          else:
+              data['releaseNotes'] = notes
 
           with open(path, 'w') as f:
-              f.write(content)
+              yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False, width=1000)
 
-          # Update APP_VERSION in docker-compose.yml
+          # Update APP_VERSION in docker-compose.yml (still use regex for env line as it's not full YAML structure)
           dc_path = 'zot24-hermes/docker-compose.yml'
           with open(dc_path) as f:
               dc = f.read()
-
+          import re
           dc = re.sub(r'APP_VERSION: v.*', f'APP_VERSION: v{semver}', dc)
-
           with open(dc_path, 'w') as f:
               f.write(dc)
+
+          print('Updated files with PyYAML')
           "
 
       - name: Verify changes
