@@ -29,7 +29,7 @@ services:
       APP_VERSION: v0.15.2
 
   web:
-    image: ghcr.io/zot24/hermes-docker:v2026.5.29.2@sha256:bab8b33f854e80831757ea5a10489e64d2c7505460d2a0e2301686e8479f3dc0
+    image: ghcr.io/zot24/hermes-docker:v2026.5.29.2@sha256:f4eb0fb3cfb833da522ba4b9d33db50073d296ef599cb9eb52648c112c4c79dd
     # Runs as hermes user (UID 1000) — entrypoint uses sudo chown for volume permissions
     restart: on-failure
     init: true
