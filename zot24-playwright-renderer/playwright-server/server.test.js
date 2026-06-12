@@ -35,7 +35,21 @@ function makeMockBrowser(behaviour = {}) {
     initScripts: [],
     gotoArgs: [],
     waitForSelectorArgs: [],
+    storageStateCalls: 0,
   };
+
+  // `behaviour.htmlQueue` lets a test serve different HTML per render —
+  // needed for the auto-login orchestration tests where the first render
+  // returns a login wall and the post-login retry returns content. The
+  // last entry repeats once the queue drains.
+  function nextHtml() {
+    if (Array.isArray(behaviour.htmlQueue) && behaviour.htmlQueue.length > 0) {
+      return behaviour.htmlQueue.length > 1
+        ? behaviour.htmlQueue.shift()
+        : behaviour.htmlQueue[0];
+    }
+    return behaviour.html ?? "<html><body>ok</body></html>";
+  }
 
   function makePage(finalUrl) {
     let currentUrl = finalUrl || "https://example.com/";
@@ -66,7 +80,7 @@ function makeMockBrowser(behaviour = {}) {
         }
       },
       async content() {
-        return behaviour.html ?? "<html><body>ok</body></html>";
+        return nextHtml();
       },
       url() {
         return currentUrl;
@@ -87,6 +101,12 @@ function makeMockBrowser(behaviour = {}) {
         },
         async newPage() {
           return makePage(behaviour.finalUrl);
+        },
+        // Keep-alive write-back serializes the context via storageState().
+        // Tests assert call counts + what got persisted to disk.
+        async storageState() {
+          calls.storageStateCalls += 1;
+          return behaviour.contextStorageState ?? { cookies: [], origins: [] };
         },
         async close() {},
       };
@@ -167,8 +187,10 @@ async function withServer(behaviour, fn, opts = {}) {
   const app = createApp({
     getBrowser,
     token: TOKEN,
-    logger: silentLogger,
+    logger: opts.logger || silentLogger,
     storageStateFile: opts.storageStateFile,
+    sessionKeepalive: opts.sessionKeepalive,
+    autoLogin: opts.autoLogin,
   });
   const { server, port } = await listen(app);
   try {
@@ -662,6 +684,299 @@ test("POST /render with useSession:true and no file returns 503 (fail loud, no s
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Session auto-refresh (zot24/onlyinparaguay#119) — layer 1: keep-alive
+// write-back; layer 2: auto-login on login-wall detection.
+// ---------------------------------------------------------------------------
+// Reasoning: a sessioned render that WORKED should roll its (possibly
+// refreshed) cookies back to disk so the session's sliding expiry keeps
+// extending. A sessioned render that hit Instagram's login wall must never
+// write back (that would clobber good state with logged-out cookies) and
+// may instead trigger the rate-limited auto-login manager. When recovery
+// is off/unavailable/failed, the wall HTML is served UNCHANGED as success —
+// the scraper worker's own detector (onlyinparaguay#202) needs to see it
+// to back off.
+
+const { createAutoLoginManager, readAutologinState } = require("./autologin.js");
+
+const WALL_HTML = `<html><head><link rel="canonical" href="https://www.instagram.com/accounts/login/"></head><body><form action="/accounts/login/ajax/" method="post"></form></body></html>`;
+const PROFILE_HTML = `<html><body><main><a href="/p/AbC123/">post</a></main></body></html>`;
+
+// Boots a server with a real (temp-file-backed) auto-login manager + the
+// session fixture files every orchestration test needs.
+async function withAutoRefreshServer({ behaviour, manager, sessionKeepalive, logger }, fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "renderer-autorefresh-"));
+  const stateFile = path.join(dir, "storageState.json");
+  const autologinStateFile = path.join(dir, "autologin-state.json");
+  const envFile = path.join(dir, ".env");
+  fs.writeFileSync(stateFile, JSON.stringify({ cookies: [{ name: "sessionid", value: "stale" }], origins: [] }));
+  fs.writeFileSync(envFile, "IG_USERNAME=scraper\nIG_PASSWORD=hunter2\n");
+  const files = { dir, stateFile, autologinStateFile, envFile };
+  try {
+    await withServer(
+      behaviour,
+      async ({ port, calls }) => fn({ port, calls, files }),
+      {
+        storageStateFile: stateFile,
+        sessionKeepalive,
+        logger,
+        autoLogin: manager ? manager(files) : undefined,
+      }
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("keep-alive: successful sessioned render writes context.storageState() back to disk", async () => {
+  const freshState = { cookies: [{ name: "sessionid", value: "rolled-forward" }], origins: [] };
+  await withAutoRefreshServer(
+    {
+      behaviour: { html: PROFILE_HTML, contextStorageState: freshState },
+      manager: () => null,
+    },
+    async ({ port, calls, files }) => {
+      const res = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: { url: "https://www.instagram.com/someprofile/", useSession: true },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.result, PROFILE_HTML);
+      assert.equal(calls.storageStateCalls, 1);
+      const onDisk = JSON.parse(fs.readFileSync(files.stateFile, "utf-8"));
+      assert.deepEqual(onDisk, freshState, "storage state file must hold the rolled-forward cookies");
+      assert.equal(fs.statSync(files.stateFile).mode & 0o777, 0o600);
+    }
+  );
+});
+
+test("keep-alive: SESSION_KEEPALIVE=false (option) disables the write-back", async () => {
+  await withAutoRefreshServer(
+    {
+      behaviour: { html: PROFILE_HTML, contextStorageState: { cookies: [], origins: [] } },
+      manager: () => null,
+      sessionKeepalive: false,
+    },
+    async ({ port, calls, files }) => {
+      const before = fs.readFileSync(files.stateFile, "utf-8");
+      const res = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: { url: "https://www.instagram.com/someprofile/", useSession: true },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(calls.storageStateCalls, 0, "must not serialize the context when disabled");
+      assert.equal(fs.readFileSync(files.stateFile, "utf-8"), before, "file must be untouched");
+    }
+  );
+});
+
+test("keep-alive: a wall-detected render never writes back (would persist logged-out cookies)", async () => {
+  await withAutoRefreshServer(
+    {
+      behaviour: { html: WALL_HTML },
+      manager: () => null, // auto-login disabled — isolate the keep-alive gate
+    },
+    async ({ port, calls, files }) => {
+      const before = fs.readFileSync(files.stateFile, "utf-8");
+      const res = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: { url: "https://www.instagram.com/someprofile/", useSession: true },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.result, WALL_HTML, "wall HTML must be served unchanged");
+      assert.equal(calls.storageStateCalls, 0);
+      assert.equal(fs.readFileSync(files.stateFile, "utf-8"), before);
+    }
+  );
+});
+
+test("keep-alive: anonymous (non-session) renders never write back", async () => {
+  await withAutoRefreshServer(
+    { behaviour: { html: PROFILE_HTML }, manager: () => null },
+    async ({ port, calls, files }) => {
+      const before = fs.readFileSync(files.stateFile, "utf-8");
+      const res = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: { url: "https://www.instagram.com/someprofile/" },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(calls.storageStateCalls, 0);
+      assert.equal(fs.readFileSync(files.stateFile, "utf-8"), before);
+    }
+  );
+});
+
+test("auto-login: wall + autorefresh OFF returns the wall untouched, no login attempted", async () => {
+  let loginCalls = 0;
+  await withAutoRefreshServer(
+    {
+      behaviour: { html: WALL_HTML },
+      manager: (files) =>
+        createAutoLoginManager({
+          storageStateFile: files.stateFile,
+          stateFile: files.autologinStateFile,
+          envFile: files.envFile,
+          logger: silentLogger,
+          enabled: false, // the STORAGE_STATE_AUTOREFRESH default
+          loginFn: async () => {
+            loginCalls += 1;
+            return { cookies: [], origins: [] };
+          },
+        }),
+    },
+    async ({ port, calls }) => {
+      const res = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: { url: "https://www.instagram.com/someprofile/", useSession: true },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.success, true, "wall is a SUCCESS response — worker detects it");
+      assert.equal(res.json.result, WALL_HTML);
+      assert.equal(loginCalls, 0);
+      assert.equal(calls.newContextArgs.length, 1, "no retry render without recovery");
+    }
+  );
+});
+
+test("auto-login: wall + enabled + stubbed login success → retried render result returned, state saved", async () => {
+  const loginState = { cookies: [{ name: "sessionid", value: "fresh-after-login" }], origins: [] };
+  await withAutoRefreshServer(
+    {
+      // First render serves the wall; the post-login retry serves content.
+      behaviour: { htmlQueue: [WALL_HTML, PROFILE_HTML] },
+      manager: (files) =>
+        createAutoLoginManager({
+          storageStateFile: files.stateFile,
+          stateFile: files.autologinStateFile,
+          envFile: files.envFile,
+          logger: silentLogger,
+          enabled: true,
+          loginFn: async () => loginState,
+        }),
+    },
+    async ({ port, calls, files }) => {
+      const res = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: { url: "https://www.instagram.com/someprofile/", useSession: true },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.success, true);
+      assert.equal(res.json.result, PROFILE_HTML, "must return the retried render, not the wall");
+
+      // Fresh session was persisted by the manager...
+      const onDisk = JSON.parse(fs.readFileSync(files.stateFile, "utf-8"));
+      assert.deepEqual(onDisk, loginState);
+      // ...the failure counter reset...
+      assert.equal(readAutologinState(files.autologinStateFile).consecutiveFailures, 0);
+      // ...and the retry happened in a fresh context seeded from that file.
+      assert.equal(calls.newContextArgs.length, 2);
+      assert.equal(calls.newContextArgs[1].storageState, files.stateFile);
+      // Stealth applies to the retry context too.
+      assert.equal(calls.initScripts.length, 2);
+    }
+  );
+});
+
+test("auto-login: stubbed login failure → wall HTML served, failure recorded, no credentials in logs", async () => {
+  const lines = [];
+  const captureLogger = pino({ level: "trace" }, { write: (line) => lines.push(line) });
+  await withAutoRefreshServer(
+    {
+      behaviour: { html: WALL_HTML },
+      logger: captureLogger,
+      manager: (files) =>
+        createAutoLoginManager({
+          storageStateFile: files.stateFile,
+          stateFile: files.autologinStateFile,
+          envFile: files.envFile,
+          logger: captureLogger,
+          enabled: true,
+          loginFn: async () => {
+            throw new Error("login blew up after typing hunter2");
+          },
+        }),
+    },
+    async ({ port, calls, files }) => {
+      const before = fs.readFileSync(files.stateFile, "utf-8");
+      const res = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: { url: "https://www.instagram.com/someprofile/", useSession: true },
+      });
+      // Failure-mode contract: the wall comes back as a NORMAL success
+      // response so the worker-side detector sees it and backs off.
+      assert.equal(res.status, 200);
+      assert.equal(res.json.success, true);
+      assert.equal(res.json.result, WALL_HTML);
+
+      assert.equal(readAutologinState(files.autologinStateFile).consecutiveFailures, 1);
+      assert.equal(fs.readFileSync(files.stateFile, "utf-8"), before, "stale state must not be overwritten on failure");
+      assert.equal(calls.newContextArgs.length, 1, "no retry render after failed recovery");
+
+      // Acceptance criterion: credentials never appear in logs, even at
+      // trace level. The capture logger saw both the request logger and the
+      // manager's own logging.
+      const output = lines.join("");
+      assert.ok(output.length > 0);
+      assert.ok(!output.includes("scraper"), "username must not be logged");
+      assert.ok(!output.includes("hunter2"), "password must not be logged");
+    }
+  );
+});
+
+test("auto-login: rendering the login page itself never triggers recovery or write-back", async () => {
+  let loginCalls = 0;
+  await withAutoRefreshServer(
+    {
+      // The login page legitimately contains every wall marker.
+      behaviour: { html: WALL_HTML },
+      manager: (files) =>
+        createAutoLoginManager({
+          storageStateFile: files.stateFile,
+          stateFile: files.autologinStateFile,
+          envFile: files.envFile,
+          logger: silentLogger,
+          enabled: true,
+          loginFn: async () => {
+            loginCalls += 1;
+            return { cookies: [], origins: [] };
+          },
+        }),
+    },
+    async ({ port, calls, files }) => {
+      const before = fs.readFileSync(files.stateFile, "utf-8");
+      const res = await request(port, {
+        method: "POST",
+        path: "/render",
+        headers: { authorization: `Bearer ${TOKEN}` },
+        body: {
+          url: "https://www.instagram.com/accounts/login/?next=%2Fsomeprofile%2F",
+          useSession: true,
+        },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.json.result, WALL_HTML);
+      assert.equal(loginCalls, 0, "login-page render must not trigger auto-login");
+      // Wall markers present → keep-alive also stays away (logged-out cookies).
+      assert.equal(calls.storageStateCalls, 0);
+      assert.equal(fs.readFileSync(files.stateFile, "utf-8"), before);
+    }
+  );
 });
 
 test("POST /render with useSession:false (or omitted) never reads storageState", async () => {
