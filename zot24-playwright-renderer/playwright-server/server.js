@@ -8,6 +8,14 @@ const helmet = require("helmet");
 const pinoHttp = require("pino-http");
 const pino = require("pino");
 
+const {
+  looksLikeLoginWall,
+  isLoginPageUrl,
+  parseEnvFile,
+  atomicWriteFile,
+  createAutoLoginManager,
+} = require("./autologin.js");
+
 const DEFAULT_TOKEN_FILE = "/data/.env";
 // When clients pass `useSession: true` we mount this file into the per-request
 // Playwright context. Persisted on the Docker volume so it survives restarts.
@@ -104,6 +112,14 @@ function safeEqualToken(provided, expected) {
   return crypto.timingSafeEqual(a, b);
 }
 
+// Boolean-ish env parsing for opt-out flags: unset/empty → default; only an
+// explicit false/0/no/off disables. Mirrors how operators actually toggle
+// things in /data/.env.
+function envFlagEnabled(value, defaultValue) {
+  if (value == null || value === "") return defaultValue;
+  return !/^(false|0|no|off)$/i.test(String(value).trim());
+}
+
 function isTimeoutError(err) {
   if (!err) return false;
   const name = err.name || "";
@@ -123,10 +139,113 @@ function isTimeoutError(err) {
  *   Path to a Playwright `storageState` JSON file used when a request opts
  *   in via `useSession: true`. Defaults to `/data/storageState.json`. Tests
  *   inject a temp path; absence at request time returns 503.
+ * @param {boolean} [opts.sessionKeepalive]
+ *   Persist `context.storageState()` back to `storageStateFile` after every
+ *   successful sessioned render that did NOT hit a login wall (rolling
+ *   cookies forward extends session lifetime). Defaults to the
+ *   SESSION_KEEPALIVE env flag, which defaults to true (opt-out).
+ * @param {{recover: Function}|null} [opts.autoLogin]
+ *   Auto-login manager consulted when a sessioned render returns a login
+ *   wall (see autologin.js). Defaults to a manager built from env config —
+ *   inert unless the operator opts in via STORAGE_STATE_AUTOREFRESH=true.
+ *   Tests inject a stub; pass `null` to disable entirely.
  */
-function createApp({ getBrowser, token, logger, storageStateFile = DEFAULT_STORAGE_STATE_FILE }) {
+function createApp({
+  getBrowser,
+  token,
+  logger,
+  storageStateFile = DEFAULT_STORAGE_STATE_FILE,
+  sessionKeepalive,
+  autoLogin,
+}) {
   const app = express();
   const log = logger || pino({ level: process.env.LOG_LEVEL || "info" });
+
+  // Layer 1 of zot24/onlyinparaguay#119: cookie write-back. Read once at app
+  // creation — it's an opt-OUT safety valve, not a hot-reloadable knob.
+  const sessionKeepaliveEnabled =
+    typeof sessionKeepalive === "boolean"
+      ? sessionKeepalive
+      : envFlagEnabled(process.env.SESSION_KEEPALIVE, true);
+
+  // Layer 2: auto-login on login-wall detection. The default manager is
+  // safe to construct unconditionally — every dynamic input (enabled flag,
+  // credentials, tuning) is re-read from /data/.env per attempt, and the
+  // flag defaults to off.
+  const autoLoginManager =
+    autoLogin === undefined
+      ? createAutoLoginManager({
+          storageStateFile,
+          logger: log,
+          stealthInitScript: STEALTH_INIT_SCRIPT,
+        })
+      : autoLogin;
+
+  // Single-flight guard for the keep-alive write-back. Two concurrent
+  // sessioned renders finishing together would both serialize their context
+  // state; the writes themselves are atomic (unique tmp + rename, see
+  // autologin.js) so last-writer-wins is fine — but there's no value in
+  // queueing a second snapshot of effectively the same cookies, so
+  // concurrent attempts simply skip.
+  let keepaliveInFlight = false;
+  async function persistSessionState(context, reqLog) {
+    if (keepaliveInFlight) return;
+    keepaliveInFlight = true;
+    try {
+      // Defensive: tests stub minimal contexts; real Playwright always has it.
+      if (typeof context.storageState !== "function") return;
+      const state = await context.storageState();
+      atomicWriteFile(storageStateFile, JSON.stringify(state, null, 2) + "\n");
+      reqLog?.debug?.({ storageStateFile }, "session keep-alive: storage state written back");
+    } catch (err) {
+      // Keep-alive is best-effort — a failed write-back must never fail the
+      // render that produced perfectly good HTML.
+      reqLog?.warn?.(
+        { err: { name: err?.name, message: err?.message } },
+        "session keep-alive write-back failed"
+      );
+    } finally {
+      keepaliveInFlight = false;
+    }
+  }
+
+  // One-shot retry render after a successful auto-login: fresh context
+  // bootstrapped from the just-refreshed storage state. Kept separate from
+  // the main /render body on purpose — the main path interleaves response
+  // writing and keep-alive, this one only needs the render result.
+  async function renderOnceWithSession(browser, { url, vp, userAgent, waitUntil, timeout, waitForSelector }) {
+    let context;
+    let page;
+    try {
+      context = await browser.newContext({
+        viewport: vp,
+        userAgent,
+        storageState: storageStateFile,
+      });
+      await context.addInitScript(STEALTH_INIT_SCRIPT);
+      page = await context.newPage();
+      const response = await page.goto(url, { waitUntil, timeout });
+      if (typeof waitForSelector === "string" && waitForSelector.length > 0) {
+        await page.waitForSelector(waitForSelector, { timeout });
+      }
+      return {
+        html: await page.content(),
+        finalUrl: page.url(),
+        statusCode: response ? response.status() : 0,
+      };
+    } finally {
+      if (page) {
+        try {
+          await page.close();
+        } catch {}
+      }
+      if (context) {
+        try {
+          await context.close();
+        } catch {}
+      }
+    }
+  }
 
   app.disable("x-powered-by");
   app.use(helmet());
@@ -226,6 +345,65 @@ function createApp({ getBrowser, token, logger, storageStateFile = DEFAULT_STORA
       const html = await page.content();
       const finalUrl = page.url();
       const statusCode = response ? response.status() : 0;
+
+      if (useSession === true) {
+        // zot24/onlyinparaguay#119 — session auto-refresh, both layers.
+        if (!looksLikeLoginWall(html)) {
+          // Layer 1 (keep-alive): the session worked — roll the cookies
+          // forward so IG's sliding expiry keeps extending. Gated on the
+          // wall check so we never overwrite good state with logged-out
+          // cookies, and on the URL check implicitly (a wall-marker page is
+          // never written back, including a legitimately rendered login page).
+          if (sessionKeepaliveEnabled) {
+            await persistSessionState(context, req.log);
+          }
+        } else if (!isLoginPageUrl(url) && autoLoginManager) {
+          // Layer 2 (auto-login): the persisted session is dead. The manager
+          // owns ALL the guardrails (opt-in flag, credentials, rate limit,
+          // fail-stop, single-flight) — it returns true only when a fresh
+          // session was verified and persisted. The login-page URL guard
+          // lives here because rendering /accounts/login/ legitimately
+          // contains every wall marker.
+          const recovered = await autoLoginManager.recover({
+            browser,
+            viewport: vp,
+            userAgent: contextOptions.userAgent,
+            log: req.log,
+          });
+          if (recovered) {
+            try {
+              // Retry the original render ONCE in a fresh context seeded
+              // from the just-written storage state, and return that.
+              const retry = await renderOnceWithSession(browser, {
+                url,
+                vp,
+                userAgent: contextOptions.userAgent,
+                waitUntil,
+                timeout,
+                waitForSelector,
+              });
+              return res.json({
+                success: true,
+                result: retry.html,
+                finalUrl: retry.finalUrl,
+                statusCode: retry.statusCode,
+              });
+            } catch (err) {
+              // Login worked but the retry render didn't — fall through to
+              // the original wall HTML below. The worker's detector treats
+              // it like any other expired session and backs off; next
+              // sessioned render will use the fresh state anyway.
+              req.log?.warn(
+                { err: { name: err?.name, message: err?.message } },
+                "post-login retry render failed — serving original wall HTML"
+              );
+            }
+          }
+          // recover() === false: recovery unavailable/failed. Contract with
+          // the scraper worker (onlyinparaguay#202): serve the wall HTML
+          // UNCHANGED as success so the worker detects it and backs off.
+        }
+      }
 
       return res.json({
         success: true,
@@ -370,13 +548,13 @@ function startServer() {
  */
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return false;
-  const content = fs.readFileSync(filePath, "utf-8");
-  for (const line of content.split(/\r?\n/)) {
-    const match = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
-    if (!match) continue;
-    const existing = process.env[match[1]];
+  // Parsing is delegated to autologin.js's parseEnvFile so the boot-time
+  // loader and the attempt-time credential reads can't drift on grammar.
+  const vars = parseEnvFile(filePath);
+  for (const [key, value] of Object.entries(vars)) {
+    const existing = process.env[key];
     if (existing == null || existing === "") {
-      process.env[match[1]] = match[2];
+      process.env[key] = value;
     }
   }
   return true;
@@ -441,6 +619,7 @@ module.exports = {
   isValidUrl,
   ensureRendererToken,
   loadEnvFile,
+  envFlagEnabled,
   DEFAULT_STORAGE_STATE_FILE,
   STEALTH_INIT_SCRIPT,
 };
