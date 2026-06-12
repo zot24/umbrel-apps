@@ -7,7 +7,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test server.test.js"
+    "test": "node --test server.test.js autologin.test.js"
   },
   "engines": {
     "node": ">=20"
