@@ -3,7 +3,7 @@ id: zot24-playwright-renderer
 name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
 category: developer
-version: "0.2.1"
+version: "0.3.0"
 tagline: Self-hosted headless-browser renderer with residential-IP egress
 description: >-
   Playwright Renderer is a project-agnostic self-hosted headless-browser
@@ -38,6 +38,21 @@ description: >-
     the full ritual. Required for any site that anti-bot-walls anonymous
     Playwright (Instagram, LinkedIn, etc.).
 
+  - Session keep-alive (on by default): after every successful sessioned
+    render the refreshed cookies are written back to /data/storageState.json,
+    so sliding-expiry sessions keep extending themselves. Opt out with
+    SESSION_KEEPALIVE=false in /data/.env.
+
+  - Instagram session auto-refresh (opt-in): when the persisted session
+    expires and Instagram serves a login wall, the renderer can re-login by
+    itself using credentials you provision in /data/.env (IG_USERNAME,
+    IG_PASSWORD, optional IG_TOTP_SECRET — TOTP computed in-process, RFC
+    6238), save a fresh session, and retry the render. Heavily guarded:
+    disabled unless STORAGE_STATE_AUTOREFRESH=true, at most one attempt
+    per 6 hours, fail-stop after 3 consecutive failures with a loud log
+    alert, and credentials never appear in logs. See STORAGESTATE.md for
+    the provisioning runbook and the security tradeoff before enabling.
+
   - Stealth patches: every context auto-applies the standard "this isn't
     Playwright" page-side masks (navigator.webdriver, plugins, languages,
     window.chrome). Pairs with the launch arg
@@ -63,20 +78,34 @@ description: >-
   5. Test with: curl -X POST https://playwright.<your-domain>/render
      -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
 releaseNotes: >-
-  Fixes the RENDERER_TOKEN-rotates-on-every-restart bug introduced silently
-  with the 0.1.x persistence work: docker-compose declares
-  `RENDERER_TOKEN: ${RENDERER_TOKEN}`, which on Umbrel hosts (where
-  $RENDERER_TOKEN is unset) interpolates to an EMPTY string, not unset.
-  The bootstrap's `loadEnvFile` treated empty as "already set" and didn't
-  overwrite from `/data/.env`, so the truthy check fell through and the
-  server generated + persisted a new token over the existing file. Every
-  container restart silently rotated the token, breaking any client that
-  had written down the previous value. `loadEnvFile` now treats both
-  unset AND empty env values as "not set" — a stray empty doesn't shadow
-  the on-disk value anymore. Two regression tests pin the exact case
-  (`process.env.RENDERER_TOKEN = ""` plus a populated file → file
-  wins, file is NOT rewritten). After updating, the token printed on
-  first boot survives every subsequent restart.
+  Session auto-refresh, two layers.
+
+
+  Keep-alive (on by default, opt out with SESSION_KEEPALIVE=false): after
+  every successful `useSession: true` render that is not a login wall, the
+  context's cookies are written back to /data/storageState.json (atomic,
+  mode 600). Sliding-expiry sessions now extend themselves on every scrape,
+  postponing the manual cookie-export ritual indefinitely in the happy case.
+  Never written when the response carries login-wall markers, so an expired
+  session can't clobber good state with logged-out cookies.
+
+
+  Instagram auto-login (opt-in, STORAGE_STATE_AUTOREFRESH=true): when a
+  sessioned render comes back as Instagram's login wall, the renderer
+  re-logins with operator-provisioned credentials from /data/.env
+  (IG_USERNAME, IG_PASSWORD, optional IG_TOTP_SECRET — RFC 6238 TOTP
+  computed in pure node:crypto, no new dependencies), verifies via the
+  sessionid cookie, persists the fresh session, and retries the original
+  render once. Guardrails: minimum 6h between attempts
+  (AUTOLOGIN_MIN_INTERVAL_HOURS), fail-stop after 3 consecutive failures
+  (AUTOLOGIN_MAX_CONSECUTIVE_FAILURES) with a loud alert pointing at
+  STORAGESTATE.md, single-flight, and credentials/TOTP codes/cookies never
+  logged at any level. On any recovery failure the wall HTML is served
+  unchanged as a success response so scraper workers can detect the expired
+  session and back off. Credentials are re-read from /data/.env on every
+  attempt — provision over ssh, no restart needed. See STORAGESTATE.md for
+  the runbook and the security tradeoff (TOTP secret next to the password
+  is effectively no 2FA; use a dedicated scraping account).
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies:
