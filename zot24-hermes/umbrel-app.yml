@@ -3,7 +3,7 @@ id: zot24-hermes
 name: Hermes Agent
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-hermes/icon.svg
 category: ai
-version: 0.16.0
+version: 0.17.0
 tagline: Self-improving AI agent with Telegram & WhatsApp
 description: 'Hermes Agent by Nous Research is a self-improving AI assistant that connects to your favorite messaging platforms. Run your own AI-powered agent on Umbrel and chat with it through Telegram, WhatsApp, Discord, or other platforms.
 
@@ -36,7 +36,7 @@ description: 'Hermes Agent by Nous Research is a self-improving AI assistant tha
   3. Enter your credentials in the setup wizard (or import an existing backup)
 
   4. Start chatting with your agent!'
-releaseNotes: "**The Surface Release.** Hermes meets you wherever you work. A brand-new native desktop app \u2014 built across 100 PRs and 159 commits in a single week \u2014 gives you Hermes as a real macOS/Linux/Windows application: one-click install, in-app self-update, drag-and-drop files into chat, an inline model picker in the status bar, concurrent multi-profile sessions, a full Simplified Chinese translation, and the ability to connect to a remote Hermes gateway over OAuth or username/password. Alongside it,"
+releaseNotes: "**The Reach Release.** v0.16.0 put Hermes on your desktop. v0.17.0 is about how far that reach extends \u2014 across new places to talk to it, deeper into the tools you already use, and out to the people running Hermes for a team. Hermes reached two new channels (iMessage via Photon, and the Raft agent network), the desktop app gained substantial new capability, subagents can now run in the background, image generation learned to edit, and Cursor's Composer model is reachable through an xAI Grok su"
 developer: Nous Research
 website: https://hermes-agent.nousresearch.com
 dependencies: []
