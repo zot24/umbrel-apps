@@ -1,0 +1,149 @@
+name: Watch nworth Releases
+
+# Polls the private zot24/nworth repo daily for a newer semver tag. When one
+# appears it builds + pins that version's image (via build-nworth.yml) and, only
+# on a successful build, bumps the app version so Umbrel surfaces the update.
+# Mirrors watch-hermes.yml. No changes to the nworth repo are required.
+
+on:
+  schedule:
+    - cron: '45 1 * * *'  # Daily at 01:45 UTC
+  workflow_dispatch:  # Manual trigger
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      new_release: ${{ steps.check.outputs.new_release }}
+      semver: ${{ steps.check.outputs.semver }}
+      tag: ${{ steps.check.outputs.tag }}
+    steps:
+      - name: Get latest nworth semver tag
+        id: fetch
+        env:
+          GH_TOKEN: ${{ secrets.NWORTH_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          # nworth is private — list tags via the API (works for plain tags,
+          # not only GitHub Releases), filter to semver, pick the highest.
+          LATEST=$(gh api --paginate repos/zot24/nworth/tags -q '.[].name' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then
+            echo "::error::No semver tags (vX.Y.Z) found on zot24/nworth"
+            exit 1
+          fi
+          echo "Latest nworth tag: $LATEST"
+          echo "tag=$LATEST" >> $GITHUB_OUTPUT
+
+      - name: Checkout umbrel-apps
+        uses: actions/checkout@v4
+
+      - name: Compare with shipped version
+        id: check
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.fetch.outputs.tag }}"
+          LATEST="${TAG#v}"
+          CURRENT=$(tr -d '[:space:]' < zot24-nworth/VERSION)
+          echo "Shipped: $CURRENT  Latest: $LATEST"
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "semver=$LATEST" >> $GITHUB_OUTPUT
+
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "Already up to date"
+            echo "new_release=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # Only build if LATEST is strictly newer than what we ship.
+          NEWEST=$(printf '%s\n%s\n' "$CURRENT" "$LATEST" | sort -V | tail -1)
+          if [ "$NEWEST" = "$LATEST" ]; then
+            echo "New version available: $LATEST"
+            echo "new_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "Latest tag ($LATEST) is older than shipped ($CURRENT) — skipping"
+            echo "new_release=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Build + push + pin the digest FIRST. Reusable build workflow; secrets:
+  # inherit passes NWORTH_REPO_TOKEN (private source) and GITHUB_TOKEN (GHCR).
+  build:
+    needs: check-release
+    if: needs.check-release.outputs.new_release == 'true'
+    uses: ./.github/workflows/build-nworth.yml
+    with:
+      version: ${{ needs.check-release.outputs.semver }}
+      ref: ${{ needs.check-release.outputs.tag }}
+    secrets: inherit
+    permissions:
+      contents: write
+      packages: write
+
+  # Only after a successful build: bump the app version so Umbrel shows the
+  # update (and refresh releaseNotes from the nworth release body if present).
+  update-version:
+    needs: [check-release, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout umbrel-apps
+        uses: actions/checkout@v4
+
+      - name: Gather release notes
+        env:
+          GH_TOKEN: ${{ secrets.NWORTH_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          SEMVER="${{ needs.check-release.outputs.semver }}"
+          TAG="${{ needs.check-release.outputs.tag }}"
+          # Release object may not exist for a plain tag — fall back gracefully.
+          NOTES=$(gh release view "$TAG" -R zot24/nworth --json body -q .body 2>/dev/null | head -c 500 || true)
+          if [ -z "$NOTES" ]; then
+            NOTES="Updated to nworth ${TAG}."
+          fi
+          echo "$NOTES" > /tmp/notes.txt
+          echo "SEMVER=$SEMVER" >> $GITHUB_ENV
+          echo "TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Install PyYAML
+        run: pip install pyyaml --quiet
+
+      - name: Bump version + releaseNotes
+        run: |
+          python3 - <<'PY'
+          import os, yaml
+          semver = os.environ['SEMVER']
+          notes = open('/tmp/notes.txt').read().strip() or f"Updated to nworth v{semver}."
+          path = 'zot24-nworth/umbrel-app.yml'
+          data = yaml.safe_load(open(path))
+          data['version'] = semver
+          data['releaseNotes'] = notes
+          with open(path, 'w') as f:
+              yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False, width=1000)
+          with open('zot24-nworth/VERSION', 'w') as f:
+              f.write(semver + "\n")
+          print("Bumped nworth to", semver)
+          PY
+
+      - name: Verify changes
+        run: |
+          echo "=== VERSION ==="; cat zot24-nworth/VERSION
+          echo "=== umbrel-app.yml ==="; grep -E "^version:|^releaseNotes:" zot24-nworth/umbrel-app.yml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-nworth/umbrel-app.yml zot24-nworth/VERSION
+          git diff --cached --quiet || git commit -m "chore: update nworth to v${SEMVER}"
+          # build-nworth.yml pushed the digest during the build — rebase onto it.
+          git pull --rebase origin main
+          git push

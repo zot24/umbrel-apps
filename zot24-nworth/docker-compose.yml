@@ -1,0 +1,66 @@
+services:
+  # nworth ships its own single-password gate (Authorization: Bearer for the
+  # API, a session cookie for the browser), so we turn OFF Umbrel's own auth
+  # layer and let nworth be the single source of truth. PROXY_AUTH_ADD=false
+  # is the documented switch for apps that bring their own authentication:
+  # https://github.com/getumbrel/umbrel/blob/master/containers/app-proxy/README.md
+  app_proxy:
+    environment:
+      APP_HOST: zot24-nworth_web_1
+      APP_PORT: 8080
+      PROXY_AUTH_ADD: "false"
+
+  web:
+    # Image + digest are populated by .github/workflows/build-nworth.yml on
+    # every release. Umbrel rejects unpinned images at install time, so the
+    # workflow's commit-back step is what makes this app installable. Until the
+    # first build runs, this tag has no @sha256 and the app will not install.
+    image: ghcr.io/zot24/nworth:0.3.0
+    restart: on-failure
+    init: true
+    stop_grace_period: 1m
+    command: ["nworth", "web"]
+    environment:
+      BIND_ADDR: 0.0.0.0:8080
+      DATABASE_URL: "sqlite:///app/data/portfolio.db?mode=rwc"
+      RUST_LOG: info
+      # Auth: nworth's gate, keyed to Umbrel's managed deterministic password
+      # (shown on the app tile because deterministicPassword: true). The same
+      # value is the API bearer token. SESSION_SECRET pins the cookie token to
+      # the app seed so logins survive restarts.
+      AUTH_PASSWORD: ${APP_PASSWORD}
+      SESSION_SECRET: ${APP_SEED}
+    # Optional user-provided secrets (CoinGecko / Helius keys, digest webhook,
+    # AUTH_COOKIE_SECURE=1 when fronted by HTTPS). Drop a KEY=VALUE file at
+    # <app-data>/data/.env over SSH; values here in `environment` win over it,
+    # so AUTH_PASSWORD/SESSION_SECRET stay Umbrel-managed.
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    volumes:
+      - ${APP_DATA_DIR}/data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Background price / APY / market-regime updater — same image, loop mode.
+  # Without it a deployed instance never refreshes market data. Waits for web
+  # to be healthy so migrations have run before it opens the shared DB.
+  feed:
+    image: ghcr.io/zot24/nworth:0.3.0
+    restart: on-failure
+    command: ["nworth", "feed", "--loop", "3600"]
+    environment:
+      DATABASE_URL: "sqlite:///app/data/portfolio.db?mode=rwc"
+      RUST_LOG: info
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    volumes:
+      - ${APP_DATA_DIR}/data:/app/data
+    depends_on:
+      web:
+        condition: service_healthy

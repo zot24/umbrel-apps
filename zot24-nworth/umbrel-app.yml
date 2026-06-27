@@ -1,0 +1,69 @@
+manifestVersion: 1.1
+id: zot24-nworth
+name: nworth
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-nworth/icon.svg
+category: finance
+version: "0.3.0"
+tagline: Self-hosted personal net-worth & portfolio tracker
+description: >-
+  nworth is a private, server-rendered personal-finance tracker for your whole
+  net worth: stocks, crypto, cash, and property in one place, with monthly
+  asset snapshots, income & expenses, allocation drift, and a bull/bear/crab
+  market-regime signal that drives rebalance targets.
+
+
+  Everything stays on your hardware — no cloud account, no third party holding
+  your numbers. It exposes both a web dashboard and a JSON + REST API (with
+  Swagger), so you can read and update your portfolio from scripts, cron jobs,
+  or agents on your home network.
+
+
+  Features:
+
+  - Net worth over time, broken down by category (Stocks / Crypto / Cash /
+    Property) with allocation drift vs. your targets.
+
+  - Per-account holdings with average cost, live market value, and P&L; a
+    transaction-ledger model derives holdings for accounts with real trade
+    history.
+
+  - Monthly income & expenses, recurring-transaction materialization, and an
+    Excel export of the whole dataset.
+
+  - A background feed that refreshes prices, APYs, and the market regime on a
+    schedule (hourly by default).
+
+  - Full JSON + REST API at /api with Swagger UI — drive it programmatically
+    from anywhere on your LAN.
+
+
+  Authentication:
+
+  - This app runs behind nworth's own single shared-password gate (Umbrel's
+    proxy auth is intentionally disabled so the API stays usable from scripts).
+
+  - The password is the deterministic one Umbrel shows on this app's tile.
+
+  - Web: open the app and sign in with that password.
+
+  - API / CLI: send it as a bearer token, e.g.
+    curl -H "Authorization: Bearer <password>" http://umbrel.local:8080/api/...
+releaseNotes: >-
+  First Umbrel release (tracks nworth v0.3.0): ledger-derived holdings for
+  accounts with real trade history (Robinhood + Fidelity), in-app ledger
+  import, and a rederive action. Packaged with nworth's built-in password gate
+  wired to Umbrel's managed app password, and a background price/regime feed.
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 8080
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: true
+torOnly: false
+submitter: zot24
+submission: ""
