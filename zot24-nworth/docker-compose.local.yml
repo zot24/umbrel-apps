@@ -1,0 +1,42 @@
+# Local dev: build the image straight from a sibling nworth checkout and run
+# the same two-service layout (web + feed) Umbrel uses, but on plain HTTP with
+# no app_proxy. Expects the nworth repo checked out next to umbrel-apps, i.e.
+#   ~/Desktop/code/nworth   and   ~/Desktop/code/umbrel-apps
+#
+#   docker compose -f docker-compose.local.yml up --build
+#
+# Sign in / call the API with AUTH_PASSWORD below.
+services:
+  web:
+    build:
+      context: ../../nworth
+    command: ["nworth", "web"]
+    ports:
+      - "8080:8080"
+    environment:
+      BIND_ADDR: 0.0.0.0:8080
+      DATABASE_URL: "sqlite:///app/data/portfolio.db?mode=rwc"
+      RUST_LOG: info
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-dev-change-me}
+      SESSION_SECRET: ${SESSION_SECRET:-dev-seed}
+    volumes:
+      - ./local-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  feed:
+    build:
+      context: ../../nworth
+    command: ["nworth", "feed", "--loop", "3600"]
+    environment:
+      DATABASE_URL: "sqlite:///app/data/portfolio.db?mode=rwc"
+      RUST_LOG: info
+    volumes:
+      - ./local-data:/app/data
+    depends_on:
+      web:
+        condition: service_healthy
