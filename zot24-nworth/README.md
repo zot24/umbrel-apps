@@ -20,10 +20,10 @@ once via CI:
    (`zot24/umbrel-apps`) as an Actions secret named **`NWORTH_REPO_TOKEN`**
    (Settings → Secrets and variables → Actions → New repository secret).
 
-2. **Run the build.** Actions → **Build: nworth** → *Run workflow* (or just push
-   a change to `zot24-nworth/umbrel-app.yml`). It builds linux/amd64 + arm64,
-   pushes `ghcr.io/zot24/nworth:<version>`, and commits the pinned
-   `@sha256:...` digest back into `docker-compose.yml`.
+2. **Run the build.** Actions → **Build: nworth** → *Run workflow* (leave the
+   inputs blank to build the version in `umbrel-app.yml`). It builds
+   linux/amd64 + arm64, pushes `ghcr.io/zot24/nworth:<version>`, and commits the
+   pinned `@sha256:...` digest back into `docker-compose.yml`.
    > arm64 builds under QEMU emulation — the first run is slow (Rust compile);
    > later runs reuse the GitHub Actions cache.
 
@@ -32,6 +32,17 @@ once via CI:
    repo). This lets the Umbrel box pull anonymously. The *source* stays private;
    only the built image is public. (Prefer to keep it private? Then run
    `docker login ghcr.io` on the Umbrel box once instead of this step.)
+
+## Automatic updates
+
+[`.github/workflows/watch-nworth.yml`](../.github/workflows/watch-nworth.yml)
+polls `zot24/nworth` daily for a newer semver tag (`vX.Y.Z`). When one appears
+it builds + pins that image first, then — only on a successful build — bumps the
+app `version` so your Umbrel surfaces the update. No changes to the nworth repo
+are needed; it reuses the same `NWORTH_REPO_TOKEN` secret. So your normal
+release cycle is: **tag `zot24/nworth` `vX.Y.Z` → image rebuilds and the app
+updates on its own** (within a day; trigger it immediately with *Actions → Watch
+nworth Releases → Run workflow*).
 
 ## Install
 

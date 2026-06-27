@@ -14,13 +14,12 @@ name: "Build: nworth"
 # independently. arm64 is built under QEMU emulation — the first build is slow
 # (Rust compile), later builds reuse the GHA cache.
 
+# Not push-triggered: nworth's source lives in the separate private repo, so
+# there's nothing local to watch, and triggering on the manifest/compose would
+# self-retrigger on this workflow's own digest/version commits. Instead it's
+# run manually (workflow_dispatch) or by watch-nworth.yml (workflow_call), which
+# builds first and bumps the version only on success.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'zot24-nworth/umbrel-app.yml'
-      - 'zot24-nworth/docker-compose.yml'
-      - '.github/workflows/build-nworth.yml'
   workflow_dispatch:
     inputs:
       version:
@@ -30,6 +29,16 @@ on:
         type: string
       ref:
         description: 'nworth git ref to build. Leave empty to use v<version>.'
+        required: false
+        default: ''
+        type: string
+  workflow_call:
+    inputs:
+      version:
+        required: false
+        default: ''
+        type: string
+      ref:
         required: false
         default: ''
         type: string
