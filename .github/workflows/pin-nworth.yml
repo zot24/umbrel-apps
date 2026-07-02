@@ -1,0 +1,81 @@
+name: Pin nworth image
+
+# The nworth image is built + published by the nworth repo itself
+# (zot24/nworth -> .github/workflows/publish-image.yml), so this store never
+# needs the private source or a PAT. This workflow just tracks the PUBLIC
+# ghcr.io/zot24/nworth package: find the highest semver tag, resolve its
+# multi-arch manifest digest, and pin docker-compose.yml + bump the app version
+# so Umbrel surfaces the update. Requires the GHCR package to be public.
+
+on:
+  schedule:
+    - cron: '45 1 * * *'  # Daily at 01:45 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve latest published version + digest
+        id: img
+        run: |
+          set -euo pipefail
+          REPO=zot24/nworth
+          TOKEN=$(curl -fsSL "https://ghcr.io/token?scope=repository:${REPO}:pull&service=ghcr.io" \
+            | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+          TAGS=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "https://ghcr.io/v2/${REPO}/tags/list")
+          VER=$(printf '%s' "$TAGS" | python3 -c '
+          import sys,json,re
+          t=json.load(sys.stdin).get("tags",[])
+          v=[x for x in t if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+",x)]
+          v.sort(key=lambda s:list(map(int,s.split("."))))
+          print(v[-1] if v else "")')
+          if [ -z "$VER" ]; then
+            echo "::error::No semver tags on ghcr.io/${REPO} — is the package public and built (nworth Publish image)?"
+            exit 1
+          fi
+          # Multi-arch manifest-list (index) digest, so Umbrel pulls the right arch.
+          DIGEST=$(curl -fsSL -I -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.oci.image.index.v1+json" \
+            -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
+            "https://ghcr.io/v2/${REPO}/manifests/${VER}" \
+            | tr -d '\r' | awk -F': ' 'tolower($1)=="docker-content-digest"{print $2}')
+          if [ -z "$DIGEST" ]; then echo "::error::Could not resolve digest for ${VER}"; exit 1; fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "ref=ghcr.io/${REPO}:${VER}@${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "Latest ${VER} -> ${DIGEST}"
+
+      - name: Update compose + manifest if changed
+        run: |
+          set -euo pipefail
+          VER='${{ steps.img.outputs.version }}'
+          REF='${{ steps.img.outputs.ref }}'
+          # Pin every nworth image line (web + feed) to the digest-qualified ref.
+          sed -i "s|image: ghcr.io/zot24/nworth:.*|image: ${REF}|" zot24-nworth/docker-compose.yml
+          # Bump the app version + VERSION via targeted regex (preserves comments/format).
+          python3 - "$VER" <<'PY'
+          import sys, re
+          ver = sys.argv[1]
+          p = 'zot24-nworth/umbrel-app.yml'
+          s = open(p).read()
+          s = re.sub(r'(?m)^version:.*$', f'version: "{ver}"', s, count=1)
+          open(p, 'w').write(s)
+          open('zot24-nworth/VERSION', 'w').write(ver + "\n")
+          PY
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-nworth/docker-compose.yml zot24-nworth/umbrel-app.yml zot24-nworth/VERSION
+          if git diff --cached --quiet; then
+            echo "Already pinned to ${{ steps.img.outputs.version }} — nothing to do."
+          else
+            git commit -m "chore: pin nworth image to ${{ steps.img.outputs.version }}"
+            git pull --rebase origin main && git push
+          fi
