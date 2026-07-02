@@ -5,44 +5,42 @@ running on your own Umbrel. Source: the private repo `zot24/nworth`.
 
 - **App ID**: `zot24-nworth`
 - **Port**: 8080
-- **Image**: `ghcr.io/zot24/nworth` (built + pinned by
-  [`.github/workflows/build-nworth.yml`](../.github/workflows/build-nworth.yml))
+- **Image**: `ghcr.io/zot24/nworth` — **built + published by the nworth repo
+  itself** (`zot24/nworth` → `.github/workflows/publish-image.yml`, using its
+  own `GITHUB_TOKEN`). This store only *pins* the published image; it never
+  needs the private source or a PAT.
 - **Auth**: nworth's own password gate (Umbrel proxy auth disabled, see below)
 
 ## One-time setup (publish the image)
 
-nworth is a **private** repo, and Umbrel installs **pre-built, digest-pinned**
-images. So before the app can install, the image has to be built and published
-once via CI:
+The image is built where the source lives. Before the app can install:
 
-1. **Add the source-access secret.** Create a fine-grained GitHub PAT with
-   **Contents: read** on `zot24/nworth`, then add it to this repo
-   (`zot24/umbrel-apps`) as an Actions secret named **`NWORTH_REPO_TOKEN`**
-   (Settings → Secrets and variables → Actions → New repository secret).
-
-2. **Run the build.** Actions → **Build: nworth** → *Run workflow* (leave the
-   inputs blank to build the version in `umbrel-app.yml`). It builds
-   linux/amd64 + arm64, pushes `ghcr.io/zot24/nworth:<version>`, and commits the
-   pinned `@sha256:...` digest back into `docker-compose.yml`.
+1. **Build + push the image.** In `zot24/nworth`: Actions → **Publish image** →
+   *Run workflow* (set `version` = `0.3.0`), or push a `vX.Y.Z` release tag. It
+   builds linux/amd64 + arm64 and pushes `ghcr.io/zot24/nworth:<version>`.
    > arm64 builds under QEMU emulation — the first run is slow (Rust compile);
-   > later runs reuse the GitHub Actions cache.
+   > later runs reuse the GitHub Actions cache. Drop to amd64-only via the
+   > workflow's `platforms` input if your Umbrel is x86 (Umbrel Home).
 
-3. **Make the package public.** On GitHub → your **Packages** → `nworth` →
-   *Package settings* → set **visibility: Public** (and optionally link it to a
-   repo). This lets the Umbrel box pull anonymously. The *source* stays private;
-   only the built image is public. (Prefer to keep it private? Then run
-   `docker login ghcr.io` on the Umbrel box once instead of this step.)
+2. **Make the package public.** GitHub → **Packages** → `nworth` → *Package
+   settings* → **Change visibility → Public**. This lets the Umbrel box pull
+   anonymously. The *source* repo stays private; only the built image is public.
+   (Prefer to keep it private? Then `docker login ghcr.io` on the Umbrel box
+   once instead — but the pin workflow below needs the package public to read
+   its tags.)
+
+3. **Pin it.** In this repo: Actions → **Pin nworth image** → *Run workflow*.
+   It resolves the published digest and pins `docker-compose.yml` (+ bumps the
+   app version). Then install/refresh the app on Umbrel.
 
 ## Automatic updates
 
-[`.github/workflows/watch-nworth.yml`](../.github/workflows/watch-nworth.yml)
-polls `zot24/nworth` daily for a newer semver tag (`vX.Y.Z`). When one appears
-it builds + pins that image first, then — only on a successful build — bumps the
-app `version` so your Umbrel surfaces the update. No changes to the nworth repo
-are needed; it reuses the same `NWORTH_REPO_TOKEN` secret. So your normal
-release cycle is: **tag `zot24/nworth` `vX.Y.Z` → image rebuilds and the app
-updates on its own** (within a day; trigger it immediately with *Actions → Watch
-nworth Releases → Run workflow*).
+[`.github/workflows/pin-nworth.yml`](../.github/workflows/pin-nworth.yml) polls
+the **public** `ghcr.io/zot24/nworth` package daily, pins the highest semver
+tag by digest, and bumps the app `version` so Umbrel surfaces the update — no
+PAT, no private access. So the release cycle is: **tag `zot24/nworth` `vX.Y.Z`
+→ nworth publishes the image → this store pins it within a day** (or trigger
+*Actions → Pin nworth image → Run workflow* immediately).
 
 ## Install
 
