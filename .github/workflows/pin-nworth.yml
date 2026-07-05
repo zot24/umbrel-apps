@@ -2,10 +2,16 @@ name: Pin nworth image
 
 # The nworth image is built + published by the nworth repo itself
 # (zot24/nworth -> .github/workflows/publish-image.yml), so this store never
-# needs the private source or a PAT. This workflow just tracks the PUBLIC
-# ghcr.io/zot24/nworth package: find the highest semver tag, resolve its
-# multi-arch manifest digest, and pin docker-compose.yml + bump the app version
-# so Umbrel surfaces the update. Requires the GHCR package to be public.
+# needs the private source. This workflow tracks the ghcr.io/zot24/nworth
+# package: find the highest semver tag, resolve its manifest digest, and pin
+# docker-compose.yml + bump the app version so Umbrel surfaces the update.
+#
+# The package is kept PRIVATE (the app embeds business-entity names in
+# migration/template comments), so tag/digest reads authenticate with the
+# GHCR_READ_TOKEN secret — a classic PAT scoped to read:packages ONLY (it can
+# pull images, never see code/issues). The same PAT is used once on the Umbrel
+# box for `docker login ghcr.io`. If the secret is absent, falls back to an
+# anonymous token (works only if the package is public).
 
 on:
   schedule:
@@ -23,11 +29,21 @@ jobs:
 
       - name: Resolve latest published version + digest
         id: img
+        env:
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
         run: |
           set -euo pipefail
           REPO=zot24/nworth
-          TOKEN=$(curl -fsSL "https://ghcr.io/token?scope=repository:${REPO}:pull&service=ghcr.io" \
-            | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+          # Private package: exchange the read:packages PAT for a registry
+          # token via basic auth. Public fallback: anonymous token.
+          if [ -n "${GHCR_READ_TOKEN:-}" ]; then
+            TOKEN=$(curl -fsSL -u "zot24:${GHCR_READ_TOKEN}" \
+              "https://ghcr.io/token?scope=repository:${REPO}:pull&service=ghcr.io" \
+              | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+          else
+            TOKEN=$(curl -fsSL "https://ghcr.io/token?scope=repository:${REPO}:pull&service=ghcr.io" \
+              | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+          fi
           TAGS=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "https://ghcr.io/v2/${REPO}/tags/list")
           VER=$(printf '%s' "$TAGS" | python3 -c '
           import sys,json,re
@@ -36,7 +52,7 @@ jobs:
           v.sort(key=lambda s:list(map(int,s.split("."))))
           print(v[-1] if v else "")')
           if [ -z "$VER" ]; then
-            echo "::error::No semver tags on ghcr.io/${REPO} — is the package public and built (nworth Publish image)?"
+            echo "::error::No semver tags visible on ghcr.io/${REPO} — is the image built, and (if private) is GHCR_READ_TOKEN set with read:packages?"
             exit 1
           fi
           # Multi-arch manifest-list (index) digest, so Umbrel pulls the right arch.

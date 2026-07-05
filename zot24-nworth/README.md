@@ -22,12 +22,17 @@ The image is built where the source lives. Before the app can install:
    > later runs reuse the GitHub Actions cache. Drop to amd64-only via the
    > workflow's `platforms` input if your Umbrel is x86 (Umbrel Home).
 
-2. **Make the package public.** GitHub → **Packages** → `nworth` → *Package
-   settings* → **Change visibility → Public**. This lets the Umbrel box pull
-   anonymously. The *source* repo stays private; only the built image is public.
-   (Prefer to keep it private? Then `docker login ghcr.io` on the Umbrel box
-   once instead — but the pin workflow below needs the package public to read
-   its tags.)
+2. **Keep the package PRIVATE + authenticate pulls.** The image embeds
+   business-entity names (migration/template comments), so it stays private.
+   Create ONE classic PAT scoped to **`read:packages` only** (it can pull
+   images — never see code, issues, or history), then use it twice:
+   - **Umbrel box (one time, SSH):**
+     `docker login ghcr.io -u zot24` → paste the PAT as the password.
+   - **This repo:** add it as Actions secret **`GHCR_READ_TOKEN`** so the pin
+     workflow can read the private package's tags/digests.
+
+   (Alternative: make the package public — no PAT anywhere — but review the
+   embedded comments first.)
 
 3. **Pin it.** In this repo: Actions → **Pin nworth image** → *Run workflow*.
    It resolves the published digest and pins `docker-compose.yml` (+ bumps the
@@ -36,11 +41,12 @@ The image is built where the source lives. Before the app can install:
 ## Automatic updates
 
 [`.github/workflows/pin-nworth.yml`](../.github/workflows/pin-nworth.yml) polls
-the **public** `ghcr.io/zot24/nworth` package daily, pins the highest semver
-tag by digest, and bumps the app `version` so Umbrel surfaces the update — no
-PAT, no private access. So the release cycle is: **tag `zot24/nworth` `vX.Y.Z`
-→ nworth publishes the image → this store pins it within a day** (or trigger
-*Actions → Pin nworth image → Run workflow* immediately).
+`ghcr.io/zot24/nworth` daily (auth via `GHCR_READ_TOKEN`; anonymous fallback if
+the package is public), pins the highest semver tag by digest, and bumps the
+app `version` so Umbrel surfaces the update. So the release cycle is: **tag
+`zot24/nworth` `vX.Y.Z` → nworth publishes the image → this store pins it
+within a day** (or trigger *Actions → Pin nworth image → Run workflow*
+immediately).
 
 ## Install
 
