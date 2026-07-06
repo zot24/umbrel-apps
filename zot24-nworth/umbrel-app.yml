@@ -58,7 +58,7 @@ website: https://github.com/zot24/umbrel-apps
 dependencies: []
 repo: https://github.com/zot24/umbrel-apps
 support: https://github.com/zot24/umbrel-apps/issues
-port: 8080
+port: 8484
 gallery: []
 path: ""
 defaultUsername: ""
