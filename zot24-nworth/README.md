@@ -4,7 +4,7 @@ Self-hosted personal net-worth & portfolio tracker (web UI + JSON/REST API),
 running on your own Umbrel. Source: the private repo `zot24/nworth`.
 
 - **App ID**: `zot24-nworth`
-- **Port**: 8080
+- **Port**: 8484
 - **Image**: `ghcr.io/zot24/nworth` — **built + published by the nworth repo
   itself** (`zot24/nworth` → `.github/workflows/publish-image.yml`, using its
   own `GITHUB_TOKEN`). This store only *pins* the published image; it never
@@ -66,7 +66,7 @@ password Umbrel manages:
 - **Web UI**: open the app → sign in with that password.
 - **API / CLI**: send it as a bearer token —
   ```bash
-  curl -H "Authorization: Bearer <password>" http://umbrel.local:8080/api/net-worth
+  curl -H "Authorization: Bearer <password>" http://umbrel.local:8484/api/net-worth
   ```
   (`/healthz` is open; everything else needs the password.)
 
