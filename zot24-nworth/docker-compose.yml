@@ -15,7 +15,7 @@ services:
     # every release. Umbrel rejects unpinned images at install time, so the
     # workflow's commit-back step is what makes this app installable. Until the
     # first build runs, this tag has no @sha256 and the app will not install.
-    image: ghcr.io/zot24/nworth:0.3.0
+    image: ghcr.io/zot24/nworth:0.3.1@sha256:87fefb5e9a0266af8068b78d7ba550a36221d0642f67bae773adc46403d6931a
     restart: on-failure
     init: true
     stop_grace_period: 1m
@@ -50,7 +50,7 @@ services:
   # Without it a deployed instance never refreshes market data. Waits for web
   # to be healthy so migrations have run before it opens the shared DB.
   feed:
-    image: ghcr.io/zot24/nworth:0.3.0
+    image: ghcr.io/zot24/nworth:0.3.1@sha256:87fefb5e9a0266af8068b78d7ba550a36221d0642f67bae773adc46403d6931a
     restart: on-failure
     command: ["nworth", "feed", "--loop", "3600"]
     environment:
