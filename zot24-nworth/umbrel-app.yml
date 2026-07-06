@@ -3,7 +3,7 @@ id: zot24-nworth
 name: nworth
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-nworth/icon.svg
 category: finance
-version: "0.3.1"
+version: "0.3.2"
 tagline: Self-hosted personal net-worth & portfolio tracker
 description: >-
   nworth is a private, server-rendered personal-finance tracker for your whole
