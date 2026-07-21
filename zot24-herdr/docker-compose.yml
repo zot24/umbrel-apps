@@ -1,0 +1,37 @@
+services:
+  # ttyd has no auth of its own; Umbrel's app proxy (with its default
+  # PROXY_AUTH_ADD=true) is the only way in and enforces the Umbrel login.
+  # Do not publish port 7681 or front this app with a public tunnel — a web
+  # terminal is full shell access to the container.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-herdr_server_1
+      APP_PORT: 7681
+
+  server:
+    # Image + digest are populated by .github/workflows/build.yml on every
+    # push that touches server/. Umbrel rejects unpinned images at install
+    # time, so the workflow's commit-back step is what makes this app
+    # installable. Until the first build runs, this tag has no @sha256 and
+    # the app will not install.
+    image: ghcr.io/zot24/herdr-umbrel:0.7.5
+    restart: on-failure
+    init: true
+    stop_grace_period: 30s
+    # Optional user-provided secrets (ANTHROPIC_API_KEY, OPENAI_API_KEY, …)
+    # and git identity (GIT_AUTHOR_NAME, …). Drop a KEY=VALUE file at
+    # <app-data>/data/.env over SSH; it is read on every (re)start.
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    volumes:
+      # HOME: herdr config + socket + session state + logs
+      #   (/data/.config/herdr), npm-global agent CLIs (/data/.npm-global),
+      #   workspaces (/data/workspaces)
+      - ${APP_DATA_DIR}/data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:7681/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
