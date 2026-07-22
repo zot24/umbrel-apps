@@ -143,6 +143,60 @@ agents with installed integrations resume natively
 (`[session] resume_agents_on_restore`, on by default). Live pane processes
 do not survive a full container stop — same as any Herdr server restart.
 
+
+## Sibling apps / Hermes agent-bridge
+
+Human attach path stays the web terminal (ttyd on **7681**, Umbrel login).
+
+Machine attach path for sibling containers on the Umbrel Docker network:
+
+| | |
+|---|---|
+| URL | `http://zot24-herdr_server_1:7682` (export `APP_ZOT24_HERDR_AGENT_PORT`) |
+| Auth | `Authorization: Bearer $HERDR_AGENT_TOKEN` |
+| Health | `GET /health` (no auth) |
+| Status | `GET /v1/status` |
+| Shell | `POST /v1/exec` `{"cmd":"claude --version","cwd":"/data/workspaces"}` |
+| Herdr CLI | `POST /v1/herdr` `{"args":["session","list","--json"]}` |
+
+**Not** exposed via `app_proxy`. Treat the token like root on this container.
+
+### `/data/.env` (restart app after edit)
+
+```bash
+# required for agent-bridge auth
+HERDR_AGENT_TOKEN=generate-a-long-random-string
+
+# optional: install Claude Code (etc.) onto the persistent volume at start
+HERDR_BOOTSTRAP_AGENTS=1
+# HERDR_BOOTSTRAP_PACKAGES=@anthropic-ai/claude-code
+
+# agent / git credentials living IN herdr (not in Hermes)
+ANTHROPIC_API_KEY=
+# OPENAI_API_KEY=
+# XAI_API_KEY=
+GITHUB_TOKEN=
+# GH_TOKEN=   # gh CLI also accepts this
+GIT_AUTHOR_NAME=
+GIT_AUTHOR_EMAIL=
+GIT_COMMITTER_NAME=
+GIT_COMMITTER_EMAIL=
+# VERCEL_TOKEN=
+# SUPABASE_ACCESS_TOKEN=
+```
+
+Bootstrap without restart (from web terminal or bridge exec):
+
+```bash
+HERDR_BOOTSTRAP_AGENTS=1 bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh
+```
+
+### Hermes side
+
+1. Put the **same** `HERDR_AGENT_TOKEN` in Hermes env (or a skill secret file).
+2. Call `http://zot24-herdr_server_1:7682` (or the discovered IP) — never the public Umbrel URL for the bridge.
+3. Keep high-value cloud creds in herdr's `/data/.env`; Hermes orchestrates, herdr executes.
+
 ## Updating
 
 Herdr is baked into the image (pinned + sha256-verified). App updates ship

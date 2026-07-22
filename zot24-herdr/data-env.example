@@ -1,0 +1,27 @@
+# Copy to the Umbrel app data dir as:
+#   <umbrel>/app-data/zot24-herdr/data/.env
+# then restart the Herdr app.
+
+# --- required for Hermes / sibling app control plane ---
+HERDR_AGENT_TOKEN=replace-me-with-long-random
+
+# --- optional bootstrap on container start ---
+# HERDR_BOOTSTRAP_AGENTS=1
+# HERDR_BOOTSTRAP_PACKAGES=@anthropic-ai/claude-code
+
+# --- coding agents ---
+# ANTHROPIC_API_KEY=
+# OPENAI_API_KEY=
+# XAI_API_KEY=
+
+# --- git / github (inside herdr) ---
+# GITHUB_TOKEN=
+# GH_TOKEN=
+# GIT_AUTHOR_NAME=
+# GIT_AUTHOR_EMAIL=
+# GIT_COMMITTER_NAME=
+# GIT_COMMITTER_EMAIL=
+
+# --- other CLIs you install into this box ---
+# VERCEL_TOKEN=
+# SUPABASE_ACCESS_TOKEN=

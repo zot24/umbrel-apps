@@ -5,9 +5,10 @@
 # Ships:
 #   - herdr v0.7.5 (pinned release binary, sha256-verified per arch)
 #   - ttyd web terminal (the Umbrel app UI, behind Umbrel's app proxy auth)
+#   - agent-bridge (internal HTTP API on :7682 for sibling apps — NOT proxied)
 #   - mosh + openssh-client (documented phone attach path, see README)
-#   - Node.js LTS + npm (agent CLIs install into the persistent /data volume)
-#   - git, curl
+#   - Node.js 22 + npm (agent CLIs install into the persistent /data volume)
+#   - git, curl, gh (GitHub CLI for agent workflows inside the box)
 #
 # Multi-arch: built with docker buildx for linux/amd64 + linux/arm64;
 # TARGETARCH selects the matching pinned herdr binary.
@@ -27,15 +28,25 @@ ARG TTYD_VERSION=1.7.7
 ARG TTYD_SHA256_X86_64=8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55
 ARG TTYD_SHA256_AARCH64=b38acadd89d1d396a0f5649aa52c539edbad07f4bc7348b27b4f4b7219dd4165
 
+# GitHub CLI — install from official apt repo (bookworm).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         git \
+        gnupg \
         gosu \
         mosh \
         openssh-client \
-    && rm -rf /var/lib/apt/lists/*
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/* \
+    && gh --version
 
 # Pinned herdr + ttyd binaries, each verified against the recorded sha256
 # for the arch.
@@ -57,7 +68,9 @@ RUN set -eux; \
     ttyd --version
 
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY agent-bridge.mjs bootstrap-agents.sh /usr/local/lib/herdr-umbrel/
+RUN chmod +x /entrypoint.sh /usr/local/lib/herdr-umbrel/bootstrap-agents.sh \
+    && chmod 644 /usr/local/lib/herdr-umbrel/agent-bridge.mjs
 
 # HOME must live on the Umbrel-managed volume so ~/.config/herdr (config,
 # socket, session state, logs), npm-global agent CLIs, and workspaces all
@@ -72,9 +85,10 @@ ENV HOME=/data \
     NPM_CONFIG_PREFIX=/data/.npm-global \
     PATH="/data/.npm-global/bin:${PATH}" \
     LANG=C.UTF-8 \
-    TERM=xterm-256color
+    TERM=xterm-256color \
+    HERDR_AGENT_PORT=7682
 
-EXPOSE 7681
+EXPOSE 7681 7682
 
 # The base image's unprivileged `node` user (UID 1000) is the runtime user.
 # We still start as root so the entrypoint can chown the Umbrel-mounted /data
