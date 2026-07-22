@@ -1,0 +1,34 @@
+# Copy to the Umbrel app data dir as:
+#   <umbrel>/app-data/zot24-herdr/data/.env
+# then restart the Herdr app.
+
+# --- required for Hermes / sibling app control plane ---
+HERDR_AGENT_TOKEN=replace-me-with-long-random
+
+# --- bootstrap CLIs onto the persistent volume at start ---
+# HERDR_BOOTSTRAP_AGENTS=1
+# Tools (space-separated). Default when unset inside script: all
+#   claude grok kimi vercel supabase
+# HERDR_BOOTSTRAP_TOOLS=all
+# Extra npm packages (optional):
+# HERDR_BOOTSTRAP_PACKAGES=@openai/codex
+
+# --- coding agents ---
+# ANTHROPIC_API_KEY=          # Claude Code
+# XAI_API_KEY=                # Grok API (if used)
+# GROK_DEPLOYMENT_KEY=        # Grok Build CLI enterprise/deploy auth (optional)
+# MOONSHOT_API_KEY=           # Kimi / Moonshot
+# KIMI_API_KEY=               # alias some builds accept
+# OPENAI_API_KEY=
+
+# --- git / github (gh is baked into the image) ---
+# GITHUB_TOKEN=
+# GH_TOKEN=
+# GIT_AUTHOR_NAME=
+# GIT_AUTHOR_EMAIL=
+# GIT_COMMITTER_NAME=
+# GIT_COMMITTER_EMAIL=
+
+# --- platform CLIs (installed by bootstrap) ---
+# VERCEL_TOKEN=
+# SUPABASE_ACCESS_TOKEN=
