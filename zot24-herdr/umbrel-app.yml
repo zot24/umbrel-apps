@@ -88,10 +88,11 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
-  0.8.0: internal agent-bridge HTTP API on :7682 for sibling apps (Hermes),
-  optional HERDR_BOOTSTRAP_AGENTS install path for Claude Code on the
-  persistent volume, GitHub CLI (gh) in the image, exports
-  APP_ZOT24_HERDR_AGENT_PORT. Web terminal still behind Umbrel auth only.
+  0.8.0: internal agent-bridge HTTP API on :7682 for sibling apps (Hermes);
+  optional HERDR_BOOTSTRAP_AGENTS installs Claude Code, Grok Build, Kimi Code,
+  Vercel CLI, and Supabase CLI onto the persistent volume; GitHub CLI (gh)
+  baked into the image; exports APP_ZOT24_HERDR_AGENT_PORT. Web terminal still
+  behind Umbrel auth only.
 
   First Umbrel release, packaging Herdr v0.7.5: headless Herdr server with a
   ttyd web terminal behind Umbrel auth, persistent config / workspaces /

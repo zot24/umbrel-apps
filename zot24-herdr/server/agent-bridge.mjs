@@ -199,7 +199,20 @@ async function which(bin) {
 
 async function handleStatus() {
   const tools = {};
-  for (const bin of ["node", "npm", "claude", "codex", "gh", "git", "herdr", "curl"]) {
+  for (const bin of [
+    "node",
+    "npm",
+    "claude",
+    "grok",
+    "kimi",
+    "codex",
+    "gh",
+    "git",
+    "vercel",
+    "supabase",
+    "herdr",
+    "curl",
+  ]) {
     tools[bin] = await which(bin);
   }
   let herdrVersion = null;

@@ -28,9 +28,9 @@ if [ ! -f /data/.config/herdr/config.toml ]; then
 fi
 EOF
 
-# Optional agent CLI bootstrap onto the persistent volume.
-# Set HERDR_BOOTSTRAP_AGENTS=1 in /data/.env (or compose env) to install
-# Claude Code (and optional packages) on start when missing.
+# Optional agent/platform CLI bootstrap onto the persistent volume.
+# Set HERDR_BOOTSTRAP_AGENTS=1 in /data/.env to install Claude, Grok, Kimi,
+# Vercel, Supabase (see bootstrap-agents.sh / HERDR_BOOTSTRAP_TOOLS).
 if [ "${HERDR_BOOTSTRAP_AGENTS:-0}" = "1" ]; then
     gosu "$RUN_USER" bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh || \
         echo "[entrypoint] bootstrap-agents failed (non-fatal)" >&2

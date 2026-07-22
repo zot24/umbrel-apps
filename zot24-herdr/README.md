@@ -101,28 +101,78 @@ The local process is a thin client; the server on your Umbrel owns the
 session. Use `--remote-keybindings server` to apply the container's
 keybindings instead of your laptop's.
 
-## Setting up agents
+## Setting up agents + platform CLIs
 
-From the web terminal (or any attach path):
+This image is the **credential + CLI home** for coding agents. Hermes (and
+humans) drive work here; secrets stay in `/data/.env`.
+
+### Bundled vs bootstrapped
+
+| Tool | How it lands | Binary |
+| --- | --- | --- |
+| **gh** (GitHub CLI) | Baked into the image | `gh` |
+| **git**, **curl**, **node 22**, **npm** | Baked into the image | — |
+| **Claude Code** | Bootstrap / npm | `claude` |
+| **Grok Build** (xAI) | Bootstrap via `https://x.ai/cli/install.sh` | `grok` |
+| **Kimi Code** (Moonshot) | Bootstrap via official script (npm fallback) | `kimi` |
+| **Vercel CLI** | Bootstrap / npm | `vercel` |
+| **Supabase CLI** | Bootstrap / npm | `supabase` |
+
+All bootstrapped tools install onto the **persistent volume**
+(`NPM_CONFIG_PREFIX=/data/.npm-global`, Grok under `/data/.grok`, etc.) so
+they survive image updates.
+
+### One-shot bootstrap (recommended)
+
+In `/data/.env` (see `data-env.example`):
 
 ```bash
-# Agent CLIs install onto the persistent volume (NPM_CONFIG_PREFIX=/data/.npm-global)
+HERDR_BOOTSTRAP_AGENTS=1
+# HERDR_BOOTSTRAP_TOOLS=all
+# # or a subset: claude grok kimi vercel supabase
+HERDR_AGENT_TOKEN=generate-a-long-random-string
+
+ANTHROPIC_API_KEY=…
+# XAI_API_KEY=…          # and/or GROK_DEPLOYMENT_KEY=
+# MOONSHOT_API_KEY=…     # Kimi
+GITHUB_TOKEN=…           # also used by gh
+# GH_TOKEN=…
+GIT_AUTHOR_NAME=…
+GIT_AUTHOR_EMAIL=…
+# VERCEL_TOKEN=…
+# SUPABASE_ACCESS_TOKEN=…
+```
+
+Restart the Herdr app. On start, `bootstrap-agents.sh` installs any missing
+CLIs. Or run anytime from the web terminal / agent-bridge:
+
+```bash
+bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh
+# subset:
+HERDR_BOOTSTRAP_TOOLS="claude vercel" bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh
+```
+
+### Manual installs (same destinations)
+
+```bash
 npm install -g @anthropic-ai/claude-code
-# npm install -g @openai/codex …
+npm install -g vercel
+npm install -g supabase
+# Kimi (npm fallback; script path is preferred in bootstrap)
+npm install -g @moonshot-ai/kimi-code
+# Grok
+curl -fsSL https://x.ai/cli/install.sh | GROK_BIN_DIR=/data/.grok/bin HOME=/data bash
 
-# Enable Herdr's native session restore per agent
-herdr integration install claude
+herdr integration install claude   # when supported
 herdr integration status
+```
 
-# API keys + git identity: write them to the app's data dir and restart the app
-#   <umbrel>/home/.../app-data/zot24-herdr/data/.env
-#     ANTHROPIC_API_KEY=sk-…
-#     GIT_AUTHOR_NAME=…  GIT_AUTHOR_EMAIL=…
-#     GIT_COMMITTER_NAME=… GIT_COMMITTER_EMAIL=…
+### Workspaces
 
-# Keep your code on the volume so it persists
+```bash
 cd /data/workspaces
-git clone git@github.com:you/project.git
+git clone https://github.com/you/project.git
+# or gh repo clone you/project
 ```
 
 ## What persists (and where)
@@ -133,9 +183,11 @@ Everything lives under the app data volume mounted at `/data` (which is also
 | Path | Contents |
 | --- | --- |
 | `/data/.config/herdr/` | config.toml, server socket, session state, logs |
-| `/data/.npm-global/` | npm-installed agent CLIs (survive image updates) |
+| `/data/.npm-global/` | npm-installed CLIs (`claude`, `vercel`, `supabase`, …) |
+| `/data/.grok/` | Grok Build CLI binary + auth |
+| `/data/.local/bin/`, `/data/.kimi/` | Kimi / other user-local bins |
 | `/data/workspaces/` | your git clones / project dirs |
-| `/data/.env` | optional secrets + git identity (compose `env_file`) |
+| `/data/.env` | secrets + git identity + bootstrap flags (compose `env_file`) |
 
 Persistence semantics are Herdr's own: detach keeps processes alive; a
 container restart restarts the server and restores the session layout, and
@@ -163,32 +215,28 @@ Machine attach path for sibling containers on the Umbrel Docker network:
 
 ### `/data/.env` (restart app after edit)
 
+Full template: [`data-env.example`](./data-env.example).
+
 ```bash
-# required for agent-bridge auth
 HERDR_AGENT_TOKEN=generate-a-long-random-string
-
-# optional: install Claude Code (etc.) onto the persistent volume at start
 HERDR_BOOTSTRAP_AGENTS=1
-# HERDR_BOOTSTRAP_PACKAGES=@anthropic-ai/claude-code
+HERDR_BOOTSTRAP_TOOLS=all          # claude grok kimi vercel supabase
 
-# agent / git credentials living IN herdr (not in Hermes)
 ANTHROPIC_API_KEY=
-# OPENAI_API_KEY=
-# XAI_API_KEY=
+# XAI_API_KEY= / GROK_DEPLOYMENT_KEY=
+# MOONSHOT_API_KEY=
 GITHUB_TOKEN=
-# GH_TOKEN=   # gh CLI also accepts this
+GH_TOKEN=
 GIT_AUTHOR_NAME=
 GIT_AUTHOR_EMAIL=
-GIT_COMMITTER_NAME=
-GIT_COMMITTER_EMAIL=
 # VERCEL_TOKEN=
 # SUPABASE_ACCESS_TOKEN=
 ```
 
-Bootstrap without restart (from web terminal or bridge exec):
+Bootstrap without restart:
 
 ```bash
-HERDR_BOOTSTRAP_AGENTS=1 bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh
+bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh
 ```
 
 ### Hermes side

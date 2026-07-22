@@ -83,7 +83,7 @@ RUN chmod +x /entrypoint.sh /usr/local/lib/herdr-umbrel/bootstrap-agents.sh \
 RUN usermod --home /data node
 ENV HOME=/data \
     NPM_CONFIG_PREFIX=/data/.npm-global \
-    PATH="/data/.npm-global/bin:${PATH}" \
+    PATH="/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:${PATH}" \
     LANG=C.UTF-8 \
     TERM=xterm-256color \
     HERDR_AGENT_PORT=7682

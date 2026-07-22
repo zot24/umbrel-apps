@@ -5,16 +5,23 @@
 # --- required for Hermes / sibling app control plane ---
 HERDR_AGENT_TOKEN=replace-me-with-long-random
 
-# --- optional bootstrap on container start ---
+# --- bootstrap CLIs onto the persistent volume at start ---
 # HERDR_BOOTSTRAP_AGENTS=1
-# HERDR_BOOTSTRAP_PACKAGES=@anthropic-ai/claude-code
+# Tools (space-separated). Default when unset inside script: all
+#   claude grok kimi vercel supabase
+# HERDR_BOOTSTRAP_TOOLS=all
+# Extra npm packages (optional):
+# HERDR_BOOTSTRAP_PACKAGES=@openai/codex
 
 # --- coding agents ---
-# ANTHROPIC_API_KEY=
+# ANTHROPIC_API_KEY=          # Claude Code
+# XAI_API_KEY=                # Grok API (if used)
+# GROK_DEPLOYMENT_KEY=        # Grok Build CLI enterprise/deploy auth (optional)
+# MOONSHOT_API_KEY=           # Kimi / Moonshot
+# KIMI_API_KEY=               # alias some builds accept
 # OPENAI_API_KEY=
-# XAI_API_KEY=
 
-# --- git / github (inside herdr) ---
+# --- git / github (gh is baked into the image) ---
 # GITHUB_TOKEN=
 # GH_TOKEN=
 # GIT_AUTHOR_NAME=
@@ -22,6 +29,6 @@ HERDR_AGENT_TOKEN=replace-me-with-long-random
 # GIT_COMMITTER_NAME=
 # GIT_COMMITTER_EMAIL=
 
-# --- other CLIs you install into this box ---
+# --- platform CLIs (installed by bootstrap) ---
 # VERCEL_TOKEN=
 # SUPABASE_ACCESS_TOKEN=
