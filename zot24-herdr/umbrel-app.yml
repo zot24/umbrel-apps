@@ -1,0 +1,111 @@
+manifestVersion: 1.1
+id: zot24-herdr
+name: Herdr
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
+category: developer
+version: "0.7.5"
+tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
+description: >-
+  Herdr is a terminal multiplexer purpose-built for running AI coding agents
+  (Claude Code, Codex, Gemini, and more) in parallel. This app runs a
+  persistent Herdr server on your Umbrel so your agents stay alive around the
+  clock — detach from your laptop, reattach from your phone, and everything
+  is exactly where you left it.
+
+
+  How you attach:
+
+
+  - Web terminal (built in): open the app tile for the full Herdr TUI in your
+    browser, served by ttyd and protected by your Umbrel login. Works from
+    any browser on your network; pair with the Tailscale app for access on
+    the go.
+
+
+  - Phone (Moshi or any SSH client): SSH into your Umbrel host, then attach
+    with `docker exec -it zot24-herdr_server_1 herdr`. Moshi (getmoshi.app)
+    has native Herdr support and is the recommended phone client. The README
+    includes a host-side herdr wrapper that makes Moshi's session picker and
+    laptop `herdr --remote` work end-to-end.
+
+
+  - Laptop thin client: with the wrapper in place, run `herdr --remote
+    <your-umbrel>` from any machine that has Herdr installed.
+
+
+  Features:
+
+
+  - Persistent sessions: the Herdr server runs headless in the container.
+    Closing the browser tab only detaches that client — agents keep running.
+
+
+  - Your data stays home: Herdr config, session state, workspaces, and
+    npm-installed agent CLIs all live on the app data volume and survive app
+    updates and container rebuilds.
+
+
+  - Agent-CLI ready: Node.js LTS + npm are preinstalled and global installs
+    land on the persistent volume, so `npm install -g
+    @anthropic-ai/claude-code` sticks. Git, curl, mosh, and an OpenSSH client
+    are included.
+
+
+  Setup Instructions:
+
+
+  1. Install the app and open it — you land in a Herdr TUI.
+
+
+  2. Install your agent CLIs from the web terminal, e.g. `npm install -g
+     @anthropic-ai/claude-code`, then enable session restore with
+     `herdr integration install claude` (repeat per agent; check
+     `herdr integration status`).
+
+
+  3. Put API keys in a `.env` file in the app's data directory
+     (…/zot24-herdr/data/.env), e.g. `ANTHROPIC_API_KEY=…`, and restart the
+     app. Keep your code (git clones) under /data/workspaces so it persists.
+
+
+  4. For phone access, install Tailscale on your Umbrel and your phone, SSH
+     to the host, and attach with `docker exec -it zot24-herdr_server_1
+     herdr`. Never port-forward SSH or expose the web terminal publicly.
+
+
+  Security notes:
+
+
+  - The web terminal is authenticated by Umbrel's app proxy. Do not publish
+    port 7681 or tunnel the app to the public internet without additional
+    authentication — a web terminal is full shell access to the container.
+
+
+  - Agent CLIs inside the container can use whatever API keys and git
+    credentials you provide. Treat the app data volume like a dev workstation.
+
+
+  - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
+    https://github.com/ogulcancelik/herdr — https://herdr.dev
+releaseNotes: >-
+  First Umbrel release, packaging Herdr v0.7.5: headless Herdr server with a
+  ttyd web terminal behind Umbrel auth, persistent config / workspaces /
+  agent CLIs on the app data volume, mosh + SSH tooling for phone attach,
+  and multi-arch images (amd64 + arm64) with sha256-pinned Herdr binaries.
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 7681
+gallery:
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/1.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/2.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/3.png
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""

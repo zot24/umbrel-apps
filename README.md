@@ -26,6 +26,13 @@ Self-hosted headless-browser renderer with residential-IP egress.
 - **App ID**: `zot24-playwright-renderer`
 - **Port**: 3030
 
+### Herdr
+
+Terminal multiplexer for AI coding agents — persistent server on your Umbrel, with a browser TUI and phone/laptop attach over Tailscale.
+
+- **App ID**: `zot24-herdr`
+- **Port**: 7681
+
 ## Retired Apps
 
 - **zot24-hermes** (Hermes Agent) — removed 2026-07-20; superseded by the official

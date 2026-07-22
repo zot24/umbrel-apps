@@ -1,0 +1,15 @@
+services:
+  server:
+    build:
+      context: ./server
+    ports:
+      - "7681:7681"
+    volumes:
+      # Named volume, not a bind mount: macOS Docker Desktop bind mounts
+      # (virtiofs) can't host Unix sockets (herdr server fails with EINVAL)
+      # and report misleading ownership. On a real Umbrel (Linux) the
+      # ${APP_DATA_DIR} bind mount works fine.
+      - herdr-local-data:/data
+
+volumes:
+  herdr-local-data:
