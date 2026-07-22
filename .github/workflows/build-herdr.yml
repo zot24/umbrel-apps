@@ -14,8 +14,6 @@ on:
     paths:
       - 'zot24-herdr/server/Dockerfile'
       - 'zot24-herdr/server/entrypoint.sh'
-      - 'zot24-herdr/server/agent-bridge.mjs'
-      - 'zot24-herdr/server/bootstrap-agents.sh'
       - '.github/workflows/build-herdr.yml'
   workflow_dispatch:
     inputs:
