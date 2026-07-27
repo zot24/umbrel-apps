@@ -5,7 +5,9 @@
 # Ships:
 #   - herdr v0.7.5 (pinned release binary, sha256-verified per arch)
 #   - ttyd web terminal (the Umbrel app UI, behind Umbrel's app proxy auth)
-#   - mosh + openssh-client (documented phone attach path, see README)
+#   - openssh-server (key-only SSH straight into the app: Moshi on a phone,
+#     `herdr --remote` from a laptop — no shell on the Umbrel host needed)
+#   - mosh + openssh-client (outbound, plus mosh-server for flaky mobile links)
 #   - Node.js LTS + npm (agent CLIs install into the persistent /data volume)
 #   - git, curl
 #
@@ -35,7 +37,14 @@ RUN apt-get update \
         gosu \
         mosh \
         openssh-client \
-    && rm -rf /var/lib/apt/lists/*
+        openssh-server \
+    && rm -rf /var/lib/apt/lists/* \
+    # Debian's package starts sshd at boot from its own config and host keys in
+    # /etc/ssh. We want neither: the entrypoint runs sshd as the unprivileged
+    # runtime user with a generated config and host keys that persist on the
+    # app data volume. Drop the packaged host keys so there is no chance of
+    # serving an image-baked (i.e. shared-with-every-installation) key.
+    && rm -f /etc/ssh/ssh_host_*
 
 # Pinned herdr + ttyd binaries, each verified against the recorded sha256
 # for the arch.
@@ -74,7 +83,9 @@ ENV HOME=/data \
     LANG=C.UTF-8 \
     TERM=xterm-256color
 
-EXPOSE 7681
+# 7681: ttyd web terminal (via Umbrel's app proxy). 7682: sshd, published on
+# the host by docker-compose.yml — see APP_ZOT24_HERDR_SSH_PORT in exports.sh.
+EXPOSE 7681 7682
 
 # The base image's unprivileged `node` user (UID 1000) is the runtime user.
 # We still start as root so the entrypoint can chown the Umbrel-mounted /data

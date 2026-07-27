@@ -7,7 +7,8 @@ your Umbrel box. Your agents (Claude Code, Codex, Gemini, …) keep running
 and everything is exactly where you left it.
 
 - **App ID**: `zot24-herdr`
-- **Port**: 7681 (web terminal, behind Umbrel auth — never exposed directly)
+- **Ports**: 7681 web terminal (behind Umbrel auth, never published) ·
+  7682 SSH (published on the host, key-only)
 - **Upstream**: [ogulcancelik/herdr](https://github.com/ogulcancelik/herdr) v0.7.5 (AGPL-3.0)
 
 ## How it's wired
@@ -15,20 +16,27 @@ and everything is exactly where you left it.
 ```
   browser / laptop / phone
         |
-        |  (a) Umbrel app proxy (Umbrel login)      — web UI
-        |  (b) SSH/Mosh into host, over Tailscale   — phone (Moshi)
-        |  (c) herdr --remote, over SSH/Tailscale   — laptop thin client
+        |  (a) Umbrel app proxy (Umbrel login)      — web UI, read-only
+        |  (b) SSH :7682 straight into the app      — phone (Moshi), laptop
+        |  (c) herdr --remote over that same SSH    — laptop thin client
         v
   zot24-herdr_server_1 container
     ├── ttyd :7681 ──► herdr        (attach client for browser sessions)
+    ├── sshd :7682 ──► login shell  (key-only, unprivileged, → herdr)
     └── herdr server                (headless; owns panes, agents, sessions)
-              └── /data volume: config, session state, agent CLIs, workspaces
+              └── /data volume: config, session state, agent CLIs, workspaces,
+                                SSH host key + authorized_keys
 ```
 
 `herdr server` runs headless in the container and owns all panes and agents.
-Clients — the ttyd web terminal, an `ssh` + `docker exec` session, or
-`herdr --remote` — only attach/detach (`ctrl+b q`). Closing every client
-leaves every agent running.
+Clients — the ttyd web terminal, an SSH session, or `herdr --remote` — only
+attach/detach (`ctrl+b q`). Closing every client leaves every agent running.
+
+**SSH lands inside the app, not on your Umbrel host.** That is deliberate: the
+alternative (SSH to the host + `docker exec`) needs a host-side wrapper script
+and puts the `umbrel` user in the `docker` group, which is root-equivalent on
+the box. A key that only opens this container is a much smaller thing to lose
+with a phone.
 
 ## Installing on Umbrel
 
@@ -51,50 +59,71 @@ Open the Herdr tile in the Umbrel dashboard. ttyd serves the full Herdr TUI
 in the browser; Umbrel's app proxy enforces your Umbrel login. Detach with
 `ctrl+b q` or just close the tab — the server and agents keep running.
 
-### (b) Phone — Moshi over SSH/Mosh (recommended)
+### (b) Phone — Moshi (or any SSH client), over Tailscale
+
+**One-time: authorise a key.** There is no password on this account and there
+never will be, so the app needs your public key before it will start sshd at
+all. Two ways, pick either:
+
+- Drop the key in the app's data dir (over your existing host SSH, or from the
+  web terminal):
+
+  ```bash
+  # <umbrel>/home/.../app-data/zot24-herdr/data/.ssh/authorized_keys
+  echo "ssh-ed25519 AAAA… phone" >> …/zot24-herdr/data/.ssh/authorized_keys
+  ```
+
+- Or put it in the same `.env` the app already reads, and restart the app —
+  use `;` between keys for more than one:
+
+  ```bash
+  # …/zot24-herdr/data/.env
+  SSH_AUTHORIZED_KEYS=ssh-ed25519 AAAA… phone;ssh-ed25519 AAAA… laptop
+  ```
+
+Until a key exists, sshd does not start and the app log says so — an SSH
+daemon nobody can log into is just attack surface.
+
+**Then, from the phone:**
 
 1. Put the Umbrel box and your phone on the same tailnet (install the
    Tailscale Umbrel app; sign in on both devices). Do **not** port-forward
-   SSH on your router.
-2. SSH from the phone to the **host** (Moshi, Blink, Termius…), then:
+   anything on your router.
+2. In Moshi (getmoshi.app) or any SSH client, connect to your Umbrel's
+   tailnet name on **port 7682**, user `node`:
 
    ```bash
-   docker exec -it zot24-herdr_server_1 herdr
+   ssh -p 7682 node@your-umbrel      # lands in the container
+   herdr                             # attach the TUI
    ```
 
-3. Optional but recommended — install this wrapper on the host so `herdr`
-   works as if it were installed natively (Moshi's herdr picker runs
-   `herdr session list --json`, and `herdr --remote` from a laptop invokes
-   `herdr` over SSH):
+Moshi has native Herdr support: its session picker runs
+`herdr session list --json`, which works over this SSH login with no wrapper
+and no host-side setup, because `herdr` is genuinely installed here.
 
-   ```bash
-   sudo tee /usr/local/bin/herdr >/dev/null <<'EOF'
-   #!/bin/sh
-   # herdr-on-host: proxy into the zot24-herdr Umbrel app container.
-   if [ -t 0 ] && [ -t 1 ]; then
-       exec docker exec -it zot24-herdr_server_1 herdr "$@"
-   else
-       exec docker exec -i zot24-herdr_server_1 herdr "$@"
-   fi
-   EOF
-   sudo chmod +x /usr/local/bin/herdr
-   ```
-
-   Then plain `herdr` works right after SSH login, and Moshi's session
-   detection picks up your sessions.
-
-For Mosh (survives sleep/network switches): install `mosh` on the **host OS**
-(`sudo apt install mosh`; the container's copy is for outbound use) and allow
-UDP 60000–61000 **on the tailnet only**. Mosh replaces SSH as transport;
-Herdr still owns persistence.
+**Mosh** is in the image but no UDP ports are published, so it isn't wired up
+by default — one published TCP port is a smaller surface, and Herdr already
+gives you the thing Mosh is usually for: drop the connection and every agent
+keeps running, reconnect and you are back. If you want real Mosh anyway, add
+`- "60000-60005:60000-60005/udp"` to the `ports:` block and connect with
+`mosh --ssh="ssh -p 7682" --port=60000:60005 node@your-umbrel`.
 
 ### (c) Laptop — `herdr --remote`
 
-With the wrapper from (b) in place and Herdr installed locally:
+With a key authorised and Herdr installed locally, add the port to your SSH
+config and point Herdr at it:
+
+```
+# ~/.ssh/config
+Host umbrel-herdr
+    HostName your-umbrel
+    User node
+    Port 7682
+```
 
 ```bash
-herdr --remote umbrel            # umbrel = an entry in ~/.ssh/config
-herdr --remote umbrel --session agents
+herdr --remote umbrel-herdr
+herdr --remote umbrel-herdr --session agents
 ```
 
 The local process is a thin client; the server on your Umbrel owns the
@@ -136,6 +165,8 @@ Everything lives under the app data volume mounted at `/data` (which is also
 | `/data/.npm-global/` | npm-installed agent CLIs (survive image updates) |
 | `/data/workspaces/` | your git clones / project dirs |
 | `/data/.env` | optional secrets + git identity (compose `env_file`) |
+| `/data/.ssh/` | SSH host key + `authorized_keys` (host key is generated once, so clients don't see a changed fingerprint after an app update) |
+| `/data/.profile` | seeded once: puts agent CLIs on `PATH` and sources `.env` so an SSH login has the same environment as the web terminal |
 
 Persistence semantics are Herdr's own: detach keeps processes alive; a
 container restart restarts the server and restores the session layout, and
@@ -152,11 +183,25 @@ in-place update would be lost on the next container rebuild anyway).
 
 ## Security notes
 
-- The web terminal is **full shell access** to the container. It sits behind
-  Umbrel's app-proxy auth and publishes no port; keep it that way. Never
-  `tailscale funnel` or tunnel it publicly without adding real
-  authentication.
-- Reach the host over **Tailscale**; don't expose SSH on your router.
+- **Port 7682 is a shell into this container**, and Docker publishes it on
+  every host interface — its DNAT rules sit in front of host firewalls, so
+  treat it as reachable from your whole LAN, not just the tailnet. That is an
+  acceptable posture only because there is nothing to guess: key auth only,
+  `PasswordAuthentication no`, `PermitRootLogin no`, `AllowUsers node`, and
+  sshd refuses to start without an authorized key. **Never forward 7682 on
+  your router.** Reach it over **Tailscale**.
+- The blast radius of a lost phone key is this container: agents, `/data`,
+  your API keys and git credentials. Not the Umbrel host — that's the whole
+  reason SSH lives in here rather than being a `docker exec` wrapper on the
+  host, which would need the `umbrel` user in the `docker` group
+  (root-equivalent on the box).
+- sshd runs as the unprivileged runtime user (UID 1000) on an unprivileged
+  port, so no root daemon survives startup. TCP forwarding, X11 forwarding and
+  tunnelling are off; agent forwarding is left on so you can push to git from
+  an agent pane without copying a private key onto the box.
+- The web terminal on 7681 is **read-only** (ttyd runs without `--writable`)
+  and sits behind Umbrel's app-proxy auth with no published port. It is a
+  viewer; SSH is the way in. Never `tailscale funnel` or tunnel it publicly.
 - Treat the app data volume like a dev workstation: agent CLIs can read
   everything in `/data`, use your API keys, and push to your git remotes.
 - Herdr pane-history replay (`[experimental] pane_history`) can persist
@@ -169,6 +214,12 @@ in-place update would be lost on the next container rebuild anyway).
 ```bash
 docker compose -f docker-compose.local.yml up --build
 # open http://localhost:7681 — no auth in local dev; bind to localhost only
+
+# SSH path (7682 is bound to 127.0.0.1 in dev). Authorise a key first:
+docker compose -f docker-compose.local.yml exec server \
+    sh -c 'cat >> /data/.ssh/authorized_keys' < ~/.ssh/id_ed25519.pub
+docker compose -f docker-compose.local.yml restart
+ssh -p 7682 node@127.0.0.1 herdr
 ```
 
 State lands in the `herdr-local-data` named volume (a bind mount is
@@ -182,11 +233,11 @@ This app lives in the [zot24/umbrel-apps](https://github.com/zot24/umbrel-apps)
 community store repo as `zot24-herdr/`:
 
 ```
-server/Dockerfile        # node:22-bookworm-slim + herdr (pinned sha256) + ttyd + mosh
-server/entrypoint.sh     # chown /data, seed config, start herdr server + ttyd
-docker-compose.yml       # Umbrel production compose (app_proxy + server)
-docker-compose.local.yml # local dev (build from source, publishes 7681)
+server/Dockerfile        # node:22-bookworm-slim + herdr (pinned sha256) + ttyd + sshd + mosh
+server/entrypoint.sh     # chown /data, seed config, set up sshd, start herdr server + ttyd
+docker-compose.yml       # Umbrel production compose (app_proxy + server, publishes 7682)
+docker-compose.local.yml # local dev (build from source, publishes 7681 + 7682)
 umbrel-app.yml           # Umbrel app manifest (manifestVersion 1.1)
-exports.sh               # APP_ZOT24_HERDR_IP / _PORT for sibling apps
+exports.sh               # APP_ZOT24_HERDR_IP / _PORT / _SSH_PORT for sibling apps
 ../../.github/workflows/build-herdr.yml  # multi-arch build + digest pin-back
 ```

@@ -18,6 +18,18 @@ services:
     restart: on-failure
     init: true
     stop_grace_period: 30s
+    # SSH straight into the app — this is the phone/laptop attach path, and the
+    # reason you do not need a shell on the Umbrel host. Key-only auth; sshd
+    # runs as the unprivileged runtime user inside the container.
+    #
+    # Docker publishes this on every host interface and its DNAT rules sit in
+    # front of host firewalls, so treat it as LAN-reachable, not tailnet-only.
+    # That is safe because there is no password to guess — but never forward
+    # this port on your router.
+    ports:
+      - "${APP_ZOT24_HERDR_SSH_PORT}:${APP_ZOT24_HERDR_SSH_PORT}"
+    environment:
+      SSH_PORT: ${APP_ZOT24_HERDR_SSH_PORT}
     # Optional user-provided secrets (ANTHROPIC_API_KEY, OPENAI_API_KEY, …)
     # and git identity (GIT_AUTHOR_NAME, …). Drop a KEY=VALUE file at
     # <app-data>/data/.env over SSH; it is read on every (re)start.
