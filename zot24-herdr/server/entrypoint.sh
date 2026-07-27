@@ -144,19 +144,14 @@ chmod 600 "$run_dir/sshd_config"
 echo "ssh: listening on ${ssh_port} (key auth only, user 'node')"
 EOF
 
-# Start the headless herdr server (default session) so agents keep running
-# even when no client is attached, and so `herdr session list` works for SSH
-# clients (e.g. Moshi's herdr picker) before anyone opens the web UI. If it
-# exits early (e.g. a stale socket after an unclean shutdown), the first
-# client attach via ttyd will spawn a fresh server instead.
-gosu "$RUN_USER" herdr server &
+# Status page for the Umbrel app tile. Umbrel requires every app to answer on
+# its manifest `port`, and there is deliberately no browser terminal here — a
+# web terminal would be full shell access to a container holding API keys and
+# git credentials, guarded by one password. The page is read-only: it says the
+# server is up, lists sessions, and tells you to SSH in.
+gosu "$RUN_USER" node /usr/local/lib/herdr-status.js &
 
-# Web UI: ttyd attaches each browser session to the herdr TUI as a plain
-# client. Closing the tab only detaches that client; the server (and every
-# agent in it) keeps running. ttyd is reachable only through Umbrel's app
-# proxy, which enforces Umbrel authentication — there is deliberately no
-# second credential here and no published port.
-exec gosu "$RUN_USER" ttyd \
-    --port 7681 \
-    --interface 0.0.0.0 \
-    herdr
+# The headless herdr server is PID 1: it owns every pane and agent, so if it
+# dies the container should die with it and be restarted by compose, rather
+# than lingering with a status page and an SSH port that attach to nothing.
+exec gosu "$RUN_USER" herdr server

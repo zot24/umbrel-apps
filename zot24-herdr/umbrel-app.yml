@@ -16,10 +16,10 @@ description: >-
   How you attach:
 
 
-  - Web terminal (built in): open the app tile for the full Herdr TUI in your
-    browser, served by ttyd and protected by your Umbrel login. Works from
-    any browser on your network; pair with the Tailscale app for access on
-    the go.
+  - No browser terminal, on purpose: a web terminal is full shell access to
+    a container holding your API keys and git credentials, behind a single
+    password. The app tile shows a read-only status page — server state, your
+    sessions, and the command to attach.
 
 
   - Phone (Moshi or any SSH client): the app runs its own SSH server on port
@@ -37,7 +37,7 @@ description: >-
 
 
   - Persistent sessions: the Herdr server runs headless in the container.
-    Closing the browser tab only detaches that client — agents keep running.
+    Disconnecting only detaches your client — agents keep running.
 
 
   - Your data stays home: Herdr config, session state, workspaces, and
@@ -47,17 +47,18 @@ description: >-
 
   - Agent-CLI ready: Node.js LTS + npm are preinstalled and global installs
     land on the persistent volume, so `npm install -g
-    @anthropic-ai/claude-code` sticks. Git, curl, mosh, and an OpenSSH client
-    are included.
+    @anthropic-ai/claude-code` sticks. Git, curl, mosh and OpenSSH are
+    included, and an SSH login inherits your .env secrets and agent CLIs.
 
 
   Setup Instructions:
 
 
-  1. Install the app and open it — you land in a Herdr TUI.
+  1. Install the app and open the tile — it shows whether Herdr is running
+     and how to attach. You drive Herdr over SSH, not in the browser.
 
 
-  2. Install your agent CLIs from the web terminal, e.g. `npm install -g
+  2. Install your agent CLIs over SSH, e.g. `npm install -g
      @anthropic-ai/claude-code`, then enable session restore with
      `herdr integration install claude` (repeat per agent; check
      `herdr integration status`).
@@ -95,7 +96,7 @@ description: >-
     credentials — but not your Umbrel host.
 
 
-  - The web terminal on port 7681 is read-only (a live view of the TUI) and
+  - Port 7681 serves a read-only status page — no terminal, no input — and
     is authenticated by Umbrel's app proxy. Do not publish it or tunnel the
     app to the public internet.
 
@@ -107,14 +108,17 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
-  Adds a built-in SSH server on port 7682 so phones (Moshi) and laptops
-  (`herdr --remote`) attach straight to Herdr — no shell on the Umbrel host,
+  Removes the browser terminal and adds a built-in SSH server on port 7682,
+  so phones (Moshi) and laptops (`herdr --remote`) attach straight to Herdr — no shell on the Umbrel host,
   no wrapper script, and no need to put your user in the docker group. Key
   authentication only: add SSH_AUTHORIZED_KEYS to the app's .env (or a key to
   data/.ssh/authorized_keys) and restart; without a key the SSH server does
   not start. Host key and authorized_keys live on the app data volume, so the
   fingerprint survives app updates. An SSH login now also picks up your .env
-  secrets and npm-installed agent CLIs. Herdr itself is unchanged at v0.7.5.
+  secrets and npm-installed agent CLIs. The app tile is now a read-only status
+  page (sessions + how to attach) instead of a web terminal — a browser shell
+  into a container holding your API keys was never worth the risk. Herdr
+  itself is unchanged at v0.7.5.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []
