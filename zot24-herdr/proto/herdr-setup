@@ -177,8 +177,8 @@ const handoff = () => {
 	out('Some credentials are minted by a browser flow or a device-code login.')
 	out('Run these where they belong, then come back and paste the result:')
 	out()
-	out(`  ${c.cyan}claude setup-token${c.reset}            ${c.dim}on your laptop — prints a 1-year token${c.reset}`)
-	out(`  ${c.dim}                              paste it as CLAUDE_CODE_OAUTH_TOKEN above${c.reset}`)
+	out(`  ${c.cyan}claude setup-token${c.reset}            ${c.dim}option 4 runs it here once Claude Code is installed;${c.reset}`)
+	out(`  ${c.dim}                              or run it on your laptop and paste the token${c.reset}`)
 	out(`  ${c.cyan}grok login --device-auth${c.reset}      ${c.dim}over SSH — device-code flow, no browser needed here${c.reset}`)
 	out(`  ${c.cyan}gh auth login --with-token${c.reset}    ${c.dim}over SSH${c.reset}`)
 	out()
@@ -193,11 +193,75 @@ const handoff = () => {
 	out(`${c.dim}Restart the app from the Umbrel app store page when you need the last three.${c.reset}`)
 }
 
+// The single, deliberate exception to "this wizard execs nothing".
+//
+// `claude setup-token` is an OAuth dance, not a shell: it prints an authorize
+// URL (you open it on your laptop or phone), Anthropic's callback page shows a
+// code, you paste the code back into this terminal, and the CLI prints a
+// one-year token. No browser is needed inside the container — the paste-code
+// leg is exactly what a terminal is for.
+//
+// Scope rules that keep this from becoming "the PTY can run agent CLIs":
+//   - argv is a constant: the resolved claude binary + the literal string
+//     'setup-token'. Never the bare `claude` REPL, never user input.
+//   - resolved only from /data/.npm-global/bin (where the owner installs it);
+//     if it is not installed, this option explains and does nothing.
+//   - note the honest caveat: that path is on the user-writable volume, so
+//     anything that can already write /data can swap the binary — but anything
+//     that can write /data already has code execution in this container.
+const claudeSetupTokenFlow = async () => {
+	heading('Claude subscription login')
+	const {spawnSync} = require('node:child_process')
+	const claudeBin = path.join(DATA_DIR, '.npm-global', 'bin', 'claude')
+
+	if (!fs.existsSync(claudeBin)) {
+		out(`${c.yellow}  Claude Code is not installed yet.${c.reset}`)
+		out(`${c.dim}  Install it over SSH first:  npm install -g @anthropic-ai/claude-code${c.reset}`)
+		out(`${c.dim}  Or run  claude setup-token  on your laptop and paste the token under option 1.${c.reset}`)
+		return
+	}
+
+	out(`${c.dim}This runs ${c.reset}${c.cyan}claude setup-token${c.reset}${c.dim} — and only that — right here.${c.reset}`)
+	out(`${c.dim}It will print a URL: open it on your laptop or phone, sign in to your${c.reset}`)
+	out(`${c.dim}Claude subscription, and paste the code it gives you back into this terminal.${c.reset}`)
+	out(`${c.dim}Ctrl+C inside it cancels. When it prints a token, copy it — you paste it${c.reset}`)
+	out(`${c.dim}as CLAUDE_CODE_OAUTH_TOKEN in the next step.${c.reset}`)
+	out()
+
+	// readline must let go of stdin while the child owns the terminal.
+	rl.pause()
+	const result = spawnSync(claudeBin, ['setup-token'], {
+		stdio: 'inherit',
+		env: {
+			PATH: `${path.join(DATA_DIR, '.npm-global', 'bin')}:/usr/local/bin:/usr/bin:/bin`,
+			HOME: DATA_DIR,
+			TERM: process.env.TERM || 'xterm-256color',
+			LANG: process.env.LANG || 'C.UTF-8',
+		},
+	})
+	rl.resume()
+	out()
+
+	if (result.error) {
+		out(`${c.red}  Could not run it: ${result.error.message}${c.reset}`)
+		return
+	}
+	if (result.status !== 0) {
+		out(`${c.yellow}  setup-token exited with code ${result.status}. Nothing was saved.${c.reset}`)
+		return
+	}
+
+	out(`${c.green}  Done. If it printed a token, save it now:${c.reset}`)
+	const entry = catalog.credentials.find((e) => e.name === 'CLAUDE_CODE_OAUTH_TOKEN')
+	await saveCredential(entry)
+}
+
 const MENU = `
   ${c.bold}1${c.reset}  Agent credentials      ${c.dim}Anthropic, xAI, Gemini, Vercel, GitHub${c.reset}
   ${c.bold}2${c.reset}  Git identity           ${c.dim}what your agents commit as${c.reset}
   ${c.bold}3${c.reset}  SSH access             ${c.dim}authorise a public key${c.reset}
-  ${c.bold}4${c.reset}  Show configuration     ${c.dim}presence only, never values${c.reset}
+  ${c.bold}4${c.reset}  Claude subscription    ${c.dim}runs claude setup-token, in place${c.reset}
+  ${c.bold}5${c.reset}  Show configuration     ${c.dim}presence only, never values${c.reset}
   ${c.bold}q${c.reset}  Finish
 `
 
@@ -214,8 +278,9 @@ const main = async () => {
 		else if (choice === '1') await credentialsFlow()
 		else if (choice === '2') await gitFlow()
 		else if (choice === '3') await sshFlow()
-		else if (choice === '4') summary()
-		else out(`${c.dim}  Pick 1-4 or q.${c.reset}`)
+		else if (choice === '4') await claudeSetupTokenFlow()
+		else if (choice === '5') summary()
+		else out(`${c.dim}  Pick 1-5 or q.${c.reset}`)
 	}
 
 	handoff()
