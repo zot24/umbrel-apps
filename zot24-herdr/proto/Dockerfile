@@ -57,7 +57,8 @@ RUN chmod +x /app/herdr-setup
 RUN mkdir -p /app/assets \
     && cp node_modules/@xterm/xterm/lib/xterm.js /app/assets/xterm.js \
     && cp node_modules/@xterm/xterm/css/xterm.css /app/assets/xterm.css \
-    && cp node_modules/@xterm/addon-fit/lib/addon-fit.js /app/assets/addon-fit.js
+    && cp node_modules/@xterm/addon-fit/lib/addon-fit.js /app/assets/addon-fit.js \
+    && cp node_modules/@xterm/addon-web-links/lib/addon-web-links.js /app/assets/addon-web-links.js
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

@@ -86,6 +86,8 @@ const wizard = ({token, sshPort, first = false}) =>
   <div class="row-actions">
     <a class="button" href="/">Status page</a>
     <button id="restart" hidden>Run again</button>
+    <a class="button" id="openauth" href="#" target="_blank" rel="noopener noreferrer" hidden
+       style="border-color: var(--ok); color: var(--ok);">Open sign-in page ↗</a>
   </div>
 
   <h2>What this terminal is</h2>
@@ -98,26 +100,66 @@ const wizard = ({token, sshPort, first = false}) =>
 
 <script src="/assets/xterm.js"></script>
 <script src="/assets/addon-fit.js"></script>
+<script src="/assets/addon-web-links.js"></script>
 <script>
 (() => {
   const token = ${JSON.stringify(token)}
   const statusEl = document.getElementById('status')
   const restartEl = document.getElementById('restart')
+  const openAuthEl = document.getElementById('openauth')
   const term = new Terminal({
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
     fontSize: 13,
     cursorBlink: true,
     theme: {background: '#0b0e14'},
+    // OSC 8 hyperlinks: claude setup-token wraps its authorize URL in one, so
+    // the terminal-rendered link carries the FULL url even though the visible
+    // text is hard-wrapped/truncated. Clicking it opens a new tab.
+    linkHandler: {
+      activate: (event, uri) => window.open(uri, '_blank', 'noopener,noreferrer'),
+    },
   })
   const fit = new FitAddon.FitAddon()
   term.loadAddon(fit)
+  // Any URL printed in the terminal is clickable (opens a new tab). This is
+  // how the claude setup-token authorize URL gets opened without the wizard
+  // ever needing a browser inside the container.
+  term.loadAddon(new WebLinksAddon.WebLinksAddon((event, uri) => {
+    window.open(uri, '_blank', 'noopener,noreferrer')
+  }))
   term.open(document.getElementById('term'))
   fit.fit()
+
+  // Watch the raw PTY stream for an OAuth authorize URL and surface it as a
+  // proper button too — clicking a wrapped URL in a terminal is fiddly,
+  // especially on a phone. Detection is on the unwrapped stream (soft-wrap is
+  // a render artifact; the data arrives unbroken), ANSI-stripped.
+  let streamTail = ''
+  // Preferred source: OSC 8 hyperlinks (ESC ]8;params;URL BEL). claude
+  // setup-token emits its authorize URL as one, unbroken — the visible text is
+  // hard-wrapped by its renderer, but the escape sequence carries the whole
+  // thing. Fallback: a plain https:// match on the ANSI-stripped stream, for
+  // tools that print bare URLs (may be cut short if their renderer hard-wraps).
+  const OSC8_URL = new RegExp('\\u001b\\]8;[^;\\u0007]*;(https://[^\\u0007\\u001b]*(?:oauth|authorize)[^\\u0007\\u001b]*)\\u0007', 'i')
+  const ANSI = new RegExp('\\u001b\\[[0-9;?]*[A-Za-z]|\\u001b\\][^\\u0007]*\\u0007', 'g')
+  const AUTH_URL = new RegExp('https://[^\\s"\\u0027]*(?:oauth|authorize)[^\\s"\\u0027]*', 'i')
+  const watchForAuthUrl = (chunk) => {
+    streamTail = (streamTail + chunk).slice(-8192)
+    const osc = streamTail.match(OSC8_URL)
+    const match = osc ? osc[1] : (streamTail.replace(ANSI, '').match(AUTH_URL) || [])[0]
+    if (match && openAuthEl.href !== match) {
+      openAuthEl.href = match
+      openAuthEl.hidden = false
+      statusEl.textContent = 'sign-in URL detected — use the green button, then paste the code back here'
+    }
+  }
 
   let socket = null
 
   const connect = () => {
     restartEl.hidden = true
+    openAuthEl.hidden = true
+    streamTail = ''
     term.reset()
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws'
     socket = new WebSocket(scheme + '://' + location.host + '/api/pty?token=' + encodeURIComponent(token))
@@ -130,7 +172,7 @@ const wizard = ({token, sshPort, first = false}) =>
     }
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data)
-      if (message.type === 'data') term.write(message.data)
+      if (message.type === 'data') { term.write(message.data); watchForAuthUrl(message.data) }
       else if (message.type === 'notice') term.write(message.data)
       else if (message.type === 'exit') {
         statusEl.textContent = message.code === 0
