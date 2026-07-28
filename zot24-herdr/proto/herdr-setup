@@ -222,8 +222,9 @@ const claudeSetupTokenFlow = async () => {
 	}
 
 	out(`${c.dim}This runs ${c.reset}${c.cyan}claude setup-token${c.reset}${c.dim} — and only that — right here.${c.reset}`)
-	out(`${c.dim}It will print a URL: open it on your laptop or phone, sign in to your${c.reset}`)
-	out(`${c.dim}Claude subscription, and paste the code it gives you back into this terminal.${c.reset}`)
+	out(`${c.dim}When the sign-in URL appears, a green "Open sign-in page" button shows up${c.reset}`)
+	out(`${c.dim}under this terminal (the URL is also clickable). Sign in to your Claude${c.reset}`)
+	out(`${c.dim}subscription there, then paste the code it gives you back into this terminal.${c.reset}`)
 	out(`${c.dim}Ctrl+C inside it cancels. When it prints a token, copy it — you paste it${c.reset}`)
 	out(`${c.dim}as CLAUDE_CODE_OAUTH_TOKEN in the next step.${c.reset}`)
 	out()
