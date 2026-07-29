@@ -90,12 +90,41 @@ const wizard = ({token, sshPort, first = false}) =>
        style="border-color: var(--ok); color: var(--ok);">Open sign-in page ↗</a>
   </div>
 
+  <h2>Claude with your subscription — recommended</h2>
+  <p class="dim">Use your Claude Pro/Max subscription, not an API key. The token is minted
+     on your own computer; only the finished token ever touches this box.</p>
+  <table>
+    <tr><td><span class="ok">laptop</span></td>
+        <td style="text-align:left"><pre style="margin:0">claude setup-token</pre>
+            <span class="sub">Runs browser sign-in and prints a long-lived token
+            (<code>sk-ant-oat01-…</code>, about a year, needs a Claude subscription).</span></td></tr>
+    <tr><td><span class="warn">umbrel</span></td>
+        <td style="text-align:left">Paste the token in the wizard above — option
+            <strong>1</strong>, field <code>CLAUDE_CODE_OAUTH_TOKEN</code>. (Or add
+            <code>CLAUDE_CODE_OAUTH_TOKEN=&lt;token&gt;</code> to the app's
+            <code>data/.env</code> yourself.)</td></tr>
+    <tr><td><span class="warn">umbrel</span></td>
+        <td style="text-align:left">Restart the app from the Umbrel dashboard so
+            everything picks it up. New SSH logins see it immediately.</td></tr>
+  </table>
+
+  <div class="banner warn"><strong>Set one Claude credential, never both.</strong>
+     <code>ANTHROPIC_API_KEY</code> silently outranks <code>CLAUDE_CODE_OAUTH_TOKEN</code> —
+     if both are set, Claude Code bills API usage per token while you believe you are on
+     your subscription. Using the subscription token? Leave the API key unset.</div>
+
+  <p class="dim">Also in this wizard: option <strong>4</strong> runs
+     <code>claude setup-token</code> right here once Claude Code is installed —
+     the sign-in URL opens in a new tab and you paste the code back.
+     Fallback without either: <code>docker exec -it zot24-herdr_server_1 claude auth login</code>
+     prints the sign-in URL to the terminal; open it on your laptop, paste the code back.</p>
+
   <h2>What this terminal is</h2>
   <p class="dim">It runs one fixed program — this app's setup script — and never a shell.
      That is why a terminal is acceptable here when a full web terminal was not:
      the wizard prompts, writes <code>.env</code>, and exits. It cannot be steered
-     somewhere else. Everything the wizard cannot do (minting a Claude subscription
-     token, device-code logins) it tells you to run over
+     somewhere else. Anything else it cannot do (device-code logins, installing CLIs)
+     it tells you to run over
      <code>ssh -p ${sshPort} node@&lt;your-umbrel&gt;</code> instead.</p>
 
 <script src="/assets/xterm.js"></script>

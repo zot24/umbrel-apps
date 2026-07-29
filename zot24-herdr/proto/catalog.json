@@ -5,16 +5,16 @@
       "label": "Claude Code — API billing",
       "prompt": "Anthropic Console API key",
       "docs": "https://console.anthropic.com/settings/keys",
-      "fix": "Paste a Console API key. Billed per token, not against a subscription.",
-      "note": "Outranks CLAUDE_CODE_OAUTH_TOKEN in Claude Code's credential precedence."
+      "fix": "API billing — do not combine with the subscription token. Billed per token, not against a subscription.",
+      "note": "Silently outranks CLAUDE_CODE_OAUTH_TOKEN: if both are set, this key wins and you are billed API usage. Set one or the other, never both."
     },
     {
       "name": "CLAUDE_CODE_OAUTH_TOKEN",
-      "label": "Claude Code — Pro/Max subscription",
-      "prompt": "Long-lived token from `claude setup-token`",
+      "label": "Claude Code — Pro/Max subscription (recommended)",
+      "prompt": "Long-lived token from `claude setup-token` (sk-ant-oat01-…)",
       "docs": "https://docs.claude.com/en/docs/claude-code",
-      "fix": "Run `claude setup-token` on a machine with a browser, then paste the token here.",
-      "note": "This wizard cannot mint it: minting is a browser flow with no headless variant."
+      "fix": "On your laptop: run `claude setup-token`, sign in, paste the printed token here.",
+      "note": "Uses your Claude subscription, no per-token billing. Make sure ANTHROPIC_API_KEY stays unset — it silently outranks this token."
     },
     {
       "name": "XAI_API_KEY",
