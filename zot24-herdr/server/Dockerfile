@@ -6,6 +6,7 @@
 #   - herdr v0.7.5 (pinned release binary, sha256-verified per arch)
 #   - ttyd web terminal (the Umbrel app UI, behind Umbrel's app proxy auth)
 #   - agent-bridge (internal HTTP API on :7682 for sibling apps — NOT proxied)
+#   - sshd (key-only SSH straight into the app on :7683 — phone/laptop attach)
 #   - mosh + openssh-client (documented phone attach path, see README)
 #   - Node.js 22 + npm (agent CLIs install into the persistent /data volume)
 #   - git, curl, gh (GitHub CLI for agent workflows inside the box)
@@ -38,6 +39,7 @@ RUN apt-get update \
         gosu \
         mosh \
         openssh-client \
+        openssh-server \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -46,6 +48,11 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/* \
+    # Debian's openssh-server postinst generates host keys at build time. Drop
+    # them: an image-baked host key is the SAME key on every installation of
+    # this app. The entrypoint generates a per-install key on the /data volume
+    # instead (which also keeps the fingerprint stable across app updates).
+    && rm -f /etc/ssh/ssh_host_* \
     && gh --version
 
 # Pinned herdr + ttyd binaries, each verified against the recorded sha256
@@ -68,8 +75,10 @@ RUN set -eux; \
     ttyd --version
 
 COPY entrypoint.sh /entrypoint.sh
-COPY agent-bridge.mjs bootstrap-agents.sh /usr/local/lib/herdr-umbrel/
-RUN chmod +x /entrypoint.sh /usr/local/lib/herdr-umbrel/bootstrap-agents.sh \
+COPY agent-bridge.mjs bootstrap-agents.sh ssh-login.sh /usr/local/lib/herdr-umbrel/
+RUN chmod +x /entrypoint.sh \
+        /usr/local/lib/herdr-umbrel/bootstrap-agents.sh \
+        /usr/local/lib/herdr-umbrel/ssh-login.sh \
     && chmod 644 /usr/local/lib/herdr-umbrel/agent-bridge.mjs
 
 # HOME must live on the Umbrel-managed volume so ~/.config/herdr (config,
@@ -86,9 +95,12 @@ ENV HOME=/data \
     PATH="/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:${PATH}" \
     LANG=C.UTF-8 \
     TERM=xterm-256color \
-    HERDR_AGENT_PORT=7682
+    HERDR_AGENT_PORT=7682 \
+    HERDR_SSH_PORT=7683
 
-EXPOSE 7681 7682
+# 7681 ttyd (via app_proxy) · 7682 agent-bridge (internal, Hermes) ·
+# 7683 sshd (published on the host by docker-compose.yml).
+EXPOSE 7681 7682 7683
 
 # The base image's unprivileged `node` user (UID 1000) is the runtime user.
 # We still start as root so the entrypoint can chown the Umbrel-mounted /data

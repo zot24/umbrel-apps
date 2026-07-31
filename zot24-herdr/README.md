@@ -7,7 +7,8 @@ your Umbrel box. Your agents (Claude Code, Codex, Gemini, …) keep running
 and everything is exactly where you left it.
 
 - **App ID**: `zot24-herdr`
-- **Port**: 7681 (web terminal, behind Umbrel auth — never exposed directly)
+- **Ports**: 7681 web terminal (behind Umbrel auth, never published) · 7682
+  agent-bridge (internal only, sibling apps) · 7683 SSH (published, key-only)
 - **Upstream**: [ogulcancelik/herdr](https://github.com/ogulcancelik/herdr) v0.7.5 (AGPL-3.0)
 
 ## How it's wired
@@ -51,16 +52,50 @@ Open the Herdr tile in the Umbrel dashboard. ttyd serves the full Herdr TUI
 in the browser; Umbrel's app proxy enforces your Umbrel login. Detach with
 `ctrl+b q` or just close the tab — the server and agents keep running.
 
-### (b) Phone — Moshi over SSH/Mosh (recommended)
+### (b) Phone — Moshi, straight into the app on 7683 (recommended)
+
+The app runs its own sshd on **7683** (published on the host). You connect to
+the container, not to the Umbrel host — no wrapper script, and your user does
+not need to be in the `docker` group.
+
+**One-time: authorise a key.** There is no password on this account, so sshd
+does not start until a public key exists. Two ways, pick either:
+
+```bash
+# (i) drop it in the app's data dir, from a host shell
+mkdir -p ~/umbrel/app-data/zot24-herdr/data/.ssh
+chmod 700 ~/umbrel/app-data/zot24-herdr/data/.ssh
+echo "ssh-ed25519 AAAA… phone" >> ~/umbrel/app-data/zot24-herdr/data/.ssh/authorized_keys
+chmod 600 ~/umbrel/app-data/zot24-herdr/data/.ssh/authorized_keys
+
+# (ii) or via the .env the app already reads (';' between keys), then restart
+#   …/zot24-herdr/data/.env
+#   SSH_AUTHORIZED_KEYS=ssh-ed25519 AAAA… phone;ssh-ed25519 AAAA… laptop
+```
+
+Until a key exists, the app log says so and no SSH daemon runs.
+
+**Then, from the phone:**
 
 1. Put the Umbrel box and your phone on the same tailnet (install the
    Tailscale Umbrel app; sign in on both devices). Do **not** port-forward
-   SSH on your router.
-2. SSH from the phone to the **host** (Moshi, Blink, Termius…), then:
+   anything on your router.
+2. Connect as user `node` on port 7683 — a bare login lands you in the Herdr
+   TUI directly:
 
    ```bash
-   docker exec -it zot24-herdr_server_1 herdr
+   ssh -p 7683 node@your-umbrel
    ```
+
+   An explicit command still runs, which is what makes Moshi's native Herdr
+   picker work with no host-side setup:
+
+   ```bash
+   ssh -p 7683 node@your-umbrel herdr session list --json
+   ```
+
+**Legacy path (still works):** SSH to the host and `docker exec -it
+zot24-herdr_server_1 herdr`.
 
 3. Optional but recommended — install this wrapper on the host so `herdr`
    works as if it were installed natively (Moshi's herdr picker runs
@@ -92,9 +127,17 @@ Herdr still owns persistence.
 
 With the wrapper from (b) in place and Herdr installed locally:
 
+```
+# ~/.ssh/config
+Host umbrel-herdr
+    HostName your-umbrel
+    User node
+    Port 7683
+```
+
 ```bash
-herdr --remote umbrel            # umbrel = an entry in ~/.ssh/config
-herdr --remote umbrel --session agents
+herdr --remote umbrel-herdr
+herdr --remote umbrel-herdr --session agents
 ```
 
 The local process is a thin client; the server on your Umbrel owns the
@@ -188,6 +231,8 @@ Everything lives under the app data volume mounted at `/data` (which is also
 | `/data/.local/bin/`, `/data/.kimi/` | Kimi / other user-local bins |
 | `/data/workspaces/` | your git clones / project dirs |
 | `/data/.env` | secrets + git identity + bootstrap flags (compose `env_file`) |
+| `/data/.ssh/` | SSH host key + `authorized_keys` (host key generated once, so clients don't see a changed fingerprint after an app update) |
+| `/data/.profile` | seeded once: puts agent CLIs on `PATH` and sources `.env` so an SSH login matches the web terminal |
 
 Persistence semantics are Herdr's own: detach keeps processes alive; a
 container restart restarts the server and restores the session layout, and
