@@ -1,0 +1,81 @@
+{
+  "credentials": [
+    {
+      "name": "ANTHROPIC_API_KEY",
+      "label": "Claude Code — API billing",
+      "prompt": "Anthropic Console API key",
+      "docs": "https://console.anthropic.com/settings/keys",
+      "fix": "API billing — do not combine with the subscription token. Billed per token, not against a subscription.",
+      "note": "Silently outranks CLAUDE_CODE_OAUTH_TOKEN: if both are set, this key wins and you are billed API usage. Set one or the other, never both."
+    },
+    {
+      "name": "CLAUDE_CODE_OAUTH_TOKEN",
+      "label": "Claude Code — Pro/Max subscription (recommended)",
+      "prompt": "Long-lived token from `claude setup-token` (sk-ant-oat01-…)",
+      "docs": "https://docs.claude.com/en/docs/claude-code",
+      "fix": "On your laptop: run `claude setup-token`, sign in, paste the printed token here.",
+      "note": "Uses your Claude subscription, no per-token billing. Make sure ANTHROPIC_API_KEY stays unset — it silently outranks this token."
+    },
+    {
+      "name": "XAI_API_KEY",
+      "label": "grok — API billing",
+      "prompt": "xAI API key",
+      "docs": "https://console.x.ai",
+      "fix": "Paste an xAI API key, or run `grok login --device-auth` over SSH for a subscription."
+    },
+    {
+      "name": "GEMINI_API_KEY",
+      "label": "Gemini",
+      "prompt": "Google AI Studio API key",
+      "docs": "https://aistudio.google.com/apikey",
+      "fix": "Paste a Google AI Studio key.",
+      "note": "UNVERIFIED that the Gemini CLI reads this name — see the report."
+    },
+    {
+      "name": "VERCEL_TOKEN",
+      "label": "Vercel CLI",
+      "prompt": "Vercel account token",
+      "docs": "https://vercel.com/account/tokens",
+      "fix": "Paste a Vercel account token."
+    },
+    {
+      "name": "GH_TOKEN",
+      "label": "GitHub CLI",
+      "prompt": "GitHub personal access token",
+      "docs": "https://github.com/settings/tokens",
+      "fix": "Paste a PAT, or run `gh auth login --with-token` over SSH."
+    },
+    {
+      "name": "GIT_AUTHOR_NAME",
+      "label": "git identity — name",
+      "prompt": "Name for git commits",
+      "secret": false,
+      "fix": "Set the name agents will commit as."
+    },
+    {
+      "name": "GIT_AUTHOR_EMAIL",
+      "label": "git identity — email",
+      "prompt": "Email for git commits",
+      "secret": false,
+      "fix": "Set the email agents will commit as."
+    }
+  ],
+  "providerKeys": [
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "XAI_API_KEY",
+    "GEMINI_API_KEY"
+  ],
+  "tools": [
+    {"bin": "herdr", "label": "Herdr"},
+    {"bin": "node", "label": "Node.js"},
+    {"bin": "npm", "label": "npm"},
+    {"bin": "git", "label": "git"},
+    {"bin": "claude", "label": "Claude Code", "install": "npm install -g @anthropic-ai/claude-code"},
+    {"bin": "grok", "label": "grok", "install": "npm install -g @vibe-kit/grok-cli"},
+    {"bin": "codex", "label": "Codex", "install": "npm install -g @openai/codex"},
+    {"bin": "gemini", "label": "Gemini CLI", "install": "npm install -g @google/gemini-cli"},
+    {"bin": "vercel", "label": "Vercel CLI", "install": "npm install -g vercel"},
+    {"bin": "gh", "label": "GitHub CLI", "install": "see cli.github.com"}
+  ]
+}

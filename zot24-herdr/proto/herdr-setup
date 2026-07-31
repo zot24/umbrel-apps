@@ -1,0 +1,298 @@
+#!/usr/bin/env node
+// The wizard. This is the ONLY thing the browser PTY ever execs.
+//
+// Written in Node rather than shell on purpose: the PTY's process tree then
+// contains no shell at all, and nothing in it interpolates a string into a
+// command. It prompts, it writes two files, it exits. It deliberately does not
+// exec any third-party agent CLI — see reports/2026-07-27/HERDR-SETUP-PAGE.md §4c:
+// /setup is gated by the Umbrel password alone, while SSH is gated by a key, so
+// a wizard that could reach a subshell would be a more weakly authenticated path
+// into this container than the app's own documented front door.
+//
+// Anything that genuinely needs a CLI (minting a Claude subscription token, a
+// device-code login) is printed as a command to run over SSH instead.
+
+const fs = require('node:fs')
+const path = require('node:path')
+const readline = require('node:readline')
+
+const catalog = require('./catalog.json')
+const envfile = require('./lib/envfile')
+
+const DATA_DIR = process.env.HERDR_DATA_DIR || '/data'
+const ENV_FILE = path.join(DATA_DIR, '.env')
+const SSH_DIR = path.join(DATA_DIR, '.ssh')
+const AUTHORIZED_KEYS = path.join(SSH_DIR, 'authorized_keys')
+const SSH_PORT = process.env.HERDR_SSH_PORT || '7682'
+
+const c = {
+	reset: '[0m',
+	bold: '[1m',
+	dim: '[2m',
+	green: '[32m',
+	yellow: '[33m',
+	red: '[31m',
+	cyan: '[36m',
+}
+
+const out = (text = '') => process.stdout.write(`${text}\r\n`)
+const rule = () => out(`${c.dim}${'─'.repeat(58)}${c.reset}`)
+const heading = (text) => {
+	out()
+	out(`${c.bold}${text}${c.reset}`)
+	rule()
+}
+
+const rl = readline.createInterface({input: process.stdin, output: process.stdout, terminal: true})
+rl.on('SIGINT', () => {
+	out()
+	out(`${c.dim}Cancelled. Nothing further was written.${c.reset}`)
+	process.exit(130)
+})
+
+const ask = (query, {secret = false} = {}) =>
+	new Promise((resolve) => {
+		process.stdout.write(query)
+		if (secret) rl._writeToOutput = () => {}
+		rl.question('', (answer) => {
+			if (secret) {
+				delete rl._writeToOutput
+				process.stdout.write('\r\n')
+			}
+			resolve(answer.trim())
+		})
+	})
+
+const currentEnv = () => envfile.read(ENV_FILE)
+
+const authorizedKeyLines = () => {
+	try {
+		return fs
+			.readFileSync(AUTHORIZED_KEYS, 'utf8')
+			.split('\n')
+			.map((l) => l.trim())
+			.filter((l) => l !== '' && !l.startsWith('#'))
+	} catch {
+		return []
+	}
+}
+
+const mark = (isSet) => (isSet ? `${c.green}set${c.reset}` : `${c.dim}not set${c.reset}`)
+
+const summary = () => {
+	const env = currentEnv()
+	const keys = authorizedKeyLines().length
+	heading('Current configuration')
+	for (const entry of catalog.credentials) {
+		const isSet = Boolean((env[entry.name] ?? '').trim())
+		out(`  ${entry.name.padEnd(24)} ${mark(isSet)}   ${c.dim}${entry.label}${c.reset}`)
+	}
+	out(`  ${'authorized_keys'.padEnd(24)} ${keys > 0 ? `${c.green}${keys} key${keys === 1 ? '' : 's'}${c.reset}` : `${c.yellow}none${c.reset}`}`)
+	out()
+	out(`${c.dim}Values are never displayed — only whether each one is present.${c.reset}`)
+}
+
+const saveCredential = async (entry) => {
+	const env = currentEnv()
+	const isSet = Boolean((env[entry.name] ?? '').trim())
+	out()
+	out(`${c.bold}${entry.label}${c.reset}  ${c.dim}(${entry.name})${c.reset}`)
+	if (entry.docs) out(`${c.dim}  ${entry.docs}${c.reset}`)
+	if (entry.note) out(`${c.yellow}  note: ${entry.note}${c.reset}`)
+	if (isSet) out(`${c.dim}  Currently set. Enter a new value to replace it, or press Enter to keep it.${c.reset}`)
+
+	const secret = entry.secret !== false
+	const value = await ask(`  ${entry.prompt}${secret ? ' (hidden)' : ''}: `, {secret})
+	if (value === '') {
+		out(`${c.dim}  Unchanged.${c.reset}`)
+		return false
+	}
+
+	try {
+		envfile.merge(ENV_FILE, {[entry.name]: value})
+		out(`${c.green}  Saved ${entry.name} to ${ENV_FILE} (0600).${c.reset}`)
+		return true
+	} catch (error) {
+		out(`${c.red}  Refused: ${error.message}${c.reset}`)
+		return false
+	}
+}
+
+const credentialsFlow = async () => {
+	heading('Agent credentials')
+	out(`${c.dim}Press Enter to skip any of these. Nothing is echoed back.${c.reset}`)
+	let changed = 0
+	for (const entry of catalog.credentials) {
+		if (entry.name.startsWith('GIT_')) continue
+		if (await saveCredential(entry)) changed += 1
+	}
+	out()
+	out(`${changed} credential${changed === 1 ? '' : 's'} written.`)
+}
+
+const gitFlow = async () => {
+	heading('Git identity')
+	out(`${c.dim}What your agents commit as.${c.reset}`)
+	for (const entry of catalog.credentials.filter((e) => e.name.startsWith('GIT_'))) {
+		await saveCredential(entry)
+	}
+}
+
+const sshFlow = async () => {
+	heading('SSH access')
+	const existing = authorizedKeyLines()
+	out(`${c.dim}This is the chicken-and-egg step: you cannot SSH in to add your first key.${c.reset}`)
+	out(`${c.dim}Currently authorised: ${existing.length} key${existing.length === 1 ? '' : 's'}.${c.reset}`)
+	out()
+	out(`${c.dim}Paste a PUBLIC key (the contents of e.g. ~/.ssh/id_ed25519.pub), or Enter to skip.${c.reset}`)
+
+	const key = await ask('  public key: ')
+	if (key === '') {
+		out(`${c.dim}  Unchanged.${c.reset}`)
+		return
+	}
+	if (!/^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp\d+|sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp\d+@openssh\.com)\s+\S+/.test(key)) {
+		out(`${c.red}  That does not look like an SSH public key. Nothing was written.${c.reset}`)
+		out(`${c.dim}  A public key starts with ssh-ed25519 / ssh-rsa and is one line.${c.reset}`)
+		return
+	}
+	if (key.includes('PRIVATE KEY')) {
+		out(`${c.red}  That is a PRIVATE key. Never paste that anywhere. Nothing was written.${c.reset}`)
+		return
+	}
+	if (existing.includes(key)) {
+		out(`${c.dim}  Already authorised.${c.reset}`)
+		return
+	}
+
+	fs.mkdirSync(SSH_DIR, {recursive: true, mode: 0o700})
+	fs.appendFileSync(AUTHORIZED_KEYS, `${key}\n`, {mode: 0o600})
+	fs.chmodSync(AUTHORIZED_KEYS, 0o600)
+	out(`${c.green}  Authorised. ${AUTHORIZED_KEYS} now has ${existing.length + 1} key(s).${c.reset}`)
+	out(`${c.yellow}  sshd only starts at container start — restart the app to bring it up.${c.reset}`)
+}
+
+const handoff = () => {
+	heading('What this wizard cannot do')
+	out('Some credentials are minted by a browser flow or a device-code login.')
+	out('Run these where they belong, then come back and paste the result:')
+	out()
+	out(`  ${c.cyan}claude setup-token${c.reset}            ${c.dim}option 4 runs it here once Claude Code is installed;${c.reset}`)
+	out(`  ${c.dim}                              or run it on your laptop and paste the token${c.reset}`)
+	out(`  ${c.cyan}grok login --device-auth${c.reset}      ${c.dim}over SSH — device-code flow, no browser needed here${c.reset}`)
+	out(`  ${c.cyan}gh auth login --with-token${c.reset}    ${c.dim}over SSH${c.reset}`)
+	out()
+	out(`${c.dim}SSH in with:  ssh -p ${SSH_PORT} node@<your-umbrel>${c.reset}`)
+
+	heading('When your changes take effect')
+	out(`  ${c.green}Immediately${c.reset}   new SSH logins — /data/.profile sources /data/.env on login`)
+	out(`  ${c.yellow}On restart${c.reset}    panes and agents already running kept the environment they started with`)
+	out(`  ${c.yellow}On restart${c.reset}    the container's own environment (compose reads .env at start)`)
+	out(`  ${c.yellow}On restart${c.reset}    sshd, if you just authorised your first key`)
+	out()
+	out(`${c.dim}Restart the app from the Umbrel app store page when you need the last three.${c.reset}`)
+}
+
+// The single, deliberate exception to "this wizard execs nothing".
+//
+// `claude setup-token` is an OAuth dance, not a shell: it prints an authorize
+// URL (you open it on your laptop or phone), Anthropic's callback page shows a
+// code, you paste the code back into this terminal, and the CLI prints a
+// one-year token. No browser is needed inside the container — the paste-code
+// leg is exactly what a terminal is for.
+//
+// Scope rules that keep this from becoming "the PTY can run agent CLIs":
+//   - argv is a constant: the resolved claude binary + the literal string
+//     'setup-token'. Never the bare `claude` REPL, never user input.
+//   - resolved only from /data/.npm-global/bin (where the owner installs it);
+//     if it is not installed, this option explains and does nothing.
+//   - note the honest caveat: that path is on the user-writable volume, so
+//     anything that can already write /data can swap the binary — but anything
+//     that can write /data already has code execution in this container.
+const claudeSetupTokenFlow = async () => {
+	heading('Claude subscription login')
+	const {spawnSync} = require('node:child_process')
+	const claudeBin = path.join(DATA_DIR, '.npm-global', 'bin', 'claude')
+
+	if (!fs.existsSync(claudeBin)) {
+		out(`${c.yellow}  Claude Code is not installed yet.${c.reset}`)
+		out(`${c.dim}  Install it over SSH first:  npm install -g @anthropic-ai/claude-code${c.reset}`)
+		out(`${c.dim}  Or run  claude setup-token  on your laptop and paste the token under option 1.${c.reset}`)
+		return
+	}
+
+	out(`${c.dim}This runs ${c.reset}${c.cyan}claude setup-token${c.reset}${c.dim} — and only that — right here.${c.reset}`)
+	out(`${c.dim}When the sign-in URL appears, a green "Open sign-in page" button shows up${c.reset}`)
+	out(`${c.dim}under this terminal (the URL is also clickable). Sign in to your Claude${c.reset}`)
+	out(`${c.dim}subscription there, then paste the code it gives you back into this terminal.${c.reset}`)
+	out(`${c.dim}Ctrl+C inside it cancels. When it prints a token, copy it — you paste it${c.reset}`)
+	out(`${c.dim}as CLAUDE_CODE_OAUTH_TOKEN in the next step.${c.reset}`)
+	out()
+
+	// readline must let go of stdin while the child owns the terminal.
+	rl.pause()
+	const result = spawnSync(claudeBin, ['setup-token'], {
+		stdio: 'inherit',
+		env: {
+			PATH: `${path.join(DATA_DIR, '.npm-global', 'bin')}:/usr/local/bin:/usr/bin:/bin`,
+			HOME: DATA_DIR,
+			TERM: process.env.TERM || 'xterm-256color',
+			LANG: process.env.LANG || 'C.UTF-8',
+		},
+	})
+	rl.resume()
+	out()
+
+	if (result.error) {
+		out(`${c.red}  Could not run it: ${result.error.message}${c.reset}`)
+		return
+	}
+	if (result.status !== 0) {
+		out(`${c.yellow}  setup-token exited with code ${result.status}. Nothing was saved.${c.reset}`)
+		return
+	}
+
+	out(`${c.green}  Done. If it printed a token, save it now:${c.reset}`)
+	const entry = catalog.credentials.find((e) => e.name === 'CLAUDE_CODE_OAUTH_TOKEN')
+	await saveCredential(entry)
+}
+
+const MENU = `
+  ${c.bold}1${c.reset}  Agent credentials      ${c.dim}Anthropic, xAI, Gemini, Vercel, GitHub${c.reset}
+  ${c.bold}2${c.reset}  Git identity           ${c.dim}what your agents commit as${c.reset}
+  ${c.bold}3${c.reset}  SSH access             ${c.dim}authorise a public key${c.reset}
+  ${c.bold}4${c.reset}  Claude subscription    ${c.dim}runs claude setup-token, in place${c.reset}
+  ${c.bold}5${c.reset}  Show configuration     ${c.dim}presence only, never values${c.reset}
+  ${c.bold}q${c.reset}  Finish
+`
+
+const main = async () => {
+	out()
+	out(`${c.bold}Herdr setup${c.reset}  ${c.dim}— prototype${c.reset}`)
+	out(`${c.dim}Data directory: ${DATA_DIR}${c.reset}`)
+	summary()
+
+	for (;;) {
+		out(MENU)
+		const choice = await ask('  > ')
+		if (choice === 'q' || choice === 'Q') break
+		else if (choice === '1') await credentialsFlow()
+		else if (choice === '2') await gitFlow()
+		else if (choice === '3') await sshFlow()
+		else if (choice === '4') await claudeSetupTokenFlow()
+		else if (choice === '5') summary()
+		else out(`${c.dim}  Pick 1-5 or q.${c.reset}`)
+	}
+
+	handoff()
+	summary()
+	out()
+	out(`${c.green}Done.${c.reset} ${c.dim}Closing — you will land on the status page.${c.reset}`)
+	rl.close()
+	process.exit(0)
+}
+
+main().catch((error) => {
+	out(`${c.red}Wizard failed: ${error.message}${c.reset}`)
+	process.exit(1)
+})

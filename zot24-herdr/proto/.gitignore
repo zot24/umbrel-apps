@@ -1,0 +1,4 @@
+# Scratch data dir for the local prototype. Never commit it — it holds whatever
+# was typed into the wizard.
+scratch-data/
+node_modules/
