@@ -4,6 +4,9 @@ services:
       context: ./server
     ports:
       - "7681:7681"
+      # sshd (see entrypoint.sh). Bound to localhost in dev: unlike production
+      # there is no Umbrel box boundary here, and this is your laptop.
+      - "127.0.0.1:7683:7683"
     volumes:
       # Named volume, not a bind mount: macOS Docker Desktop bind mounts
       # (virtiofs) can't host Unix sockets (herdr server fails with EINVAL)
