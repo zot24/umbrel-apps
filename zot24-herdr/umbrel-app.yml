@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.8.0"
+version: "0.8.1"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -22,15 +22,15 @@ description: >-
     the go.
 
 
-  - Phone (Moshi or any SSH client): SSH into your Umbrel host, then attach
-    with `docker exec -it zot24-herdr_server_1 herdr`. Moshi (getmoshi.app)
-    has native Herdr support and is the recommended phone client. The README
-    includes a host-side herdr wrapper that makes Moshi's session picker and
-    laptop `herdr --remote` work end-to-end.
+  - Phone (Moshi or any SSH client): the app runs its own SSH server on port
+    7683, so you connect straight to Herdr — no shell on your Umbrel host and
+    no wrapper script. Key authentication only; a bare login drops you in the
+    Herdr TUI. Moshi (getmoshi.app) has native Herdr support and is the
+    recommended phone client; its session picker works out of the box.
 
 
-  - Laptop thin client: with the wrapper in place, run `herdr --remote
-    <your-umbrel>` from any machine that has Herdr installed.
+  - Laptop thin client: `herdr --remote <your-umbrel>` over that same SSH
+    port, from any machine that has Herdr installed.
 
 
   Features:
@@ -81,6 +81,23 @@ description: >-
     authentication — a web terminal is full shell access to the container.
 
 
+  - Port 7683 is an SSH shell into this container, published on the Umbrel
+    host, so treat it as reachable from your whole LAN. That is safe only
+    because there is no password to guess: key authentication only, no root
+    login, and the SSH server refuses to start without an authorized key.
+    Reach it over Tailscale; never forward it on your router.
+
+
+  - The SSH server runs as an unprivileged user inside the container. A lost
+    key exposes this container — your agents, workspaces, API keys and git
+    credentials — but not your Umbrel host.
+
+
+  - Port 7682 (agent-bridge) is NOT published to the host and is not on the
+    app proxy; it is reachable only by sibling containers, authenticated with
+    HERDR_AGENT_TOKEN. Treat that token like root on this container.
+
+
   - Agent CLIs inside the container can use whatever API keys and git
     credentials you provide. Treat the app data volume like a dev workstation.
 
@@ -88,6 +105,15 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.8.1: adds a built-in SSH server on port 7683, so phones (Moshi) and laptops
+  (`herdr --remote`) attach straight to Herdr — no shell on the Umbrel host, no
+  wrapper script, and no need to put your user in the docker group. Key
+  authentication only: add SSH_AUTHORIZED_KEYS to the app's .env (or a key to
+  data/.ssh/authorized_keys) and restart; without a key the SSH server does not
+  start. Host key and authorized_keys live on the app data volume, so the
+  fingerprint survives app updates. The web terminal (7681) and the Hermes
+  agent-bridge (7682) are unchanged.
+
   0.8.0: internal agent-bridge HTTP API on :7682 for sibling apps (Hermes);
   optional HERDR_BOOTSTRAP_AGENTS installs Claude Code, Grok Build, Kimi Code,
   Vercel CLI, and Supabase CLI onto the persistent volume; GitHub CLI (gh)
