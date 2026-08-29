@@ -4,8 +4,10 @@
 set -euo pipefail
 
 export HOME=/root
+export GNUPGHOME=/root/.gnupg
 export PATH="/root/.umbrel-bin:/usr/local/bin:/usr/bin:/bin"
-mkdir -p /root/.umbrel-bin
+mkdir -p /root/.umbrel-bin "$GNUPGHOME"
+chmod 700 "$GNUPGHOME"
 
 TTYD=/root/.umbrel-bin/ttyd
 TTYD_VERSION=1.7.7
@@ -15,12 +17,26 @@ TTYD_SHA256_AARCH64=b38acadd89d1d396a0f5649aa52c539edbad07f4bc7348b27b4f4b7219dd
 need_pkgs=0
 command -v curl >/dev/null || need_pkgs=1
 command -v pkill >/dev/null || need_pkgs=1
+command -v gpg >/dev/null || need_pkgs=1
+command -v pass >/dev/null || need_pkgs=1
 if [ "$need_pkgs" -eq 1 ]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y --no-install-recommends curl ca-certificates procps
+    apt-get install -y --no-install-recommends curl ca-certificates procps gnupg pass
     rm -rf /var/lib/apt/lists/*
 fi
+
+# shenxn image keychain: gpg key "pass-key" + `pass init`. Without this,
+# proton-bridge --cli dies with "no keychain" / "password store is empty".
+ensure_keychain() {
+    if ! gpg --batch --list-keys pass-key >/dev/null 2>&1; then
+        gpg --generate-key --batch /protonmail/gpgparams
+    fi
+    if [ ! -f /root/.password-store/.gpg-id ]; then
+        pass init pass-key
+    fi
+}
+ensure_keychain
 
 if [ ! -x "$TTYD" ]; then
     arch=$(uname -m)
@@ -38,6 +54,14 @@ fi
 cat > /root/.umbrel-bin/login-cli << 'EOF'
 #!/bin/bash
 set -euo pipefail
+export HOME=/root
+export GNUPGHOME=/root/.gnupg
+if ! gpg --batch --list-keys pass-key >/dev/null 2>&1; then
+    gpg --generate-key --batch /protonmail/gpgparams
+fi
+if [ ! -f /root/.password-store/.gpg-id ]; then
+    pass init pass-key
+fi
 echo "Stopping IMAP daemon so the CLI can take the lock..."
 pkill -f '/protonmail/proton-bridge' 2>/dev/null || true
 sleep 1
@@ -60,10 +84,10 @@ if pgrep -f '/protonmail/proton-bridge' >/dev/null 2>&1; then
 else
     echo "proton-bridge: stopped (run login-cli)"
 fi
-if [ -d /root/.password-store ]; then
-    echo "keychain: present"
+if [ -f /root/.password-store/.gpg-id ]; then
+    echo "keychain: pass ready"
 else
-    echo "keychain: missing — first login required"
+    echo "keychain: missing — restart the app, or: gpg --generate-key --batch /protonmail/gpgparams && pass init pass-key"
 fi
 EOF
 
@@ -80,15 +104,14 @@ chmod +x /root/.umbrel-bin/login-cli /root/.umbrel-bin/status /root/.umbrel-bin/
 socat TCP-LISTEN:25,fork,reuseaddr TCP:127.0.0.1:1025 &
 socat TCP-LISTEN:143,fork,reuseaddr TCP:127.0.0.1:1143 &
 
-if [ -d /root/.password-store ]; then
-    rm -f /tmp/bridge.fifo
-    mkfifo /tmp/bridge.fifo
-    cat /tmp/bridge.fifo | /protonmail/proton-bridge --cli &
-fi
+rm -f /tmp/bridge.fifo
+mkfifo /tmp/bridge.fifo
+cat /tmp/bridge.fifo | /protonmail/proton-bridge --cli &
 
 cat > /tmp/bridge-console.sh << 'EOF'
 #!/bin/bash
 export HOME=/root
+export GNUPGHOME=/root/.gnupg
 export PATH="/root/.umbrel-bin:/usr/local/bin:/usr/bin:/bin"
 export PS1='bridge> '
 echo "Proton Mail Bridge  (Umbrel)"

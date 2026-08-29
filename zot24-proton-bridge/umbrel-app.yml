@@ -3,7 +3,7 @@ id: zot24-proton-bridge
 name: Proton Bridge
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-proton-bridge/icon.svg
 category: networking
-version: "0.1.2"
+version: "0.1.3"
 tagline: Proton Mail IMAP/SMTP bridge for sibling apps on your Umbrel
 description: >-
   Runs Proton Mail Bridge as a background IMAP/SMTP gateway on your Umbrel so
@@ -42,8 +42,8 @@ description: >-
   - This wraps the unofficial shenxn/protonmail-bridge image (Proton Bridge
     is GPL-3.0). Keys live on this app's data volume, not in Hermes.
 releaseNotes: >-
+  0.1.3: init gpg+pass on start (Bridge refused login with "no keychain").
   0.1.2: host UI port 7685 (7681 is already Herdr). Internal ttyd stays 7681.
-  0.1.1: pin shenxn/protonmail-bridge:build@sha256 so Umbrel will install.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []
