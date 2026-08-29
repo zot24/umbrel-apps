@@ -7,7 +7,7 @@
 #
 # Do not publish IMAP/SMTP or ttyd to the public internet.
 
-FROM shenxn/protonmail-bridge:3.26.0-build
+FROM shenxn/protonmail-bridge:build
 
 # ttyd is not in Debian sid-slim. Pin the upstream static binary.
 # Hashes verified against tsl0922/ttyd 1.7.7 SHA256SUMS (same pins as zot24-herdr).

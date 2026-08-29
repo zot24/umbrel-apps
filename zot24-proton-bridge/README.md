@@ -9,7 +9,7 @@ bot container.
 - **UI port**: 7681 (ttyd operator console, behind Umbrel auth — never expose)
 - **IMAP**: 143 (STARTTLS, internal)
 - **SMTP**: 25 (STARTTLS, internal)
-- **Upstream**: [shenxn/protonmail-bridge](https://github.com/shenxn/protonmail-bridge-docker) `3.26.0-build` wrapping Proton Bridge (GPL-3.0)
+- **Upstream**: [shenxn/protonmail-bridge](https://github.com/shenxn/protonmail-bridge-docker) `build` tag (pinned digest) wrapping Proton Bridge (GPL-3.0)
 
 ## How it's wired
 
@@ -36,9 +36,8 @@ Community store is already:
 https://github.com/zot24/umbrel-apps
 ```
 
-Install **Proton Bridge**. Until the first CI build pins `@sha256` in
-`docker-compose.yml`, Umbrel will refuse to install — merge to `main` (or run
-**Build: Proton Bridge**) first.
+Install **Proton Bridge**. Image is pinned (`shenxn/protonmail-bridge:build@sha256:…`).
+No custom GHCR build required.
 
 ## First login
 
