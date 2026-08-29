@@ -1,0 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+# shellcheck source=/dev/null
+source /usr/local/lib/bridge-daemon.sh
+start_bridge_daemon
+status_bridge

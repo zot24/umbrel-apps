@@ -1,0 +1,14 @@
+services:
+  bridge:
+    build:
+      context: ./bridge
+    ports:
+      - "7681:7681"
+      # Local-only IMAP/SMTP for Himalaya on the same machine.
+      - "127.0.0.1:1143:143"
+      - "127.0.0.1:1025:25"
+    volumes:
+      - proton-bridge-local-data:/root
+
+volumes:
+  proton-bridge-local-data:

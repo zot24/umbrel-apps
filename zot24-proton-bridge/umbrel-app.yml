@@ -1,0 +1,62 @@
+manifestVersion: 1.1
+id: zot24-proton-bridge
+name: Proton Bridge
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-proton-bridge/icon.svg
+category: networking
+version: "0.1.0"
+tagline: Proton Mail IMAP/SMTP bridge for sibling apps on your Umbrel
+description: >-
+  Runs Proton Mail Bridge as a background IMAP/SMTP gateway on your Umbrel so
+  other apps on the box (Hermes + Himalaya, scripts) can read and send mail
+  without putting Proton keys inside those apps.
+
+
+  Proton does not offer direct IMAP. Bridge decrypts locally and speaks IMAP
+  on port 143 and SMTP on port 25 inside this container. Those ports are not
+  published to the host or the internet. Sibling apps reach them over the
+  Umbrel Docker network.
+
+
+  The app tile is an operator console (ttyd) behind your Umbrel login. First
+  run: open the tile, type `login-cli`, sign in with Proton + 2FA, then `info`
+  to copy the mailbox password into 1Password. Mail stays up after you close
+  the tab.
+
+
+  Requirements:
+
+  - A paid Proton plan that includes Bridge (Mail Plus or higher). Free
+    accounts are refused.
+
+  - You log in once in this app's console. Do not paste Proton passwords into
+    chat.
+
+
+  Security notes:
+
+  - The console is authenticated only by Umbrel's app proxy. Do not publish
+    port 7681 or tunnel this app to the public internet.
+
+  - IMAP/SMTP are internal. Do not add host port mappings.
+
+  - This wraps the unofficial shenxn/protonmail-bridge image (Proton Bridge
+    is GPL-3.0). Keys live on this app's data volume, not in Hermes.
+releaseNotes: >-
+  First Umbrel release: Proton Bridge v3.26.0 (source build, amd64+arm64)
+  with a ttyd operator console behind Umbrel auth, pass/gpg keychain on the
+  app volume, and IMAP/SMTP exposed only on the container network for sibling
+  apps.
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 7681
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
