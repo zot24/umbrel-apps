@@ -1,0 +1,26 @@
+#!/bin/bash
+# Drop into Proton Bridge CLI. Stops the daemon first (only one process).
+set -euo pipefail
+# shellcheck source=/dev/null
+source /usr/local/lib/bridge-daemon.sh
+
+if [ ! -d /root/.password-store ]; then
+    echo "Initializing pass/gpg keychain (first run)..."
+    gpg --generate-key --batch /protonmail/gpgparams
+    pass init pass-key
+fi
+
+echo "Stopping daemon so the CLI can take over..."
+stop_bridge
+
+echo "Starting Bridge CLI. Type: login"
+echo "When done: info   then   exit"
+set +e
+/protonmail/proton-bridge --cli
+cli_rc=$?
+set -e
+
+echo
+echo "CLI exited (rc=$cli_rc). Restarting daemon..."
+start_bridge_daemon
+status_bridge
