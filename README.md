@@ -33,6 +33,13 @@ Terminal multiplexer for AI coding agents — persistent server on your Umbrel, 
 - **App ID**: `zot24-herdr`
 - **Port**: 7681
 
+### Proton Bridge
+
+Proton Mail IMAP/SMTP bridge for sibling apps (Hermes + Himalaya). Operator console behind Umbrel login; IMAP/SMTP stay on the container network.
+
+- **App ID**: `zot24-proton-bridge`
+- **Port**: 7681 (console). IMAP 143 / SMTP 25 internal.
+
 ## Retired Apps
 
 - **zot24-hermes** (Hermes Agent) — removed 2026-07-20; superseded by the official

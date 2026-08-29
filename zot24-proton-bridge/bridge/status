@@ -1,0 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+# shellcheck source=/dev/null
+source /usr/local/lib/bridge-daemon.sh
+status_bridge
+if [ -f /root/bridge.log ]; then
+    echo "--- last 20 log lines ---"
+    tail -n 20 /root/bridge.log || true
+fi

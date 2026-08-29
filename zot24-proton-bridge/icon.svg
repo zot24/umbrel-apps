@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Proton Bridge">
+  <rect width="512" height="512" fill="#060a0d"/>
+  <g fill="none" stroke="#50ffa8" stroke-width="18" stroke-linejoin="miter" stroke-linecap="square">
+    <rect x="96" y="176" width="320" height="200"/>
+    <path d="M96 176 L256 292 L416 176"/>
+    <path d="M176 376 L176 420 L336 420 L336 376"/>
+    <path d="M208 420 L208 448 L304 448 L304 420"/>
+  </g>
+</svg>

@@ -1,0 +1,32 @@
+services:
+  # ttyd has no auth of its own; Umbrel's app proxy (PROXY_AUTH_ADD=true)
+  # is the only way in. Do not publish 7681 or tunnel this app to the
+  # public internet — the console can run `login-cli` (Proton credentials).
+  app_proxy:
+    environment:
+      APP_HOST: zot24-proton-bridge_bridge_1
+      APP_PORT: 7681
+
+  bridge:
+    # Image + digest are populated by .github/workflows/build-proton-bridge.yml
+    # on every push that touches bridge/. Umbrel rejects unpinned images at
+    # install time, so the workflow's commit-back step is what makes this app
+    # installable. Until the first build runs, this tag has no @sha256 and
+    # the app will not install.
+    image: ghcr.io/zot24/proton-bridge-umbrel:0.1.0
+    restart: on-failure
+    init: true
+    stop_grace_period: 30s
+    # IMAP 143 and SMTP 25 stay on the container network only.
+    # They are intentionally NOT wired through app_proxy and NOT published
+    # as host ports. Sibling apps (Hermes) reach them via Docker DNS:
+    # zot24-proton-bridge_bridge_1:143 / :25
+    volumes:
+      # Upstream image keeps pass/gpg + Bridge vault under /root.
+      - ${APP_DATA_DIR}/data:/root
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:7681/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

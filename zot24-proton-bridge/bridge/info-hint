@@ -1,0 +1,17 @@
+#!/bin/bash
+cat <<'EOF'
+Mailbox password is only printed inside the Bridge CLI:
+
+  1. Run:  login-cli
+  2. Then: info
+  3. Copy the password into 1Password (not Telegram)
+  4. Type: exit    (daemon restarts)
+
+Himalaya / any IMAP client:
+  host      zot24-proton-bridge_bridge_1   (from Hermes: Docker DNS)
+            or the app's 10.21.x.x address if DNS does not resolve
+  IMAP      143   STARTTLS
+  SMTP      25    STARTTLS
+  username  your full Proton address
+  password  the Bridge mailbox password from `info`
+EOF
