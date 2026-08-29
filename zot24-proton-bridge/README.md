@@ -6,7 +6,7 @@ talks to it over Docker DNS. Proton keys stay in this app, not in the Telegram
 bot container.
 
 - **App ID**: `zot24-proton-bridge`
-- **UI port**: 7681 (ttyd operator console, behind Umbrel auth — never expose)
+- **UI host port**: 7685 (Umbrel app_proxy). Internal ttyd stays 7681. 7681 is Herdr.
 - **IMAP**: 143 (STARTTLS, internal)
 - **SMTP**: 25 (STARTTLS, internal)
 - **Upstream**: [shenxn/protonmail-bridge](https://github.com/shenxn/protonmail-bridge-docker) `build` tag (pinned digest) wrapping Proton Bridge (GPL-3.0)
@@ -17,7 +17,7 @@ bot container.
   browser (Umbrel login)
         |
         v
-  app_proxy :7681  ──►  ttyd operator console
+  app_proxy :7685  ──►  ttyd :7681 operator console
                           login-cli / status / info-hint
 
   Hermes Himalaya  ──►  zot24-proton-bridge_bridge_1:143  (IMAP)
@@ -74,5 +74,5 @@ docker compose -f docker-compose.local.yml up --build
 ## Security
 
 - ttyd is a shell that can run `login-cli`. Umbrel login is the only lock.
-- Do not port-forward 7681, 143, or 25.
+- Do not port-forward 7685, 7681, 143, or 25.
 - Not for the official Umbrel store (Proton trademark + unofficial image).
