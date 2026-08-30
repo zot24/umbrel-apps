@@ -46,6 +46,7 @@ services:
       NODE_ENV: production
       PORT: "4000"
       CLOUD_MODE: "false"
+      OPENSHIP_AUTH_MODE: local
       DEPLOY_MODE: docker
       OPENSHIP_REQUIRE_REDIS: "true"
       OPENSHIP_HOST_CONTROL: "false"
@@ -89,6 +90,7 @@ services:
       PORT: "3001"
       INTERNAL_API_URL: http://api:4000
       TRUST_PROXY: "true"
+      OPENSHIP_AUTH_MODE: local
       OPENSHIP_PUBLIC_URL: ${OPENSHIP_PUBLIC_URL:-http://umbrel.local:3001}
     env_file:
       - path: ${APP_DATA_DIR}/data/.env

@@ -16,19 +16,14 @@ Postgres + Redis + API + dashboard, Umbrel tile on **port 3001**.
 
 Community store → Openship. Hermes cannot install Umbrel apps.
 
-Open the tile. First visit creates the admin. Invite-only after that.
+Open the tile. First visit creates the admin (`OPENSHIP_AUTH_MODE=local`).
+Invite-only after that. The tile is not localhost, so zero-auth is off.
 
 ## 403 ORIGIN_REJECTED
 
 The API only trusts `http://umbrel.local:3001` unless you override it.
-
-```
-# on the Umbrel host
-printf 'OPENSHIP_PUBLIC_URL=http://YOUR-HOST:3001\n' \
-  > /home/umbrel/umbrel/app-data/zot24-openship/data/.env
-```
-
-Restart the app. Do not put that file in git. Do not paste secrets in Telegram.
+`data/.env` is root-owned after install — put `OPENSHIP_PUBLIC_URL` in
+`docker-compose.yml` instead, then restart the app.
 
 ## Upgrade
 
