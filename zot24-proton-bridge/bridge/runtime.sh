@@ -131,4 +131,12 @@ exec bash --noprofile --norc -i
 EOF
 chmod +x /tmp/bridge-console.sh
 
-exec "$TTYD" --port 7681 --interface 0.0.0.0 --writable /tmp/bridge-console.sh
+# HTTP basic auth in front of the console. Username is always `bridge`.
+# Password is Umbrel APP_PASSWORD (deterministic, shown on the app tile).
+# If compose has not been updated yet, skip --credential so a live curl of
+# this script from main cannot lock out an older install.
+ttyd_args=(--port 7681 --interface 0.0.0.0 --writable)
+if [ -n "${APP_PASSWORD:-}" ]; then
+    ttyd_args+=(--credential "bridge:${APP_PASSWORD}")
+fi
+exec "$TTYD" "${ttyd_args[@]}" /tmp/bridge-console.sh
