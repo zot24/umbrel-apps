@@ -1,11 +1,15 @@
 services:
-  # ttyd has no auth of its own; Umbrel's app proxy (PROXY_AUTH_ADD=true)
-  # is the only way in. Do not publish 7681 or tunnel this app to the
-  # public internet — the console can run login-cli (Proton credentials).
+  # Two gates, same idea as nworth's tile password:
+  # 1. Umbrel app_proxy (PROXY_AUTH_ADD=true) — dashboard login.
+  # 2. ttyd HTTP basic auth — username `bridge`, password = Umbrel
+  #    APP_PASSWORD (shown on the tile because deterministicPassword: true).
+  # Do not publish 7681 or tunnel this app to the public internet —
+  # the console can run login-cli (Proton credentials).
   app_proxy:
     environment:
       APP_HOST: zot24-proton-bridge_bridge_1
       APP_PORT: 7681
+      PROXY_AUTH_ADD: "true"
 
   bridge:
     # Pinned public image (multi-arch index). Do not use an unpinned tag —
@@ -25,6 +29,10 @@ services:
         curl -fsSL
         https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-proton-bridge/bridge/runtime.sh
         -o /tmp/runtime.sh && exec bash /tmp/runtime.sh
+    environment:
+      # Umbrel-managed app password (umbrel-app.yml deterministicPassword).
+      # runtime.sh feeds this to ttyd --credential. Do not log it.
+      APP_PASSWORD: ${APP_PASSWORD}
     volumes:
       - ${APP_DATA_DIR}/data:/root
     healthcheck:

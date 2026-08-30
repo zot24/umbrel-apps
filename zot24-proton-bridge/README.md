@@ -14,11 +14,12 @@ bot container.
 ## How it's wired
 
 ```
-  browser (Umbrel login)
+  browser (Umbrel login → HTTP basic auth)
         |
         v
   app_proxy :7685  ──►  ttyd :7681 operator console
                           login-cli / status / info-hint
+                          credential: bridge / APP_PASSWORD (tile)
 
   Hermes Himalaya  ──►  zot24-proton-bridge_bridge_1:143  (IMAP)
                    ──►  zot24-proton-bridge_bridge_1:25   (SMTP)
@@ -41,7 +42,8 @@ No custom GHCR build required.
 
 ## First login
 
-1. Open the app tile.
+1. Open the app tile. Browser asks for HTTP basic auth.
+   Username `bridge`. Password is on the Umbrel app tile (same as nworth).
 2. Type `login-cli`.
 3. In the Bridge CLI: `login` — Proton email, password, 2FA.
 4. Type `info`. Copy the **mailbox password** into 1Password. Not Telegram.
@@ -73,6 +75,7 @@ docker compose -f docker-compose.local.yml up --build
 
 ## Security
 
-- ttyd is a shell that can run `login-cli`. Umbrel login is the only lock.
+- Two gates: Umbrel dashboard login, then ttyd HTTP basic auth (username
+  `bridge`, password = Umbrel-managed `APP_PASSWORD` on the tile).
 - Do not port-forward 7685, 7681, 143, or 25.
 - Not for the official Umbrel store (Proton trademark + unofficial image).

@@ -19,10 +19,10 @@ if [ -d /root/.password-store ]; then
     start_bridge_daemon || true
 fi
 
-# Web UI: ttyd is reachable only through Umbrel's app proxy (Umbrel login).
-# Do not publish port 7681. Closing the tab does not stop the daemon.
-exec ttyd \
-    --port 7681 \
-    --interface 0.0.0.0 \
-    --writable \
-    /usr/local/bin/bridge-console
+# Web UI: Umbrel login (app_proxy) then ttyd basic auth when APP_PASSWORD is
+# set (0.1.4+). Do not publish port 7681. Closing the tab does not stop the daemon.
+ttyd_args=(--port 7681 --interface 0.0.0.0 --writable)
+if [ -n "${APP_PASSWORD:-}" ]; then
+    ttyd_args+=(--credential "bridge:${APP_PASSWORD}")
+fi
+exec ttyd "${ttyd_args[@]}" /usr/local/bin/bridge-console
