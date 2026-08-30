@@ -19,10 +19,16 @@ command -v curl >/dev/null || need_pkgs=1
 command -v pkill >/dev/null || need_pkgs=1
 command -v gpg >/dev/null || need_pkgs=1
 command -v pass >/dev/null || need_pkgs=1
+# Bridge self-update (3.25+) dlopen()s libfido2.so.1. shenxn image does not
+# ship it. apt in the running container is lost on recreate — reinstall on
+# start until we pin a rebuilt image after login is proven.
+if ! ls /usr/lib/*/libfido2.so.1 >/dev/null 2>&1; then
+    need_pkgs=1
+fi
 if [ "$need_pkgs" -eq 1 ]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y --no-install-recommends curl ca-certificates procps gnupg pass
+    apt-get install -y --no-install-recommends curl ca-certificates procps gnupg pass libfido2-1
     rm -rf /var/lib/apt/lists/*
 fi
 
