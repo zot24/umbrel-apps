@@ -1,0 +1,98 @@
+services:
+  # Openship brings its own first-user registration + invite-only login, so
+  # Umbrel proxy auth is OFF (same pattern as nworth). Do not publish 3001
+  # on the host or tunnel this tile to the public internet without TLS.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-openship_dashboard_1
+      APP_PORT: 3001
+      PROXY_AUTH_ADD: "false"
+
+  postgres:
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: openship
+      POSTGRES_PASSWORD: ${APP_SEED}
+      POSTGRES_DB: openship
+    volumes:
+      - ${APP_DATA_DIR}/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openship -d openship"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    restart: on-failure
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ${APP_DATA_DIR}/data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    image: ghcr.io/oblien/openship-api:0.6.9@sha256:e2fa1d21ea75793c11cde1cc6dc668d336bc62420c75b0002f8318bd70bee4e0
+    restart: on-failure
+    init: true
+    stop_grace_period: 30s
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      CLOUD_MODE: "false"
+      DEPLOY_MODE: docker
+      OPENSHIP_REQUIRE_REDIS: "true"
+      OPENSHIP_HOST_CONTROL: "false"
+      TRUST_PROXY: "true"
+      POSTGRES_USER: openship
+      POSTGRES_PASSWORD: ${APP_SEED}
+      POSTGRES_DB: openship
+      DATABASE_URL: postgresql://openship:${APP_SEED}@postgres:5432/openship
+      REDIS_URL: redis://redis:6379
+      BETTER_AUTH_SECRET: ${APP_SEED}
+      INTERNAL_TOKEN: ${APP_SEED}
+      # Browser origin the Umbrel tile uses. Override in data/.env if login
+      # returns 403 ORIGIN_REJECTED (e.g. you open via LAN IP instead of
+      # umbrel.local).
+      OPENSHIP_PUBLIC_URL: ${OPENSHIP_PUBLIC_URL:-http://umbrel.local:3001}
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bun -e \"fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  dashboard:
+    image: ghcr.io/oblien/openship-dashboard:0.6.9@sha256:811d6283f4e4ff2b45a30377442de6e5b3178d7e77d60d5b6940e0bd975a1052
+    restart: on-failure
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      INTERNAL_API_URL: http://api:4000
+      TRUST_PROXY: "true"
+      OPENSHIP_PUBLIC_URL: ${OPENSHIP_PUBLIC_URL:-http://umbrel.local:3001}
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    depends_on:
+      api:
+        condition: service_healthy
