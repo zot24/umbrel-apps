@@ -1,0 +1,69 @@
+manifestVersion: 1.1
+id: zot24-apprise
+name: Apprise
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-apprise/icon.svg
+category: automation
+version: "0.1.0"
+tagline: Push notifications to Telegram, Discord, and 100+ other services
+description: >-
+  Apprise is a notification gateway. One HTTP API, a hundred backends —
+  Telegram, Discord, Slack, email, ntfy, Gotify, and the rest. Sibling apps
+  on this Umbrel post here; Apprise delivers.
+
+
+  This packages the official Apprise API (caronc/apprise) so Gitea Mirror,
+  Gitea, scripts, and other containers can send notifications without each
+  one speaking Telegram (or anything else) itself.
+
+
+  Gitea Mirror on Umbrel: its built-in "Webhook" pointing at api.telegram.org
+  will not work — Telegram wants its own JSON, not Gitea Mirror's payload.
+  Use this app instead. In Gitea Mirror → Configuration → Notifications:
+
+
+  - Provider: Apprise API
+
+  - Server URL: http://zot24-apprise_web_1:8000
+
+  - Token/path: gitea-mirror
+
+
+  Then open this app's tile (Umbrel login), create a config key named
+  `gitea-mirror`, and add a Telegram URL. Do not paste bot tokens into chat.
+
+
+  Sibling apps must call the container on the Docker network, not the Umbrel
+  tile URL. The tile is behind Umbrel login; Gitea Mirror cannot log in.
+
+
+  Security notes:
+
+
+  - The UI is authenticated by Umbrel's app proxy. Do not publish port 8000
+    or tunnel this app to the public internet — the notify API has no extra
+    key (Gitea Mirror cannot send one).
+
+  - Notification URLs (Telegram bot tokens, webhook secrets) live on this
+    app's data volume. Treat that volume like a password store.
+
+  - Apprise is open source (BSD-2-Clause) by Chris Caron:
+    https://github.com/caronc/apprise — API: https://github.com/caronc/apprise-api
+releaseNotes: >-
+  First Umbrel release: official caronc/apprise API image, sha256-pinned,
+  stateful config on the app data volume, UI behind Umbrel login. Notify
+  API is reachable only on the Umbrel Docker network so Gitea Mirror and
+  other sibling apps can post without hitting the proxy.
+developer: zot24
+website: https://github.com/caronc/apprise
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 8000
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""

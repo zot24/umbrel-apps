@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Apprise">
+  <rect width="512" height="512" fill="#060a0d"/>
+  <g fill="none" stroke="#50ffa8" stroke-width="18" stroke-linejoin="miter" stroke-linecap="square">
+    <path d="M168 216 L168 296 L232 296 L320 360 L320 152 L232 216 Z"/>
+    <path d="M360 200 C392 224 392 288 360 312"/>
+    <path d="M400 168 C456 216 456 296 400 344"/>
+  </g>
+</svg>

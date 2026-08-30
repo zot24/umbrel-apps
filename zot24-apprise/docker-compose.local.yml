@@ -1,0 +1,14 @@
+services:
+  web:
+    image: caronc/apprise:latest
+    ports:
+      - "8000:8000"
+    environment:
+      TZ: America/Asuncion
+      APPRISE_STATEFUL_MODE: simple
+      APPRISE_WORKER_COUNT: "1"
+      APPRISE_ADMIN: "yes"
+    volumes:
+      - ./data/config:/config
+      - ./data/plugin:/plugin
+      - ./data/attach:/attach

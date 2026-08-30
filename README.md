@@ -38,7 +38,14 @@ Terminal multiplexer for AI coding agents — persistent server on your Umbrel, 
 Proton Mail IMAP/SMTP bridge for sibling apps (Hermes + Himalaya). Operator console behind Umbrel login; IMAP/SMTP stay on the container network.
 
 - **App ID**: `zot24-proton-bridge`
-- **Port**: 7681 (console). IMAP 143 / SMTP 25 internal.
+- **Port**: 7685 (console). IMAP 143 / SMTP 25 internal.
+
+### Apprise
+
+Notification gateway (Telegram, Discord, 100+ backends). Gitea Mirror talks to this instead of a broken Telegram webhook.
+
+- **App ID**: `zot24-apprise`
+- **Port**: 8000 (UI behind Umbrel login). Notify API internal.
 
 ## Retired Apps
 
