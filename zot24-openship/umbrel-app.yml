@@ -3,7 +3,7 @@ id: zot24-openship
 name: Openship
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openship/icon.svg
 category: developer
-version: "0.6.9"
+version: "0.6.9.1"
 tagline: Self-hosted deploy control plane (dashboard + API)
 description: >-
   Openship is a self-hosted deployment platform. This Umbrel app runs the
@@ -17,28 +17,21 @@ description: >-
   servers over SSH, or treat this as an always-on Openship UI.
 
 
-  First browser to the tile registers the admin. After that, signup is
-  invite-only (Openship's own auth; Umbrel proxy login is off).
+  First browser to the tile registers the admin (`OPENSHIP_AUTH_MODE=local`).
+  After that, signup is invite-only (Openship's own auth; Umbrel proxy login
+  is off). Zero-auth / loopback-only mode is disabled on purpose — the Umbrel
+  tile is not localhost.
 
 
   If login fails with 403 ORIGIN_REJECTED, you opened the tile on a host
-  that is not http://umbrel.local:3001. Write a one-line override:
-
-
-  /home/umbrel/umbrel/app-data/zot24-openship/data/.env
-
-
-  OPENSHIP_PUBLIC_URL=http://YOUR-HOST:3001
-
-
-  then restart the app. Do not paste secrets in chat.
-
+  that is not http://umbrel.local:3001. Add OPENSHIP_PUBLIC_URL to
+  docker-compose.yml (data/.env is root-owned) and restart the app.
 
   Upstream: https://github.com/oblien/openship (images ghcr.io/oblien,
   v0.6.9, sha256-pinned).
 releaseNotes: >-
-  First Umbrel release: Openship 0.6.9 control plane (postgres + redis +
-  api + dashboard), no edge, no docker.sock. UI on host port 3001.
+  0.6.9.1: OPENSHIP_AUTH_MODE=local so the Umbrel tile can create an admin.
+  Zero-auth only works on localhost; the tile is not that.
 developer: zot24
 website: https://github.com/oblien/openship
 dependencies: []
