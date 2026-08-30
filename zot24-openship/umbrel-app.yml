@@ -1,0 +1,55 @@
+manifestVersion: 1.1
+id: zot24-openship
+name: Openship
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-openship/icon.svg
+category: developer
+version: "0.6.9"
+tagline: Self-hosted deploy control plane (dashboard + API)
+description: >-
+  Openship is a self-hosted deployment platform. This Umbrel app runs the
+  control plane only: Postgres, Redis, API, and dashboard, behind the Umbrel
+  tile.
+
+
+  It does NOT install Openship's OpenResty edge on ports 80/443 — Umbrel
+  already owns those. It does NOT mount the host Docker socket, so it will
+  not build or run apps on this Umbrel. Use the dashboard to manage remote
+  servers over SSH, or treat this as an always-on Openship UI.
+
+
+  First browser to the tile registers the admin. After that, signup is
+  invite-only (Openship's own auth; Umbrel proxy login is off).
+
+
+  If login fails with 403 ORIGIN_REJECTED, you opened the tile on a host
+  that is not http://umbrel.local:3001. Write a one-line override:
+
+
+  /home/umbrel/umbrel/app-data/zot24-openship/data/.env
+
+
+  OPENSHIP_PUBLIC_URL=http://YOUR-HOST:3001
+
+
+  then restart the app. Do not paste secrets in chat.
+
+
+  Upstream: https://github.com/oblien/openship (images ghcr.io/oblien,
+  v0.6.9, sha256-pinned).
+releaseNotes: >-
+  First Umbrel release: Openship 0.6.9 control plane (postgres + redis +
+  api + dashboard), no edge, no docker.sock. UI on host port 3001.
+developer: zot24
+website: https://github.com/oblien/openship
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 3001
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
