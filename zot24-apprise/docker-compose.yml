@@ -1,0 +1,41 @@
+services:
+  # UI is behind Umbrel login. Sibling apps (Gitea Mirror, etc.) must NOT
+  # use the proxied tile URL — they hit this container on the Docker network:
+  #   http://zot24-apprise_web_1:8000/notify/<config-key>
+  # Do not publish 8000 on the host or tunnel it publicly. Apprise has no
+  # auth of its own here (gitea-mirror cannot send an API key).
+  app_proxy:
+    environment:
+      APP_HOST: zot24-apprise_web_1
+      APP_PORT: 8000
+      PROXY_AUTH_ADD: "true"
+
+  web:
+    # Official Apprise API image (multi-arch index). Umbrel rejects unpinned
+    # tags — the digest is the pin. caronc/apprise is the HTTP server wrapping
+    # https://github.com/caronc/apprise (the library).
+    image: caronc/apprise:latest@sha256:feb3ad42d280bca0c58fdff6f77f46e2586a65bbc6d2bff614d31245ff8a399c
+    restart: on-failure
+    init: true
+    stop_grace_period: 20s
+    environment:
+      TZ: America/Asuncion
+      APPRISE_STATEFUL_MODE: simple
+      APPRISE_WORKER_COUNT: "1"
+      APPRISE_ADMIN: "yes"
+    volumes:
+      - ${APP_DATA_DIR}/data/config:/config
+      - ${APP_DATA_DIR}/data/plugin:/plugin
+      - ${APP_DATA_DIR}/data/attach:/attach
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
