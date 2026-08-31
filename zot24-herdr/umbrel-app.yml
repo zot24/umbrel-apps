@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.8.1"
+version: "0.8.2"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -105,6 +105,12 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.8.2: Herdr binary 0.7.5 → 0.8.2. Agent-CLI bootstrap now upgrades in place
+  on every start (Claude Code, Grok, Kimi, Vercel, Supabase) instead of
+  skipping installed bins. Kimi Code PATH includes ~/.kimi-code/bin. Weekly
+  GitHub Action checks upstream herdr/ttyd pins and opens a PR when they move.
+
+
   0.8.1: adds a built-in SSH server on port 7683, so phones (Moshi) and laptops
   (`herdr --remote`) attach straight to Herdr — no shell on the Umbrel host, no
   wrapper script, and no need to put your user in the docker group. Key

@@ -5,7 +5,7 @@ set -euo pipefail
 
 export HOME=/data
 export NPM_CONFIG_PREFIX=/data/.npm-global
-export PATH="/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+export PATH="/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:/data/.kimi-code/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 mkdir -p \
   /data/.npm-global \
@@ -13,7 +13,8 @@ mkdir -p \
   /data/.config/herdr \
   /data/.grok/bin \
   /data/.local/bin \
-  /data/.kimi
+  /data/.kimi \
+  /data/.kimi-code/bin
 
 log() { printf '[bootstrap-agents] %s\n' "$*" >&2; }
 
@@ -28,11 +29,6 @@ need_npm() {
 
 install_npm_pkg() {
   local pkg="$1"
-  local bin="${2:-}"
-  if [ -n "$bin" ] && have "$bin"; then
-    log "skip $pkg ($bin already: $(command -v "$bin"))"
-    return 0
-  fi
   log "npm install -g $pkg"
   npm install -g "$pkg"
 }
@@ -40,22 +36,17 @@ install_npm_pkg() {
 # --- coding agents -----------------------------------------------------------
 
 install_claude() {
-  install_npm_pkg "@anthropic-ai/claude-code" claude
+  install_npm_pkg "@anthropic-ai/claude-code"
   if have claude && have herdr; then
     herdr integration install claude >/dev/null 2>&1 || true
   fi
 }
 
 install_grok() {
-  if have grok; then
-    log "skip grok (present: $(command -v grok))"
-    return 0
-  fi
-  log "install Grok Build CLI → /data/.grok/bin"
+  log "install/upgrade Grok Build CLI → /data/.grok/bin"
   # Official xAI installer. HOME=/data so auth + binary land on the volume.
   # GROK_BIN_DIR keeps the binary on the persistent volume explicitly.
   if curl -fsSL https://x.ai/cli/install.sh | GROK_BIN_DIR=/data/.grok/bin HOME=/data bash; then
-    # Ensure PATH-visible symlinks under the npm-global bin (always on PATH).
     mkdir -p /data/.npm-global/bin
     if [ -x /data/.grok/bin/grok ]; then
       ln -sfn /data/.grok/bin/grok /data/.npm-global/bin/grok
@@ -70,16 +61,11 @@ install_grok() {
 }
 
 install_kimi() {
-  if have kimi; then
-    log "skip kimi (present: $(command -v kimi))"
-    return 0
-  fi
-  # Prefer official Moonshot install script (native binary, no Node 24 req).
-  log "install Kimi Code CLI (official script)"
+  log "install/upgrade Kimi Code CLI (official script)"
   if curl -fsSL https://code.kimi.com/kimi-code/install.sh | HOME=/data bash; then
-    # Script usually puts kimi on PATH via ~/.local/bin or similar — link if needed.
     mkdir -p /data/.npm-global/bin
     for cand in \
+      /data/.kimi-code/bin/kimi \
       /data/.local/bin/kimi \
       /data/.kimi/bin/kimi \
       /data/bin/kimi \
@@ -91,7 +77,7 @@ install_kimi() {
     done
   else
     log "official kimi script failed — falling back to npm @moonshot-ai/kimi-code"
-    install_npm_pkg "@moonshot-ai/kimi-code" kimi || log "WARN: kimi npm install failed"
+    install_npm_pkg "@moonshot-ai/kimi-code" || log "WARN: kimi npm install failed"
   fi
   if have kimi && have herdr; then
     herdr integration install kimi >/dev/null 2>&1 || true
@@ -101,11 +87,11 @@ install_kimi() {
 # --- platform CLIs -----------------------------------------------------------
 
 install_vercel() {
-  install_npm_pkg vercel vercel
+  install_npm_pkg vercel
 }
 
 install_supabase() {
-  install_npm_pkg supabase supabase
+  install_npm_pkg supabase
 }
 
 install_gh_note() {
