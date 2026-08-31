@@ -45,7 +45,7 @@ if [ ! -f /data/.profile ]; then
     cat > /data/.profile <<'PROFILE'
 # Seeded by the Herdr Umbrel app on first run. Yours to edit.
 export NPM_CONFIG_PREFIX=/data/.npm-global
-export PATH=/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:$PATH
+export PATH=/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:/data/.kimi-code/bin:$PATH
 export LANG=${LANG:-C.UTF-8}
 
 # Secrets + git identity from the app's .env, so an SSH session has the same

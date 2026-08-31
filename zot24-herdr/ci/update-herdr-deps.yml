@@ -1,0 +1,66 @@
+name: "Update: Herdr deps"
+
+# Weekly check of upstream herdr + ttyd pins. Opens a PR when the Dockerfile
+# is behind latest stable. Volume CLIs (claude/grok/kimi/vercel/supabase) are
+# not baked into the image — bootstrap-agents.sh upgrades them on every start.
+#
+# Canonical copy lives in the app tree because the repo PAT often lacks
+# `workflow` scope. After merge, copy this file to .github/workflows/ if it
+# is not already there.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check and bump pins
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash zot24-herdr/ci/update-deps.sh
+
+      - name: Summary
+        run: |
+          {
+            echo "### Herdr dep check"
+            echo "- herdr pin: \`${{ steps.bump.outputs.herdr_current }}\` latest stable: \`${{ steps.bump.outputs.herdr_latest }}\`"
+            echo "- ttyd pin: \`${{ steps.bump.outputs.ttyd_current }}\` latest stable: \`${{ steps.bump.outputs.ttyd_latest }}\`"
+            echo "- image changed: \`${{ steps.bump.outputs.changed }}\`"
+            echo "- volume CLIs upgrade on Herdr container start (bootstrap-agents.sh), not in this image"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open PR if pins moved
+        if: steps.bump.outputs.changed == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/herdr-deps-${{ steps.bump.outputs.herdr_latest }}"
+          git checkout -b "$BRANCH"
+          git add zot24-herdr/server/Dockerfile zot24-herdr/VERSION zot24-herdr/umbrel-app.yml zot24-herdr/cli-versions.json
+          git commit -m "chore(herdr): bump herdr ${{ steps.bump.outputs.herdr_current }} → ${{ steps.bump.outputs.herdr_latest }}
+
+          Image pins only. Volume agent CLIs upgrade via bootstrap-agents.sh."
+          git push -u origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore(herdr): bump herdr to ${{ steps.bump.outputs.herdr_latest }}" \
+            --body "$(cat <<EOF
+          ## Summary
+          - herdr \`${{ steps.bump.outputs.herdr_current }}\` → \`${{ steps.bump.outputs.herdr_latest }}\`
+          - ttyd \`${{ steps.bump.outputs.ttyd_current }}\` → \`${{ steps.bump.outputs.ttyd_latest }}\`
+
+          After merge, **Build: Herdr** rebuilds the multi-arch image and pins the digest. Then update the app on Umbrel.
+
+          Volume CLIs (Claude Code, Grok, Kimi, Vercel, Supabase) are not in the image.
+          EOF
+          )"

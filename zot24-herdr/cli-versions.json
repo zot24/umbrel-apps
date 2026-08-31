@@ -1,0 +1,22 @@
+{
+  "checked_at": "2026-08-31T23:47:03Z",
+  "image_pins": {
+    "herdr": {
+      "current": "0.8.2",
+      "latest_stable": "0.8.2"
+    },
+    "ttyd": {
+      "current": "1.7.7",
+      "latest_stable": "1.7.7"
+    }
+  },
+  "volume_clis_latest": {
+    "claude-code": "2.1.252",
+    "vercel": "59.10.0",
+    "supabase": "2.116.0",
+    "grok": "install.sh (unpinned)",
+    "kimi": "install.sh (unpinned)",
+    "gh": "apt (image rebuild)"
+  },
+  "note": "Volume CLIs upgrade on container start via bootstrap-agents.sh. Image pins (herdr/ttyd) change only via this script + Build: Herdr."
+}
