@@ -7,7 +7,8 @@
 #   - ttyd web terminal (the Umbrel app UI, behind Umbrel's app proxy auth)
 #   - agent-bridge (internal HTTP API on :7682 for sibling apps — NOT proxied)
 #   - sshd (key-only SSH straight into the app on :7683 — phone/laptop attach)
-#   - mosh + openssh-client (documented phone attach path, see README)
+#   - moshi-hook (Easy Pair QR + agent approvals from the Moshi phone app)
+#   - mosh + tmux + openssh-client (Moshi preflight; Herdr is the multiplexer)
 #   - Node.js 22 + npm (agent CLIs install into the persistent /data volume)
 #   - git, curl, gh (GitHub CLI for agent workflows inside the box)
 #
@@ -40,6 +41,7 @@ RUN apt-get update \
         mosh \
         openssh-client \
         openssh-server \
+        tmux \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
         | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -73,6 +75,27 @@ RUN set -eux; \
     chmod +x /usr/local/bin/herdr /usr/local/bin/ttyd; \
     herdr --version; \
     ttyd --version
+
+# moshi-hook: Easy Pair QR + agent-hook daemon. Pinned tarball + sha256,
+# same pattern as herdr/ttyd. Linux arch names match cdn.getmoshi.app.
+ARG MOSHI_HOOK_VERSION=0.3.16
+ARG MOSHI_HOOK_SHA256_X86_64=ee96ff3cebe68648a9631976660afa4a7a247cfa2cc8c030d9d5eca784df5a95
+ARG MOSHI_HOOK_SHA256_AARCH64=8df6d83dcd1aa99c42e7516937f29249f3a8f704d9d9d7eec703fa2287a88666
+ARG TARGETARCH
+RUN set -eux; \
+    case "$TARGETARCH" in \
+        amd64)  mosh_arch=x86_64; moshi_sha="$MOSHI_HOOK_SHA256_X86_64" ;; \
+        arm64)  mosh_arch=arm64;  moshi_sha="$MOSHI_HOOK_SHA256_AARCH64" ;; \
+        *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/moshi-hook.tgz \
+        "https://cdn.getmoshi.app/hook/v${MOSHI_HOOK_VERSION}/moshi-hook_Linux_${mosh_arch}.tar.gz"; \
+    echo "${moshi_sha}  /tmp/moshi-hook.tgz" | sha256sum -c -; \
+    tar -xzf /tmp/moshi-hook.tgz -C /tmp moshi-hook; \
+    install -m 0755 /tmp/moshi-hook /usr/local/bin/moshi-hook; \
+    ln -sf moshi-hook /usr/local/bin/moshi; \
+    rm -f /tmp/moshi-hook /tmp/moshi-hook.tgz; \
+    moshi-hook version
 
 COPY entrypoint.sh /entrypoint.sh
 COPY agent-bridge.mjs web-gate.mjs bootstrap-agents.sh ssh-login.sh /usr/local/lib/herdr-umbrel/

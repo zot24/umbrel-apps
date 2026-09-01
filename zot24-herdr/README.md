@@ -58,8 +58,13 @@ The app runs its own sshd on **7683** (published on the host). You connect to
 the container, not to the Umbrel host — no wrapper script, and your user does
 not need to be in the `docker` group.
 
-**One-time: authorise a key.** There is no password on this account, so sshd
-does not start until a public key exists. Two ways, pick either:
+**One-time: pair the phone.** Prefer Easy Pair on the web setup page
+(Umbrel tile → tile password → setup): enter a Tailscale/LAN hostname the
+phone can reach, Generate QR, scan it in the Moshi app. User is `node`,
+port **7683**. Do not screenshot the QR. sshd is already running; the scan
+writes the first key and no restart is needed.
+
+Fallback (paste a public key on the same page, or drop it on disk):
 
 ```bash
 # (i) drop it in the app's data dir, from a host shell
@@ -73,7 +78,8 @@ chmod 600 ~/umbrel/app-data/zot24-herdr/data/.ssh/authorized_keys
 #   SSH_AUTHORIZED_KEYS=ssh-ed25519 AAAA… phone;ssh-ed25519 AAAA… laptop
 ```
 
-Until a key exists, the app log says so and no SSH daemon runs.
+Empty keys + no passwords = nobody can log in. sshd stays up so Easy Pair
+can land the first key.
 
 **Then, from the phone:**
 

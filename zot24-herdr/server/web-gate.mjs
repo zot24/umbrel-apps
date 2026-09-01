@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawn, spawnSync } from "node:child_process";
 
 const PORT = Number(process.env.HERDR_GATE_PORT || 7681);
 const BIND = process.env.HERDR_GATE_BIND || "0.0.0.0";
@@ -23,6 +24,13 @@ const COOKIE = "herdr_gate";
 const MAX_BODY = 64 * 1024;
 const APP_PASSWORD = (process.env.APP_PASSWORD || "").trim();
 const APP_SEED = (process.env.APP_SEED || APP_PASSWORD || "herdr-dev-seed").trim();
+const SSH_PORT = Number(process.env.HERDR_SSH_PORT || 7683);
+const MOSHI_ENV = {
+  ...process.env,
+  HOME: "/data",
+  MOSHI_HOOK_SKIP_FIRST_RUN: "1",
+  MOSHI_HERDR_PATH: "/usr/local/bin/herdr",
+};
 
 const KEYS = [
   ["ANTHROPIC_API_KEY", "anthropic", "Claude Code"],
@@ -211,6 +219,194 @@ function keyStatus(env) {
   return keys;
 }
 
+let moshiSetup = {
+  proc: null,
+  payload: null,
+  claimed: false,
+  error: null,
+  buf: "",
+};
+
+function suggestedHost(req) {
+  const raw = String(req.headers["x-forwarded-host"] || req.headers.host || "");
+  const host = raw.split(",")[0].trim().split(":")[0].trim();
+  if (!host) return "";
+  const low = host.toLowerCase();
+  if (low === "localhost" || low === "127.0.0.1" || low.startsWith("10.21.")) return "";
+  return host;
+}
+
+function validHost(h) {
+  if (typeof h !== "string") return "";
+  const s = h.trim();
+  if (!s || s.length > 253) return "";
+  if (/\s/.test(s) || s.includes("://") || s.includes("/")) return "";
+  return s;
+}
+
+function killMoshiSetup() {
+  if (moshiSetup.proc) {
+    try {
+      moshiSetup.proc.kill("SIGTERM");
+    } catch {
+      /* ignore */
+    }
+    moshiSetup.proc = null;
+  }
+}
+
+let pairedCache = { t: 0, v: false };
+function moshiPaired() {
+  const now = Date.now();
+  if (now - pairedCache.t < 3000) return pairedCache.v;
+  try {
+    const r = spawnSync("moshi-hook", ["status", "--json"], {
+      env: MOSHI_ENV,
+      encoding: "utf8",
+      timeout: 4000,
+    });
+    if (r.status !== 0) {
+      pairedCache = { t: now, v: false };
+      return false;
+    }
+    const j = JSON.parse(r.stdout || "{}");
+    pairedCache = { t: now, v: Boolean(j.paired) };
+    return pairedCache.v;
+  } catch {
+    pairedCache = { t: now, v: false };
+    return false;
+  }
+}
+
+function parseSetupBuf() {
+  if (moshiSetup.payload) return;
+  const t = moshiSetup.buf.trim();
+  const start = t.indexOf("{");
+  if (start < 0) return;
+  const lineEnd = t.indexOf("\n", start);
+  const slice = (lineEnd >= 0 ? t.slice(start, lineEnd) : t.slice(start)).trim();
+  try {
+    const j = JSON.parse(slice);
+    if (j && (j.deepLink || j.setupId)) moshiSetup.payload = j;
+  } catch {
+    /* wait for more */
+  }
+}
+
+function startMoshiSetup(host, name) {
+  killMoshiSetup();
+  moshiSetup = {
+    proc: null,
+    payload: null,
+    claimed: false,
+    error: null,
+    buf: "",
+  };
+  const args = [
+    "host",
+    "setup",
+    "--json",
+    "--force",
+    "--host",
+    host,
+    "--port",
+    String(SSH_PORT),
+    "--user",
+    "node",
+    "--name",
+    name || "Herdr",
+  ];
+  const proc = spawn("moshi-hook", args, {
+    env: MOSHI_ENV,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  moshiSetup.proc = proc;
+  proc.stdout.on("data", (c) => {
+    moshiSetup.buf += c.toString("utf8");
+    parseSetupBuf();
+  });
+  proc.stderr.on("data", () => {
+    /* swallow — never log pairing material */
+  });
+  proc.on("exit", (code) => {
+    moshiSetup.proc = null;
+    parseSetupBuf();
+    if (code === 0) {
+      moshiSetup.claimed = true;
+      pairedCache = { t: 0, v: true };
+      spawn("moshi-hook", ["install"], { env: MOSHI_ENV, stdio: "ignore" });
+    } else if (!moshiSetup.claimed && !moshiSetup.error) {
+      moshiSetup.error = code == null ? "setup stopped" : `setup exited ${code}`;
+    }
+  });
+}
+
+function publicMoshi(req) {
+  const p = moshiSetup.payload || {};
+  const expired = p.expiresAt ? Date.parse(p.expiresAt) < Date.now() : false;
+  const live = Boolean(moshiSetup.proc) && Boolean(p.deepLink) && !expired;
+  return {
+    running: Boolean(moshiSetup.proc),
+    claimed: moshiSetup.claimed,
+    paired: moshiPaired() || moshiSetup.claimed,
+    error: moshiSetup.error,
+    expired,
+    hostname: p.hostname || null,
+    loginUser: p.loginUser || "node",
+    sshPort: p.sshPort || SSH_PORT,
+    expiresAt: p.expiresAt || null,
+    setupId: p.setupId || null,
+    prereqs: p.prereqs || null,
+    deepLink: live ? p.deepLink : null,
+    suggestedHost: suggestedHost(req),
+  };
+}
+
+function safeStatic(urlPath) {
+  const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\//, "");
+  if (!rel || rel.includes("..") || path.isAbsolute(rel)) return null;
+  const full = path.join(WEB_DIR, rel);
+  const root = WEB_DIR.endsWith(path.sep) ? WEB_DIR : WEB_DIR + path.sep;
+  if (full !== WEB_DIR && !full.startsWith(root)) return null;
+  try {
+    if (!fs.statSync(full).isFile()) return null;
+  } catch {
+    return null;
+  }
+  return full;
+}
+
+function mimeFor(file) {
+  if (file.endsWith(".html")) return "text/html; charset=utf-8";
+  if (file.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (file.endsWith(".css")) return "text/css; charset=utf-8";
+  if (file.endsWith(".svg")) return "image/svg+xml";
+  return "application/octet-stream";
+}
+
+function appendAuthorizedKey(raw) {
+  const dir = "/data/.ssh";
+  const file = path.join(dir, "authorized_keys");
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  let existing = "";
+  try {
+    existing = fs.readFileSync(file, "utf8");
+  } catch {
+    existing = "";
+  }
+  let changed = false;
+  for (const line of String(raw).split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    if (!/^(ssh-|ecdsa-|sk-)/.test(t)) continue;
+    if (existing.includes(t)) continue;
+    existing += (existing.endsWith("\n") || existing === "" ? "" : "\n") + t + "\n";
+    changed = true;
+  }
+  if (!changed && existing) return;
+  fs.writeFileSync(file, existing, { mode: 0o600 });
+}
+
 async function handleApi(req, res, url) {
   if (url.pathname === "/healthz" || url.pathname === "/health") {
     json(res, 200, { ok: true, service: "herdr-web-gate" });
@@ -228,6 +424,11 @@ async function handleApi(req, res, url) {
       token_configured: Boolean(env.get("HERDR_AGENT_TOKEN") || process.env.HERDR_AGENT_TOKEN),
       bootstrap: env.get("HERDR_BOOTSTRAP_AGENTS") === "1",
       keys: keyStatus(env),
+      moshi: {
+        paired: moshiPaired() || moshiSetup.claimed,
+        running: Boolean(moshiSetup.proc),
+        claimed: moshiSetup.claimed,
+      },
     });
     return;
   }
@@ -316,6 +517,9 @@ async function handleApi(req, res, url) {
       updates.HERDR_AGENT_TOKEN = crypto.randomBytes(36).toString("base64url");
     }
     upsertEnv(updates);
+    if (typeof body.ssh_key === "string" && body.ssh_key.trim()) {
+      appendAuthorizedKey(body.ssh_key);
+    }
     const next = loadEnv();
     json(res, 200, {
       ok: true,
@@ -324,6 +528,38 @@ async function handleApi(req, res, url) {
       token_configured: Boolean(next.get("HERDR_AGENT_TOKEN") || process.env.HERDR_AGENT_TOKEN),
       note: "Keys are on disk. New Herdr attaches pick them up. Umbrel Restart applies bootstrap + env to the whole container.",
     });
+    return;
+  }
+  if (req.method === "GET" && url.pathname === "/api/moshi") {
+    json(res, 200, { ok: true, ...publicMoshi(req) });
+    return;
+  }
+  if (req.method === "POST" && url.pathname === "/api/moshi/setup") {
+    let body;
+    try {
+      body = JSON.parse(await readBody(req));
+    } catch {
+      json(res, 400, { ok: false, error: "bad json" });
+      return;
+    }
+    const host = validHost(body.host || "");
+    if (!host) {
+      json(res, 400, { ok: false, error: "host required (Tailscale IP or LAN hostname, not a docker 10.21 address)" });
+      return;
+    }
+    const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 64) : "Herdr";
+    startMoshiSetup(host, name);
+    const started = Date.now();
+    while (!moshiSetup.payload && moshiSetup.proc && Date.now() - started < 4000) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    json(res, 200, { ok: true, ...publicMoshi(req) });
+    return;
+  }
+  if (req.method === "DELETE" && url.pathname === "/api/moshi/setup") {
+    killMoshiSetup();
+    moshiSetup.error = null;
+    json(res, 200, { ok: true, ...publicMoshi(req) });
     return;
   }
   json(res, 404, { ok: false, error: "not found" });
@@ -374,6 +610,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/favicon.ico") {
       res.writeHead(204);
       res.end();
+      return;
+    }
+    const staticFile = safeStatic(url.pathname);
+    if (staticFile) {
+      sendFile(res, staticFile, mimeFor(staticFile));
       return;
     }
     res.writeHead(404);

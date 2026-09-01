@@ -19,9 +19,10 @@
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
       font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; }
     .wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
-    .card { width: 100%; max-width: 560px; background: var(--panel); border: 1px solid var(--line);
+    .card { width: 100%; max-width: 600px; background: var(--panel); border: 1px solid var(--line);
       border-radius: 16px; padding: 28px 24px; }
     h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.02em; }
+    h2 { font-size: 16px; margin: 0 0 6px; letter-spacing: -0.02em; }
     .sub { color: var(--muted); margin: 0 0 22px; font-size: 13.5px; }
     label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 6px; }
     input[type=password], input[type=text], input[type=email], textarea {
@@ -51,6 +52,10 @@
     .pill.on { color: var(--ok); border-color: #1f6b45; }
     .check { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--muted); font-size: 13.5px; }
     .hidden { display: none; }
+    .moshi { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .qr { background: #fff; border-radius: 12px; padding: 10px; margin: 12px 0; width: 240px; height: 240px; }
+    .qr svg { width: 100%; height: 100%; display: block; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -94,8 +99,25 @@
         <input name="git_name" type="text" placeholder="zot24" autocomplete="off" />
         <label>Git author email <span class="pill" data-k="git_email">—</span></label>
         <input name="git_email" type="email" placeholder="hi@zot24.com" autocomplete="off" />
-        <label>SSH public key (phone / laptop) <span class="pill" data-k="ssh_key">—</span></label>
-        <textarea name="ssh_key" placeholder="ssh-ed25519 AAAA…"></textarea>
+
+        <div class="moshi">
+          <h2>Moshi Easy Pair</h2>
+          <p class="hint">Scan this QR in the Moshi app (or iOS Camera). It is a temporary SSH grant — do not screenshot or share it. Phone must reach this host on port 7683 (Tailscale or LAN). User is <code>node</code>.</p>
+          <label for="moshi-host">Phone-reachable host</label>
+          <input id="moshi-host" type="text" placeholder="100.x.x.x or umbrel.tailnet.ts.net" autocomplete="off" />
+          <div class="row">
+            <button type="button" id="moshi-qr">Generate QR</button>
+            <button type="button" class="ghost" id="moshi-cancel">Cancel</button>
+          </div>
+          <div id="moshi-box" class="hidden">
+            <div class="qr" id="moshi-svg"></div>
+            <p class="hint" id="moshi-meta"></p>
+          </div>
+          <p class="err" id="moshi-err"></p>
+        </div>
+
+        <label>SSH public key fallback (phone / laptop) <span class="pill" data-k="ssh_key">—</span></label>
+        <textarea name="ssh_key" placeholder="ssh-ed25519 AAAA… — skip if you scan the QR"></textarea>
         <label class="check"><input type="checkbox" name="bootstrap" checked /> Install / upgrade Claude, Grok, Kimi, Vercel, Supabase on start</label>
         <p class="hint">After save, open Herdr. Umbrel Restart applies bootstrap to the whole container.</p>
         <div class="err" id="setup-err"></div>
@@ -115,6 +137,7 @@
       </div>
     </div>
   </div>
+  <script src="/qrcode.min.js"></script>
   <script>
     const $ = (id) => document.getElementById(id);
     const views = ["view-load", "view-login", "view-setup", "view-go"];
@@ -127,6 +150,63 @@
         el.textContent = on ? "saved" : "empty";
         el.classList.toggle("on", on);
       });
+    }
+    function markSshSaved() {
+      const pill = document.querySelector('.pill[data-k="ssh_key"]');
+      if (!pill) return;
+      pill.textContent = "saved";
+      pill.classList.add("on");
+    }
+    function drawQr(text) {
+      const el = $("moshi-svg");
+      el.innerHTML = "";
+      if (!text || typeof qrcode !== "function") return;
+      const qr = qrcode(0, "M");
+      qr.addData(text);
+      qr.make();
+      el.innerHTML = qr.createSvgTag(4, 2);
+    }
+    let moshiTimer = null;
+    function stopMoshiPoll() {
+      if (moshiTimer) { clearInterval(moshiTimer); moshiTimer = null; }
+    }
+    function renderMoshi(j) {
+      $("moshi-err").textContent = j.error || "";
+      if (j.suggestedHost && !$("moshi-host").value) $("moshi-host").value = j.suggestedHost;
+      if (j.claimed || j.paired) {
+        $("moshi-box").classList.add("hidden");
+        $("moshi-svg").innerHTML = "";
+        $("moshi-meta").textContent = "Phone paired. Key is on the box — no restart needed.";
+        $("moshi-err").textContent = "";
+        markSshSaved();
+        stopMoshiPoll();
+        return;
+      }
+      if (j.deepLink) {
+        $("moshi-box").classList.remove("hidden");
+        drawQr(j.deepLink);
+        const exp = j.expiresAt ? new Date(j.expiresAt).toLocaleTimeString() : "";
+        $("moshi-meta").textContent =
+          (j.hostname || "") + " · node@" + (j.sshPort || 7683) +
+          (exp ? " · expires " + exp : "") + " · do not screenshot";
+      } else if (j.running) {
+        $("moshi-box").classList.add("hidden");
+        $("moshi-meta").textContent = "Waiting for pairing payload…";
+      } else {
+        $("moshi-box").classList.add("hidden");
+      }
+    }
+    async function refreshMoshi() {
+      try {
+        const j = await api("/api/moshi");
+        renderMoshi(j);
+      } catch (err) {
+        $("moshi-err").textContent = err.message || "moshi status failed";
+      }
+    }
+    function startMoshiPoll() {
+      stopMoshiPoll();
+      moshiTimer = setInterval(refreshMoshi, 2000);
     }
     async function api(path, opt) {
       const r = await fetch(path, Object.assign({ credentials: "same-origin" }, opt || {}));
@@ -158,8 +238,11 @@
         await new Promise((r) => setTimeout(r, 1000));
       }
       pills(cur.keys);
-      if (!cur.setup_done) show("view-setup");
-      else show("view-go");
+      if (cur.moshi && (cur.moshi.paired || cur.moshi.claimed)) markSshSaved();
+      if (!cur.setup_done) {
+        show("view-setup");
+        refreshMoshi();
+      } else show("view-go");
     }
     $("login-form").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -207,7 +290,29 @@
       location.href = "/t/";
     };
     $("open").onclick = () => { location.href = "/t/"; };
-    $("edit").onclick = () => show("view-setup");
+    $("edit").onclick = () => { show("view-setup"); refreshMoshi(); };
+    $("moshi-qr").onclick = async () => {
+      $("moshi-err").textContent = "";
+      try {
+        const j = await api("/api/moshi/setup", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ host: $("moshi-host").value.trim(), name: "Herdr" }),
+        });
+        renderMoshi(j);
+        startMoshiPoll();
+      } catch (err) {
+        $("moshi-err").textContent = err.message || "setup failed";
+      }
+    };
+    $("moshi-cancel").onclick = async () => {
+      stopMoshiPoll();
+      try { await api("/api/moshi/setup", { method: "DELETE" }); } catch (_) {}
+      $("moshi-box").classList.add("hidden");
+      $("moshi-svg").innerHTML = "";
+      $("moshi-meta").textContent = "";
+      $("moshi-err").textContent = "";
+    };
     boot();
   </script>
 </body>

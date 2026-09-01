@@ -35,3 +35,8 @@ HERDR_AGENT_TOKEN=replace-me-with-long-random
 
 # Keys can also be set from the web setup page (tile password).
 # HERDR_WEB_SETUP_DONE=1
+#
+# Phone / Moshi Easy Pair writes authorized_keys live from the setup QR.
+# Optional fallback (also accepted on the setup page; no restart needed
+# if pasted there):
+# SSH_AUTHORIZED_KEYS=ssh-ed25519 AAAA… comment
