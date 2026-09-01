@@ -32,3 +32,6 @@ HERDR_AGENT_TOKEN=replace-me-with-long-random
 # --- platform CLIs (installed by bootstrap) ---
 # VERCEL_TOKEN=
 # SUPABASE_ACCESS_TOKEN=
+
+# Keys can also be set from the web setup page (tile password).
+# HERDR_WEB_SETUP_DONE=1

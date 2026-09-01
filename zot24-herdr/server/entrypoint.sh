@@ -172,12 +172,19 @@ chmod 600 "$run_dir/sshd_config"
 echo "ssh: listening on ${ssh_port} (key auth only, user 'node')"
 EOF
 
-# Web UI: ttyd attaches each browser session to the herdr TUI as a plain
-# client. Closing the tab only detaches that client; the server (and every
-# agent in it) keeps running. ttyd is reachable only through Umbrel's app
-# proxy, which enforces Umbrel authentication — there is deliberately no
-# second credential here and no published port.
-exec gosu "$RUN_USER" ttyd \
-    --port 7681 \
-    --interface 0.0.0.0 \
-    herdr
+# Web UI:
+#   7681  web-gate (loading + tile password + key setup) — app_proxy target
+#   7684  ttyd, localhost only, --writable (without it the TUI paints and
+#         ignores the keyboard). Each attach sources /data/.env so keys
+#         saved in the setup page apply without a full container restart.
+#
+# Umbrel login is gate 1. APP_PASSWORD (tile password) is gate 2.
+TTYD_PORT="${HERDR_TTYD_PORT:-7684}"
+gosu "$RUN_USER" ttyd \
+    --port "$TTYD_PORT" \
+    --interface 127.0.0.1 \
+    --writable \
+    --base-path /t \
+    bash -lc 'set -a; [ -r /data/.env ] && . /data/.env; set +a; exec herdr' &
+
+exec gosu "$RUN_USER" node /usr/local/lib/herdr-umbrel/web-gate.mjs

@@ -1,6 +1,8 @@
 services:
-  # ttyd has no auth of its own; Umbrel's app proxy (with its default
-  # PROXY_AUTH_ADD=true) is the only way in and enforces the Umbrel login.
+  # Two gates on the tile, same idea as Proton Bridge / nworth:
+  # 1. Umbrel login (app_proxy default PROXY_AUTH_ADD=true)
+  # 2. web-gate session cookie keyed to the tile password (APP_PASSWORD)
+  # ttyd itself is localhost-only on 7684 and is never published.
   # Do not publish port 7681 or front this app with a public tunnel — a web
   # terminal is full shell access to the container.
   app_proxy:
@@ -35,6 +37,9 @@ services:
       - "${APP_ZOT24_HERDR_SSH_PORT}:${APP_ZOT24_HERDR_SSH_PORT}"
     environment:
       HERDR_SSH_PORT: ${APP_ZOT24_HERDR_SSH_PORT}
+      # Tile password (umbrel-app.yml deterministicPassword). Web-gate login.
+      APP_PASSWORD: ${APP_PASSWORD}
+      APP_SEED: ${APP_SEED}
     # Optional user-provided secrets (ANTHROPIC_API_KEY, OPENAI_API_KEY, …)
     # and git identity (GIT_AUTHOR_NAME, …). Drop a KEY=VALUE file at
     # <app-data>/data/.env over SSH; it is read on every (re)start.
@@ -47,7 +52,7 @@ services:
       #   workspaces (/data/workspaces)
       - ${APP_DATA_DIR}/data:/data
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:7681/"]
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:7681/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3

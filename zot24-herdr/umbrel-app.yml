@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.8.2"
+version: "0.9.0"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -16,10 +16,9 @@ description: >-
   How you attach:
 
 
-  - Web terminal (built in): open the app tile for the full Herdr TUI in your
-    browser, served by ttyd and protected by your Umbrel login. Works from
-    any browser on your network; pair with the Tailscale app for access on
-    the go.
+  - Web: open the app tile. Umbrel login, then the tile password, then a
+    setup page for Claude Code / Grok / Kimi / GitHub keys. After that you
+    land in the Herdr TUI. The terminal is writable (keyboard works).
 
 
   - Phone (Moshi or any SSH client): the app runs its own SSH server on port
@@ -54,31 +53,28 @@ description: >-
   Setup Instructions:
 
 
-  1. Install the app and open it — you land in a Herdr TUI.
+  1. Install the app and open the tile. Log in to Umbrel, then enter the
+     password shown on this tile.
 
 
-  2. Install your agent CLIs from the web terminal, e.g. `npm install -g
-     @anthropic-ai/claude-code`, then enable session restore with
-     `herdr integration install claude` (repeat per agent; check
-     `herdr integration status`).
+  2. Paste API keys (Claude Code, Grok, GitHub, …) on the setup page. They
+     are written to this app's data volume. Empty fields leave existing
+     values. Skip if you only want the TUI.
 
 
-  3. Put API keys in a `.env` file in the app's data directory
-     (…/zot24-herdr/data/.env), e.g. `ANTHROPIC_API_KEY=…`, and restart the
-     app. Keep your code (git clones) under /data/workspaces so it persists.
+  3. Open Herdr. Keep git clones under /data/workspaces so they persist.
 
 
-  4. For phone access, install Tailscale on your Umbrel and your phone, SSH
-     to the host, and attach with `docker exec -it zot24-herdr_server_1
-     herdr`. Never port-forward SSH or expose the web terminal publicly.
+  4. For phone access, add an SSH public key on the setup page (or
+     SSH_AUTHORIZED_KEYS in data/.env) and restart. Connect on port 7683
+     over Tailscale. Never port-forward SSH or expose the web terminal.
 
 
   Security notes:
 
 
-  - The web terminal is authenticated by Umbrel's app proxy. Do not publish
-    port 7681 or tunnel the app to the public internet without additional
-    authentication — a web terminal is full shell access to the container.
+  - The web UI is Umbrel login, then the tile password, then the TUI.
+    Do not publish port 7681 or tunnel the app to the public internet.
 
 
   - Port 7683 is an SSH shell into this container, published on the Umbrel
@@ -105,6 +101,13 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.0: Web gate in front of the TUI — loading screen, tile password
+  (same pattern as Proton Bridge / nworth), then a setup page for Claude
+  Code / Grok / Kimi / GitHub / Vercel / Supabase keys. ttyd is now
+  writable (the previous build painted the TUI but ignored the keyboard)
+  and listens on localhost only. Keys are written to the app data .env.
+
+
   0.8.2: Herdr binary 0.7.5 → 0.8.2. Agent-CLI bootstrap now upgrades in place
   on every start (Claude Code, Grok, Kimi, Vercel, Supabase) instead of
   skipping installed bins. Kimi Code PATH includes ~/.kimi-code/bin. Weekly
@@ -143,7 +146,7 @@ gallery:
 path: ""
 defaultUsername: ""
 defaultPassword: ""
-deterministicPassword: false
+deterministicPassword: true
 torOnly: false
 submitter: zot24
 submission: ""
