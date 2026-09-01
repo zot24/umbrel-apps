@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.9.1"
+version: "0.9.2"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -104,6 +104,12 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.2: Easy Pair QR actually stays on the setup screen. moshi-hook
+  prints the grant and exits; 0.9.1 treated that as “already paired”
+  and hid the code. Pair phone is on the Ready page (the QR is not in
+  the TUI). Do not screenshot the QR.
+
+
   0.9.1: Moshi Easy Pair on the setup screen. The image now ships
   moshi-hook; scan a QR from the phone app (Tailscale/LAN host, user
   node, port 7683) and the first SSH key lands without a restart.

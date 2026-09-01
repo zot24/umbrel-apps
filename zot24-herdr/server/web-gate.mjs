@@ -255,6 +255,18 @@ function killMoshiSetup() {
   }
 }
 
+function hasAuthorizedKey() {
+  try {
+    const t = fs.readFileSync("/data/.ssh/authorized_keys", "utf8");
+    return t.split(/\n/).some((line) => {
+      const s = line.trim();
+      return s && !s.startsWith("#") && /^(ssh-|ecdsa-|sk-)/.test(s);
+    });
+  } catch {
+    return false;
+  }
+}
+
 let pairedCache = { t: 0, v: false };
 function moshiPaired() {
   const now = Date.now();
@@ -276,6 +288,10 @@ function moshiPaired() {
     pairedCache = { t: now, v: false };
     return false;
   }
+}
+
+function actuallyPaired() {
+  return moshiPaired() || hasAuthorizedKey();
 }
 
 function parseSetupBuf() {
@@ -331,11 +347,11 @@ function startMoshiSetup(host, name) {
   proc.on("exit", (code) => {
     moshiSetup.proc = null;
     parseSetupBuf();
+    // host setup --json prints the grant and exits 0 immediately. That is
+    // NOT a phone claim. Keep the payload so the QR can stay on screen.
     if (code === 0) {
-      moshiSetup.claimed = true;
-      pairedCache = { t: 0, v: true };
       spawn("moshi-hook", ["install"], { env: MOSHI_ENV, stdio: "ignore" });
-    } else if (!moshiSetup.claimed && !moshiSetup.error) {
+    } else if (!moshiSetup.payload && !moshiSetup.error) {
       moshiSetup.error = code == null ? "setup stopped" : `setup exited ${code}`;
     }
   });
@@ -344,11 +360,12 @@ function startMoshiSetup(host, name) {
 function publicMoshi(req) {
   const p = moshiSetup.payload || {};
   const expired = p.expiresAt ? Date.parse(p.expiresAt) < Date.now() : false;
-  const live = Boolean(moshiSetup.proc) && Boolean(p.deepLink) && !expired;
+  const paired = actuallyPaired();
+  const showGrant = Boolean(p.deepLink) && !expired && !paired;
   return {
     running: Boolean(moshiSetup.proc),
-    claimed: moshiSetup.claimed,
-    paired: moshiPaired() || moshiSetup.claimed,
+    claimed: paired,
+    paired,
     error: moshiSetup.error,
     expired,
     hostname: p.hostname || null,
@@ -357,7 +374,7 @@ function publicMoshi(req) {
     expiresAt: p.expiresAt || null,
     setupId: p.setupId || null,
     prereqs: p.prereqs || null,
-    deepLink: live ? p.deepLink : null,
+    deepLink: showGrant ? p.deepLink : null,
     suggestedHost: suggestedHost(req),
   };
 }
@@ -425,9 +442,9 @@ async function handleApi(req, res, url) {
       bootstrap: env.get("HERDR_BOOTSTRAP_AGENTS") === "1",
       keys: keyStatus(env),
       moshi: {
-        paired: moshiPaired() || moshiSetup.claimed,
+        paired: actuallyPaired(),
         running: Boolean(moshiSetup.proc),
-        claimed: moshiSetup.claimed,
+        claimed: actuallyPaired(),
       },
     });
     return;
@@ -550,7 +567,8 @@ async function handleApi(req, res, url) {
     const name = typeof body.name === "string" && body.name.trim() ? body.name.trim().slice(0, 64) : "Herdr";
     startMoshiSetup(host, name);
     const started = Date.now();
-    while (!moshiSetup.payload && moshiSetup.proc && Date.now() - started < 4000) {
+    while (!moshiSetup.payload && Date.now() - started < 4000) {
+      if (!moshiSetup.proc && moshiSetup.error) break;
       await new Promise((r) => setTimeout(r, 100));
     }
     json(res, 200, { ok: true, ...publicMoshi(req) });
@@ -558,7 +576,10 @@ async function handleApi(req, res, url) {
   }
   if (req.method === "DELETE" && url.pathname === "/api/moshi/setup") {
     killMoshiSetup();
+    moshiSetup.payload = null;
+    moshiSetup.claimed = false;
     moshiSetup.error = null;
+    moshiSetup.buf = "";
     json(res, 200, { ok: true, ...publicMoshi(req) });
     return;
   }

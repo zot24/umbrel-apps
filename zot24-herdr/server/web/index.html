@@ -130,9 +130,10 @@
 
     <div class="card hidden" id="view-go">
       <h1>Ready</h1>
-      <p class="sub" id="go-sub">Workspace is up. Open the TUI — keyboard works in this build.</p>
+      <p class="sub" id="go-sub">Workspace is up. The Moshi QR is not in the TUI — pair the phone here first, then open Herdr.</p>
       <div class="row">
         <button type="button" id="open">Open Herdr</button>
+        <button type="button" class="ghost" id="pair">Pair phone</button>
         <button type="button" class="ghost" id="edit">Edit keys</button>
       </div>
     </div>
@@ -173,6 +174,15 @@
     function renderMoshi(j) {
       $("moshi-err").textContent = j.error || "";
       if (j.suggestedHost && !$("moshi-host").value) $("moshi-host").value = j.suggestedHost;
+      if (j.deepLink) {
+        $("moshi-box").classList.remove("hidden");
+        drawQr(j.deepLink);
+        const exp = j.expiresAt ? new Date(j.expiresAt).toLocaleTimeString() : "";
+        $("moshi-meta").textContent =
+          (j.hostname || "") + " · node@" + (j.sshPort || 7683) +
+          (exp ? " · expires " + exp : "") + " · do not screenshot";
+        return;
+      }
       if (j.claimed || j.paired) {
         $("moshi-box").classList.add("hidden");
         $("moshi-svg").innerHTML = "";
@@ -182,14 +192,7 @@
         stopMoshiPoll();
         return;
       }
-      if (j.deepLink) {
-        $("moshi-box").classList.remove("hidden");
-        drawQr(j.deepLink);
-        const exp = j.expiresAt ? new Date(j.expiresAt).toLocaleTimeString() : "";
-        $("moshi-meta").textContent =
-          (j.hostname || "") + " · node@" + (j.sshPort || 7683) +
-          (exp ? " · expires " + exp : "") + " · do not screenshot";
-      } else if (j.running) {
+      if (j.running) {
         $("moshi-box").classList.add("hidden");
         $("moshi-meta").textContent = "Waiting for pairing payload…";
       } else {
@@ -290,6 +293,7 @@
       location.href = "/t/";
     };
     $("open").onclick = () => { location.href = "/t/"; };
+    $("pair").onclick = () => { show("view-setup"); refreshMoshi(); };
     $("edit").onclick = () => { show("view-setup"); refreshMoshi(); };
     $("moshi-qr").onclick = async () => {
       $("moshi-err").textContent = "";
