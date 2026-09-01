@@ -75,11 +75,13 @@ RUN set -eux; \
     ttyd --version
 
 COPY entrypoint.sh /entrypoint.sh
-COPY agent-bridge.mjs bootstrap-agents.sh ssh-login.sh /usr/local/lib/herdr-umbrel/
+COPY agent-bridge.mjs web-gate.mjs bootstrap-agents.sh ssh-login.sh /usr/local/lib/herdr-umbrel/
+COPY web /usr/local/lib/herdr-umbrel/web
 RUN chmod +x /entrypoint.sh \
         /usr/local/lib/herdr-umbrel/bootstrap-agents.sh \
         /usr/local/lib/herdr-umbrel/ssh-login.sh \
-    && chmod 644 /usr/local/lib/herdr-umbrel/agent-bridge.mjs
+    && chmod 644 /usr/local/lib/herdr-umbrel/agent-bridge.mjs \
+                 /usr/local/lib/herdr-umbrel/web-gate.mjs
 
 # HOME must live on the Umbrel-managed volume so ~/.config/herdr (config,
 # socket, session state, logs), npm-global agent CLIs, and workspaces all
@@ -96,10 +98,12 @@ ENV HOME=/data \
     LANG=C.UTF-8 \
     TERM=xterm-256color \
     HERDR_AGENT_PORT=7682 \
-    HERDR_SSH_PORT=7683
+    HERDR_SSH_PORT=7683 \
+    HERDR_TTYD_PORT=7684 \
+    HERDR_GATE_PORT=7681
 
-# 7681 ttyd (via app_proxy) · 7682 agent-bridge (internal, Hermes) ·
-# 7683 sshd (published on the host by docker-compose.yml).
+# 7681 web-gate (via app_proxy) · 7682 agent-bridge (internal, Hermes) ·
+# 7683 sshd (published on the host by docker-compose.yml) · 7684 ttyd (localhost).
 EXPOSE 7681 7682 7683
 
 # The base image's unprivileged `node` user (UID 1000) is the runtime user.
