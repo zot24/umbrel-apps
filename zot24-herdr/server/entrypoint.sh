@@ -45,7 +45,7 @@ if [ ! -f /data/.profile ]; then
     cat > /data/.profile <<'PROFILE'
 # Seeded by the Herdr Umbrel app on first run. Yours to edit.
 export NPM_CONFIG_PREFIX=/data/.npm-global
-export PATH=/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:/data/.kimi-code/bin:$PATH
+export PATH=/usr/local/bin:/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:/data/.kimi-code/bin:$PATH
 export LANG=${LANG:-C.UTF-8}
 
 # Secrets + git identity from the app's .env, so an SSH session has the same
@@ -88,8 +88,9 @@ gosu "$RUN_USER" node /usr/local/lib/herdr-umbrel/agent-bridge.mjs &
 #
 # Port 7683, NOT 7682: 7682 is the agent-bridge above. Key-only, no passwords,
 # and sshd runs as the unprivileged runtime user on an unprivileged port, so no
-# root daemon survives startup. It only starts if an authorized key exists — an
-# SSH daemon nobody can log into is just surface.
+# root daemon survives startup. Always start sshd: Easy Pair writes the first
+# key after the QR is scanned, and sshd re-reads authorized_keys per
+# connection. Empty keys + no passwords = nobody can log in until a key lands.
 # ---------------------------------------------------------------------------
 gosu "$RUN_USER" bash -s "$SSH_PORT" "$SSH_RUN_DIR" <<'EOF'
 set -euo pipefail
@@ -123,10 +124,7 @@ if [ -n "${SSH_AUTHORIZED_KEYS:-}" ]; then
 fi
 
 if [ ! -s "$ssh_dir/authorized_keys" ]; then
-    echo "ssh: no authorized keys — sshd not started."
-    echo "ssh: add one to <app-data>/data/.ssh/authorized_keys, or set"
-    echo "ssh: SSH_AUTHORIZED_KEYS in <app-data>/data/.env, then restart the app."
-    exit 0
+    echo "ssh: no authorized keys yet — sshd up for Easy Pair (key-only, no passwords)."
 fi
 
 cat > "$run_dir/sshd_config" <<CONF
@@ -171,6 +169,15 @@ chmod 600 "$run_dir/sshd_config"
 /usr/sbin/sshd -f "$run_dir/sshd_config" -D -e &
 echo "ssh: listening on ${ssh_port} (key auth only, user 'node')"
 EOF
+
+# moshi-hook daemon: agent approvals / inbox after Easy Pair. Linux defaults
+# to file-backed secrets on /data (no Keychain). Skip install.sh's /dev/tty
+# first-run prompt. Logs go to docker logs — serve never prints Easy Pair URLs.
+gosu "$RUN_USER" env \
+    HOME=/data \
+    MOSHI_HOOK_SKIP_FIRST_RUN=1 \
+    MOSHI_HERDR_PATH=/usr/local/bin/herdr \
+    moshi-hook serve &
 
 # Web UI:
 #   7681  web-gate (loading + tile password + key setup) — app_proxy target

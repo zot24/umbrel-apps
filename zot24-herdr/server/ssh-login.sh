@@ -12,10 +12,12 @@
 # sshd puts the client's requested command in SSH_ORIGINAL_COMMAND when
 # ForceCommand is set, so branching on it preserves case 2.
 set -euo pipefail
+export PATH="/usr/local/bin:/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:/data/.kimi-code/bin:${PATH:-/usr/bin:/bin}"
 
 # Login shells source /data/.profile; `bash -lc` here gives remote commands the
 # same PATH (agent CLIs under /data/.npm-global/bin) and the same /data/.env
-# secrets an interactive session gets.
+# secrets an interactive session gets. moshi-hook / herdr / mosh-server must
+# resolve in non-interactive SSH (Moshi preflight) even if .profile is old.
 if [ -n "${SSH_ORIGINAL_COMMAND:-}" ]; then
     exec bash -lc "$SSH_ORIGINAL_COMMAND"
 fi

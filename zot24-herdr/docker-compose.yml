@@ -20,14 +20,16 @@ services:
     # time, so the workflow's commit-back step is what makes this app
     # installable. Until the first build runs, this tag has no @sha256 and
     # the app will not install.
-    image: ghcr.io/zot24/herdr-umbrel:0.9.0@sha256:60d204f2cb8437d317990c9cc0ec39b619b659178feea007872034c463a02e3a
+    image: ghcr.io/zot24/herdr-umbrel:0.9.1
     restart: on-failure
     init: true
     stop_grace_period: 30s
     # SSH straight into the app — the phone/laptop attach path, and the reason
     # you do not need a shell on the Umbrel host. Key-only auth; sshd runs as
     # the unprivileged runtime user inside the container. 7683 is deliberate:
-    # 7682 is the agent-bridge above and is NOT published.
+    # 7682 is the agent-bridge above and is NOT published. Always on so Moshi
+    # Easy Pair can write the first authorized key after a QR scan; empty
+    # keys + no passwords = nobody logs in until a key lands.
     #
     # Docker publishes this on every host interface and its DNAT rules sit in
     # front of host firewalls, so treat it as LAN-reachable, not tailnet-only.

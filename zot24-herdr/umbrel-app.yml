@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.9.0"
+version: "0.9.1"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -65,9 +65,11 @@ description: >-
   3. Open Herdr. Keep git clones under /data/workspaces so they persist.
 
 
-  4. For phone access, add an SSH public key on the setup page (or
-     SSH_AUTHORIZED_KEYS in data/.env) and restart. Connect on port 7683
-     over Tailscale. Never port-forward SSH or expose the web terminal.
+  4. Phone (Moshi): on the setup page, enter a Tailscale or LAN hostname
+     the phone can reach, then Generate QR and scan it in the Moshi app.
+     User is node, port 7683. Do not screenshot the QR. Fallback: paste
+     an SSH public key on the same page (no restart needed). Never
+     port-forward SSH or expose the web terminal.
 
 
   Security notes:
@@ -80,8 +82,9 @@ description: >-
   - Port 7683 is an SSH shell into this container, published on the Umbrel
     host, so treat it as reachable from your whole LAN. That is safe only
     because there is no password to guess: key authentication only, no root
-    login, and the SSH server refuses to start without an authorized key.
-    Reach it over Tailscale; never forward it on your router.
+    login. sshd starts even with an empty authorized_keys file so Easy Pair
+    can write the first key after a QR scan; nobody can log in until a key
+    lands. Reach it over Tailscale; never forward it on your router.
 
 
   - The SSH server runs as an unprivileged user inside the container. A lost
@@ -101,6 +104,13 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.1: Moshi Easy Pair on the setup screen. The image now ships
+  moshi-hook; scan a QR from the phone app (Tailscale/LAN host, user
+  node, port 7683) and the first SSH key lands without a restart.
+  sshd stays up with an empty key file so pairing can complete.
+  Manual public-key paste still works as fallback.
+
+
   0.9.0: Web gate in front of the TUI — loading screen, tile password
   (same pattern as Proton Bridge / nworth), then a setup page for Claude
   Code / Grok / Kimi / GitHub / Vercel / Supabase keys. ttyd is now
