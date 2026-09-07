@@ -149,8 +149,13 @@ UsePAM no
 # (\`herdr session list --json\`) and \`herdr --remote\` keep working.
 ForceCommand /usr/local/lib/herdr-umbrel/ssh-login.sh
 
-# Attach to a terminal multiplexer; nothing here needs to be a network relay.
-AllowTcpForwarding no
+# Moshi's desktop client reaches the moshi-hook gateway by opening an SSH
+# stdio forward (ssh -W 127.0.0.1:24543) over this connection, so local
+# forwarding must be allowed. Scope it to just that gateway port so the SSH
+# session is not a general network relay. If moshi-hook's gateway port ever
+# changes, update PermitOpen to match.
+AllowTcpForwarding local
+PermitOpen 127.0.0.1:24543
 GatewayPorts no
 X11Forwarding no
 PermitTunnel no

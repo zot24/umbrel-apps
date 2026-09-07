@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.9.2"
+version: "0.9.3"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -104,6 +104,14 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.3: Moshi desktop can reach the container again. The container's
+  sshd blocked all TCP forwarding, but the desktop client opens an SSH
+  stdio forward to the local moshi-hook gateway (127.0.0.1:24543). That
+  forward is now allowed, scoped to only the gateway port so the session
+  is not a general network relay. Phone pairing and the Herdr TUI are
+  unchanged.
+
+
   0.9.2: Easy Pair QR actually stays on the setup screen. moshi-hook
   prints the grant and exits; 0.9.1 treated that as “already paired”
   and hid the code. Pair phone is on the Ready page (the QR is not in
