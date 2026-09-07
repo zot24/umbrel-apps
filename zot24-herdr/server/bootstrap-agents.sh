@@ -84,6 +84,16 @@ install_kimi() {
   fi
 }
 
+install_pi() {
+  # Pi coding-agent harness (pi.dev). Upstream recommends --ignore-scripts;
+  # pi needs no postinstall. Lands in /data/.npm-global/bin/pi (on PATH).
+  log "npm install -g --ignore-scripts @earendil-works/pi-coding-agent"
+  npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+  if have pi && have herdr; then
+    herdr integration install pi >/dev/null 2>&1 || true
+  fi
+}
+
 # --- platform CLIs -----------------------------------------------------------
 
 install_vercel() {
@@ -105,12 +115,12 @@ install_gh_note() {
 # --- driver ------------------------------------------------------------------
 
 # HERDR_BOOTSTRAP_TOOLS controls the set. Space-separated tokens:
-#   claude grok kimi vercel supabase all
+#   claude grok kimi vercel supabase pi all
 # Default: all of the above (minus anything you strip).
 resolve_tools() {
   local raw="${HERDR_BOOTSTRAP_TOOLS:-all}"
   if [ "$raw" = "all" ]; then
-    echo "claude grok kimi vercel supabase"
+    echo "claude grok kimi vercel supabase pi"
     return
   fi
   echo "$raw"
@@ -130,6 +140,7 @@ main() {
       claude) install_claude ;;
       grok) install_grok ;;
       kimi) install_kimi ;;
+      pi) install_pi ;;
       vercel) install_vercel ;;
       supabase) install_supabase ;;
       gh) install_gh_note ;;
@@ -149,11 +160,11 @@ main() {
   fi
 
   log "done — versions:"
-  for bin in claude grok kimi vercel supabase gh herdr node npm; do
+  for bin in claude grok kimi vercel supabase pi gh herdr node npm; do
     if have "$bin"; then
       printf '  %-10s %s\n' "$bin" "$(command -v "$bin")" >&2
       case "$bin" in
-        claude|grok|kimi|vercel|supabase|gh|herdr|node|npm)
+        claude|grok|kimi|vercel|supabase|pi|gh|herdr|node|npm)
           "$bin" --version >/dev/null 2>&1 && "$bin" --version 2>&1 | head -1 | sed 's/^/    /' >&2 || true
           ;;
       esac
