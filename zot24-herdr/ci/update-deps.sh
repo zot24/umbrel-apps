@@ -39,6 +39,10 @@ HERDR_LATEST_TAG="$(github_json repos/ogulcancelik/herdr/releases/latest | pytho
 HERDR_LATEST="${HERDR_LATEST_TAG#v}"
 TTYD_LATEST="$(github_json repos/tsl0922/ttyd/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
 
+MOSHI_CUR="$(current_arg MOSHI_HOOK_VERSION)"
+MOSHI_LATEST="$(curl -fsSL -H "User-Agent: $UA" https://cdn.getmoshi.app/hook/latest/version.txt | tr -d " \r\n")"
+MOSHI_LATEST="${MOSHI_LATEST#v}"
+
 npm_latest() {
   curl -fsSL -H "User-Agent: $UA" "https://registry.npmjs.org/$1/latest" \
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])'
@@ -49,14 +53,15 @@ VERCEL_V="$(npm_latest vercel)"
 SUPABASE_V="$(npm_latest supabase)"
 
 python3 - "$CLI_JSON" "$HERDR_CUR" "$HERDR_LATEST" "$TTYD_CUR" "$TTYD_LATEST" \
-  "$CLAUDE_V" "$VERCEL_V" "$SUPABASE_V" <<'PY'
+  "$MOSHI_CUR" "$MOSHI_LATEST" "$CLAUDE_V" "$VERCEL_V" "$SUPABASE_V" <<'PY'
 import json, sys, datetime
-path, herdr_cur, herdr_latest, ttyd_cur, ttyd_latest, claude, vercel, supabase = sys.argv[1:]
+path, herdr_cur, herdr_latest, ttyd_cur, ttyd_latest, moshi_cur, moshi_latest, claude, vercel, supabase = sys.argv[1:]
 doc = {
     "checked_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "image_pins": {
         "herdr": {"current": herdr_cur, "latest_stable": herdr_latest},
         "ttyd": {"current": ttyd_cur, "latest_stable": ttyd_latest},
+        "moshi-hook": {"current": moshi_cur, "latest_stable": moshi_latest},
     },
     "volume_clis_latest": {
         "claude-code": claude,
@@ -129,8 +134,32 @@ else
   echo "ttyd pin current ($TTYD_CUR)"
 fi
 
+if [ -n "$MOSHI_LATEST" ] && [ "$MOSHI_LATEST" != "$MOSHI_CUR" ]; then
+  echo "==> moshi-hook $MOSHI_CUR -> $MOSHI_LATEST"
+  curl -fsSL -o "$TMP/mh-x86_64.tgz" "https://cdn.getmoshi.app/hook/v${MOSHI_LATEST}/moshi-hook_Linux_x86_64.tar.gz"
+  curl -fsSL -o "$TMP/mh-arm64.tgz"  "https://cdn.getmoshi.app/hook/v${MOSHI_LATEST}/moshi-hook_Linux_arm64.tar.gz"
+  SHA_X86="$(sha256sum "$TMP/mh-x86_64.tgz" | awk '{print $1}')"
+  SHA_ARM="$(sha256sum "$TMP/mh-arm64.tgz" | awk '{print $1}')"
+  echo "    x86_64  $SHA_X86"
+  echo "    arm64   $SHA_ARM"
+  python3 - "$DF" "$MOSHI_LATEST" "$SHA_X86" "$SHA_ARM" <<'PY'
+from pathlib import Path
+import re, sys
+path, ver, sha_x, sha_a = sys.argv[1:]
+text = Path(path).read_text()
+text = re.sub(r"^ARG MOSHI_HOOK_VERSION=.*$", f"ARG MOSHI_HOOK_VERSION={ver}", text, count=1, flags=re.M)
+text = re.sub(r"^ARG MOSHI_HOOK_SHA256_X86_64=.*$", f"ARG MOSHI_HOOK_SHA256_X86_64={sha_x}", text, count=1, flags=re.M)
+text = re.sub(r"^ARG MOSHI_HOOK_SHA256_AARCH64=.*$", f"ARG MOSHI_HOOK_SHA256_AARCH64={sha_a}", text, count=1, flags=re.M)
+Path(path).write_text(text)
+PY
+  changed=1
+else
+  echo "moshi-hook pin current ($MOSHI_CUR)"
+fi
+
 if [ "$changed" -eq 1 ]; then
-  NEW_VER="$(current_arg HERDR_VERSION)"
+  CUR_APP_VER="$(grep -E '^version: ' "$MANIFEST" | sed -E 's/^version: *"([^"]+)".*/\1/')"
+  NEW_VER="$(python3 -c 'import sys; a=sys.argv[1].split("."); a[-1]=str(int(a[-1])+1); print(".".join(a))' "$CUR_APP_VER")"
   printf '%s\n' "$NEW_VER" > "$VERSION_FILE"
   python3 - "$MANIFEST" "$NEW_VER" "$HERDR_CUR" "$HERDR_LATEST" <<'PY'
 from pathlib import Path
@@ -139,7 +168,7 @@ path, new_ver, old_herdr, new_herdr = sys.argv[1:]
 text = Path(path).read_text()
 text = re.sub(r'^version: ".*"', f'version: "{new_ver}"', text, count=1, flags=re.M)
 note = (
-    f"  {new_ver}: Herdr binary {old_herdr} → {new_herdr}. "
+    f"  {new_ver}: image pins refreshed (herdr {new_herdr}; see cli-versions.json). "
     "Image pins refreshed by zot24-herdr/ci/update-deps.sh.\n\n\n"
 )
 text = re.sub(r"(releaseNotes: >-\n)", rf"\1{note}", text, count=1)
@@ -156,5 +185,7 @@ if [ -n "${GITHUB_OUTPUT:-}" ]; then
   echo "herdr_latest=$HERDR_LATEST" >> "$GITHUB_OUTPUT"
   echo "ttyd_current=$TTYD_CUR" >> "$GITHUB_OUTPUT"
   echo "ttyd_latest=$TTYD_LATEST" >> "$GITHUB_OUTPUT"
+  echo "moshi_current=$MOSHI_CUR" >> "$GITHUB_OUTPUT"
+  echo "moshi_latest=$MOSHI_LATEST" >> "$GITHUB_OUTPUT"
 fi
 exit 0
