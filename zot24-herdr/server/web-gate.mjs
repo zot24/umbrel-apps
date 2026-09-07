@@ -69,7 +69,7 @@ function authed(req) {
 function setCookie(res) {
   res.setHeader(
     "Set-Cookie",
-    `${COOKIE}=${cookieValue()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`,
+    `${COOKIE}=${cookieValue()}; Path=/; HttpOnly; SameSite=Lax`,
   );
 }
 function clearCookie(res) {
