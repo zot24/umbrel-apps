@@ -107,7 +107,8 @@ releaseNotes: >-
   0.9.4: moshi-hook 0.3.16 to 0.3.19. The web terminal now asks for the
   Umbrel tile password each browser session (the login cookie is a session
   cookie, not a 30-day one), so opening Herdr prompts for the password
-  Umbrel shows on the app tile. The dep updater also tracks moshi-hook now.
+  Umbrel shows on the app tile. Adds the Pi coding-agent harness (pi.dev)
+  to the bootstrapped CLIs. The dep updater also tracks moshi-hook now.
 
 
   0.9.3: Moshi desktop can reach the container again. The container's
