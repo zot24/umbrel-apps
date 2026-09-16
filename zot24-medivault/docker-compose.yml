@@ -1,0 +1,74 @@
+services:
+  # MediVault has its own accounts, but it holds medical records, so Umbrel's
+  # login stays in front of it as well. The two are not redundant: Umbrel's
+  # gate keeps the app off the LAN for anyone who is not you, and MediVault's
+  # own accounts are what a share link is issued against.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-medivault_app_1
+      APP_PORT: 3000
+      PROXY_AUTH_ADD: "true"
+
+  db:
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      POSTGRES_USER: medivault
+      # Per-installation, supplied by Umbrel. The database is reachable only
+      # on this app's own network; the app's session and token keys are
+      # derived from the same seed with separate HMACs, so they are not this
+      # value.
+      POSTGRES_PASSWORD: ${APP_SEED}
+      POSTGRES_DB: medivault
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ${APP_DATA_DIR}/data/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medivault -d medivault"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  app:
+    # Image + digest are written by .github/workflows/pin-medivault.yml when
+    # zot24/medivault publishes a release. Umbrel refuses an unpinned image at
+    # install time, so until the first pin runs this app will not install.
+    image: ghcr.io/zot24/medivault:0.0.0
+    restart: on-failure
+    init: true
+    stop_grace_period: 1m
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATABASE_URL: postgres://medivault:${APP_SEED}@zot24-medivault_db_1:5432/medivault
+      # The scans go on the disk beside the database, not into it and not to
+      # anyone else's storage.
+      OBJECT_STORE: disk
+      UPLOAD_DIR: /data/uploads
+      # Session and JWT keys are derived from this, one HMAC each.
+      APP_SEED: ${APP_SEED}
+      # Umbrel's app proxy sits in front, so read the real scheme and client
+      # address from it. Cookies are NOT marked Secure, because Umbrel is
+      # reached over plain HTTP on the LAN and a Secure cookie would never be
+      # sent. Behind the Cloudflare Tunnel app, set SECURE_COOKIES=1 in the
+      # optional .env below.
+      TRUST_PROXY: "1"
+      SECURE_COOKIES: "0"
+    # Optional overrides: drop a KEY=VALUE file at <app-data>/data/.env over
+    # SSH. Values in `environment` above win over it.
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    volumes:
+      - ${APP_DATA_DIR}/data/uploads:/data/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
