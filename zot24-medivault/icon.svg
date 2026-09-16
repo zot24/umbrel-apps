@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MediVault">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="114" fill="#0b1412"/>
+  <path d="M256 84l124 46v122c0 86-52 148-124 176-72-28-124-90-124-176V130l124-46z"
+        fill="url(#g)"/>
+  <path d="M168 252h44l20-46 30 96 22-50h60" fill="none" stroke="#0b1412"
+        stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

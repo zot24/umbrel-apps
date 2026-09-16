@@ -1,0 +1,51 @@
+manifestVersion: 1.1
+id: zot24-medivault
+name: MediVault
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-medivault/icon.svg
+category: files
+version: "0.0.0"
+tagline: Your medical records, readable — scans included, on your own hardware
+description: >-
+  MediVault keeps medical documents, imaging studies and symptoms together in
+  one place you own. It reads hospital CDs directly: point it at the disc and
+  it groups the files into the studies they actually are, then draws them in
+  the browser — a coronary CT with its phases, an echocardiogram's views, a
+  catheterization's runs playing as cine loops, and the structured reports
+  with their measurements.
+
+
+  Nothing leaves the box. The images sit on your Umbrel's disk, the database
+  beside them, and both live under this app's data directory so Umbrel's
+  backups pick them up.
+
+
+  Sharing is a link, not a copy. Create one for a doctor and they open the
+  whole study in their browser — the same viewer you use, with no account, no
+  download button, and an expiry you set. Revoke it and it stops working
+  everywhere.
+
+
+  The app sits behind your Umbrel login. If you expose it with the Cloudflare
+  Tunnel app, put Cloudflare Access in front of it and allow only the /s/
+  paths through, so share links keep working for the people you send them to
+  while the rest stays yours.
+
+
+  Speaks English and Spanish, and picks one from the browser and the country
+  the request comes from.
+releaseNotes: >-
+  First release as an Umbrel app.
+developer: zot24
+website: https://github.com/zot24/medivault
+dependencies: []
+repo: https://github.com/zot24/medivault
+support: https://github.com/zot24/medivault/issues
+port: 3007
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
