@@ -33,8 +33,16 @@ description: >-
 
   Speaks English and Spanish, and picks one from the browser and the country
   the request comes from.
-releaseNotes: >-
-  First release as an Umbrel app.
+releaseNotes: |-
+  - Analytics are configuration: the tracker's URL and site id come from the
+    environment, and a setting that could not work (a plain-HTTP script on an
+    HTTPS page, a .local host on a public site) is reported at startup instead
+    of silently recording nothing.
+  - The waiting list works. Its endpoint had never been implemented, so every
+    submission got a 404; it now stores the entry and confirms by email when
+    Resend is configured.
+  - Registration is closed unless explicitly opened, and the demo account with
+    its published password is gone from the login page, the seed and the tests.
 developer: zot24
 website: https://github.com/zot24/medivault
 dependencies: []
