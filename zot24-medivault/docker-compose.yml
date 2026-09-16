@@ -35,7 +35,7 @@ services:
     # Image + digest are written by .github/workflows/pin-medivault.yml when
     # zot24/medivault publishes a release. Umbrel refuses an unpinned image at
     # install time, so until the first pin runs this app will not install.
-    image: ghcr.io/zot24/medivault:0.3.0@sha256:8e0d5d2091d0c7ec89857eb98a165301d76ceeccc9cf54716501342ad3edfa71
+    image: ghcr.io/zot24/medivault:0.3.1@sha256:b1b50d21c32dd578b1836580497f5ebf373f0228568c68cbb6295af895f00b93
     restart: on-failure
     init: true
     stop_grace_period: 1m

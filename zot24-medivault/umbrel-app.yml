@@ -3,7 +3,7 @@ id: zot24-medivault
 name: MediVault
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-medivault/icon.svg
 category: files
-version: "0.3.0"
+version: "0.3.1"
 tagline: Your medical records, readable — scans included, on your own hardware
 description: >-
   MediVault keeps medical documents, imaging studies and symptoms together in
