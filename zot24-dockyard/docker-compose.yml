@@ -1,0 +1,66 @@
+services:
+  # Umbrel requires an app_proxy. The bundled management agent (periphery)
+  # is an API, not a web UI, so the tile just proves it is up;
+  # PROXY_AUTH_ADD keeps it behind the Umbrel login.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-dockyard_periphery_1
+      APP_PORT: 8120
+      PROXY_AUTH_ADD: "true"
+
+  # The heart of the app: a Docker daemon in ITS OWN network namespace —
+  # deliberately NOT network_mode: host. That is what makes it both isolated
+  # from the host's Docker and every other app, AND able to network the
+  # containers you run here with each other. (Host-mode nesting, as Umbrel's
+  # built-in dind does it, makes two daemons fight over one firewall ruleset
+  # and drops container-to-container traffic.)
+  dind:
+    image: docker:28.3.0-dind@sha256:d33eb93fe02683e984e6f8a93c0b3d85bb74f56ec83922bc39fb34ba23ab42bc
+    restart: on-failure
+    privileged: true
+    stop_grace_period: 1m
+    # --mtu 1450 leaves headroom under the 1500 of the network this nests in,
+    # so full-size frames from a deployed app are never silently dropped.
+    command: >
+      dockerd
+        --host=unix:///data/docker.sock
+        --data-root=/data/data
+        --exec-root=/data/exec
+        --pidfile=/data/docker.pid
+        --mtu=1450
+    volumes:
+      - ${APP_DATA_DIR}/data/dind:/data
+    healthcheck:
+      test: ["CMD", "docker", "-H", "unix:///data/docker.sock", "info"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # An OPTIONAL management agent, included so Komodo works out of the box.
+  # Same version as Komodo Core (2.3.3). It drives the sibling dind daemon
+  # over that daemon's socket (shared /data volume); a Komodo Core connects
+  # to it at https://zot24-dockyard_periphery_1:8120 over the Umbrel network.
+  # Not using Komodo? Ignore it and drive the daemon's socket directly
+  # (<app-data>/data/dind/docker.sock).
+  periphery:
+    image: ghcr.io/moghtech/komodo-periphery:2.3.3@sha256:fa3f1a641a265216066676950d5eecdf506955a7bafe2f01996135ae93115cd5
+    restart: on-failure
+    init: true
+    depends_on:
+      dind:
+        condition: service_healthy
+    environment:
+      # Manage the nested daemon, never the host's.
+      DOCKER_HOST: unix:///data/docker.sock
+      PERIPHERY_SSL_ENABLED: "true"
+      PERIPHERY_ROOT_DIRECTORY: /etc/komodo
+      # Only a Komodo Core that presents this passkey may drive this agent.
+      # It is this installation's own per-install secret; add the same value
+      # to your Komodo Core's passkey list to let them connect. (Direct
+      # socket users don't need this at all.)
+      PERIPHERY_PASSKEYS: ${APP_SEED}
+      PERIPHERY_DISABLE_TERMINALS: "false"
+    volumes:
+      - ${APP_DATA_DIR}/data/dind:/data
+      - ${APP_DATA_DIR}/data/periphery:/etc/komodo

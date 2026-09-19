@@ -1,0 +1,47 @@
+manifestVersion: 1.1
+id: zot24-dockyard
+name: Dockyard
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-dockyard/icon.svg
+category: developer
+version: "2.3.3"
+tagline: An isolated Docker sandbox to deploy and run your own containers
+description: >-
+  Dockyard is a sandboxed Docker host that lives on your Umbrel: a full Docker
+  daemon in its own network namespace, kept separate from your Umbrel's own
+  Docker and every other app. It's a safe place to deploy and run containers —
+  a stack of your own, something you're trying out, a workload you'd rather
+  keep at arm's length from the rest of the machine — without any of it being
+  able to touch the host.
+
+
+  Because the daemon runs in its own namespace, the containers you run here
+  network with each other the way Docker intends. (Umbrel's built-in
+  Docker-in-Docker runs in host network mode, where two daemons fight over one
+  set of firewall rules and container-to-container traffic gets dropped —
+  Dockyard is the corrected version of that idea.)
+
+
+  Manage it however you like. It ships with a Komodo Periphery agent, so if
+  you run Komodo it can deploy here out of the box — add Dockyard as a server
+  and go. Or drive the daemon directly: its Docker socket sits in the app's
+  data directory, ready for the Docker CLI over SSH or another tool you mount
+  it into.
+
+
+  Anything you deploy reaches the outside world by publishing a port, which
+  becomes available on Dockyard's own address on the Umbrel network — so a
+  Cloudflare Tunnel, or another app, can point straight at it.
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 8120
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
