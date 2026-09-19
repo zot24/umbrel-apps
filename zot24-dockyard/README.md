@@ -1,35 +1,30 @@
 # Dockyard
 
-An isolated Docker host on your Umbrel for [Komodo](https://komo.do) to deploy
-into. Komodo is the control panel; Dockyard is where the workloads run.
+A sandboxed Docker host on your Umbrel — an isolated place to deploy and run
+containers, kept separate from the host's Docker and your other apps.
 
-## Why it exists
+## Why it's isolated the way it is
 
-Umbrel's stock Komodo app runs its bundled Docker-in-Docker in **host network
-mode**, so two Docker daemons share one firewall ruleset and fight over it —
-containers Komodo deploys there can't reach each other. Dockyard runs the
-nested daemon in **its own network namespace**, so Docker networking works
-normally, while staying fully isolated from the host's Docker and your other
-Umbrel apps.
+Dockyard runs a Docker daemon in **its own network namespace**. That keeps it
+walled off from the host, and — unlike Umbrel's built-in Docker-in-Docker,
+which runs in **host network mode** — it lets the containers you run here
+network with each other normally. Host-mode nesting makes two Docker daemons
+share one firewall ruleset and clobber each other's rules, so
+container-to-container traffic is dropped. Dockyard is that idea done right.
 
-## How it fits together
+## Managing it
 
-```
-Komodo (control panel)  ──HTTPS──▶  Dockyard periphery  ──socket──▶  nested dockerd
-                                                                     └─ your stacks
-```
+Drive the daemon however you like:
 
-Add Dockyard to Komodo as a server (address `https://zot24-dockyard_periphery_1:8120`),
-using this app's per-install passkey. Deploy stacks onto it from Komodo.
+- **Komodo** — Dockyard includes a Komodo Periphery agent, so if you run
+  Komodo, add Dockyard as a server (`https://zot24-dockyard_periphery_1:8120`)
+  with this app's per-install passkey and deploy straight to it.
+- **Directly** — the daemon's socket lives at
+  `<app-data>/data/dind/docker.sock`. Use it from the Docker CLI over SSH
+  (`docker -H unix://…`), or mount it into another tool.
 
-## Reaching a deployed app
+## Reaching what you deploy
 
-A stack publishes a port; that port binds on Dockyard's own container, which
-is on the Umbrel network. Point a Cloudflare Tunnel (or another app) at
+Publish a port from your stack; it binds on Dockyard's own container, which is
+on the Umbrel network. Point a Cloudflare Tunnel (or another app) at
 `zot24-dockyard_dind_1:<port>`.
-
-## Wiring the passkey
-
-Komodo Core must present a passkey this agent accepts. This app's passkey is
-its Umbrel `APP_SEED`. Add that same value to your Komodo Core's
-`KOMODO_PASSKEYS` and restart Core, then add the server in the Komodo UI.
