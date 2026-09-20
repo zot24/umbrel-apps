@@ -12,6 +12,12 @@ network with each other normally. Host-mode nesting makes two Docker daemons
 share one firewall ruleset and clobber each other's rules, so
 container-to-container traffic is dropped. Dockyard is that idea done right.
 
+## The status page
+
+Opening the app tile shows a small status page: whether Dockyard's daemon is
+healthy, how many containers are running, and what they are. It reads the
+nested daemon's socket read-only — it can't start, stop, or change anything.
+
 ## Managing it
 
 Drive the daemon however you like:

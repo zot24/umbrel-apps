@@ -1,11 +1,11 @@
 services:
-  # Umbrel requires an app_proxy. The bundled management agent (periphery)
-  # is an API, not a web UI, so the tile just proves it is up;
-  # PROXY_AUTH_ADD keeps it behind the Umbrel login.
+  # Umbrel requires an app_proxy. It points at the status page below — a tiny
+  # read-only dashboard that shows whether the nested Docker daemon is up and
+  # what it's running. PROXY_AUTH_ADD keeps it behind the Umbrel login.
   app_proxy:
     environment:
-      APP_HOST: zot24-dockyard_periphery_1
-      APP_PORT: 8120
+      APP_HOST: zot24-dockyard_status_1
+      APP_PORT: 8080
       PROXY_AUTH_ADD: "true"
 
   # The heart of the app: a Docker daemon in ITS OWN network namespace —
@@ -36,6 +36,24 @@ services:
       timeout: 5s
       retries: 12
       start_period: 40s
+
+  # A tiny status page (Python standard library only, no extra image layers).
+  # It reads the nested daemon's socket read-only and renders one HTML page:
+  # is Dockyard healthy, how many containers are running, and what they are.
+  # This is what the Umbrel tile opens to.
+  status:
+    image: python:3.12-alpine@sha256:c4634f578a412db396771b61b064c6e546c9d6414c7fb5b1b05d5871f1885f7b
+    restart: on-failure
+    depends_on:
+      dind:
+        condition: service_healthy
+    environment:
+      DOCKER_SOCK: /data/docker.sock
+      PORT: "8080"
+    command: ["python3", "/app/status.py"]
+    volumes:
+      - ${APP_DATA_DIR}/data/dind:/data
+      - ${APP_DATA_DIR}/status.py:/app/status.py:ro
 
   # An OPTIONAL management agent, included so Komodo works out of the box.
   # Same version as Komodo Core (2.3.3). It drives the sibling dind daemon
