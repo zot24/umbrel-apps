@@ -12,3 +12,18 @@ services:
       - ./data/config:/config
       - ./data/plugin:/plugin
       - ./data/attach:/attach
+
+  ingest:
+    image: caronc/apprise:latest
+    ports:
+      - "8080:8080"
+    command: ["python", "/opt/apprise/ntfy_ingest.py"]
+    environment:
+      TZ: America/Asuncion
+      APPRISE_URL: http://web:8000
+      DEFAULT_KEY: notify
+      LISTEN_PORT: "8080"
+    volumes:
+      - ./ntfy_ingest.py:/opt/apprise/ntfy_ingest.py:ro
+    depends_on:
+      - web
