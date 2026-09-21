@@ -3,7 +3,7 @@ id: zot24-apprise
 name: Apprise
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-apprise/icon.svg
 category: automation
-version: "0.1.0"
+version: "0.2.0"
 tagline: Push notifications to Telegram, Discord, and 100+ other services
 description: >-
   Apprise is a notification gateway. One HTTP API, a hundred backends —
@@ -36,6 +36,13 @@ description: >-
   tile URL. The tile is behind Umbrel login; Gitea Mirror cannot log in.
 
 
+  ntfy ingest: apps that speak ntfy (Komodo's Ntfy alerter, curl, Uptime
+  Kuma, Home Assistant) POST to http://apprise-ntfy/<key>. The path is an
+  Apprise config key you create in the UI (Telegram URL, etc.). Do not
+  name this `ntfy` on the network, so a real ntfy app can still be
+  installed later.
+
+
   Security notes:
 
 
@@ -49,10 +56,11 @@ description: >-
   - Apprise is open source (BSD-2-Clause) by Chris Caron:
     https://github.com/caronc/apprise — API: https://github.com/caronc/apprise-api
 releaseNotes: >-
-  First Umbrel release: official caronc/apprise API image, sha256-pinned,
-  stateful config on the app data volume, UI behind Umbrel login. Notify
-  API is reachable only on the Umbrel Docker network so Gitea Mirror and
-  other sibling apps can post without hitting the proxy.
+  ntfy-compatible ingest sidecar. POST to http://apprise-ntfy/<key> with
+  a Title header and a body (plain text or JSON). The path is an Apprise
+  config key, so Komodo, Uptime Kuma, Home Assistant, and curl can all
+  share this door. Unique aliases `apprise` and `apprise-ntfy` so the
+  shared `web` name is not used. Do not publish 8080.
 developer: zot24
 website: https://github.com/caronc/apprise
 dependencies: []

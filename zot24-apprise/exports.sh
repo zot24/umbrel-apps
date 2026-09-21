@@ -3,3 +3,7 @@
 
 export APP_ZOT24_APPRISE_IP="zot24-apprise_web_1"
 export APP_ZOT24_APPRISE_PORT="8000"
+
+# ntfy-compatible ingest -> Apprise. Not published on the host.
+export APP_ZOT24_APPRISE_NTFY_IP="zot24-apprise_ingest_1"
+export APP_ZOT24_APPRISE_NTFY_PORT="8080"

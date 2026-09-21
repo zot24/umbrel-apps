@@ -29,7 +29,13 @@ Gitea Mirror already has an **Apprise API** provider. This app is that API.
 
   Gitea Mirror     ──►  zot24-apprise_web_1:8000/notify/gitea-mirror
   (Docker network, bypasses the proxy)
+
+  ntfy clients     ──►  apprise-ntfy/<key>   (Komodo Ntfy, curl, Kuma, HA)
+                        ingest formats {title, body}
+                   ──►  zot24-apprise_web_1:8000/notify/<key>
 ```
+
+`web` is a shared name on the Umbrel network. Use `apprise` / `zot24-apprise_web_1` for the API and `apprise-ntfy` / `zot24-apprise_ingest_1` for ingest. Do not alias this as `ntfy`, so a real ntfy app can still be installed.
 
 ## Installing on Umbrel
 
@@ -60,12 +66,33 @@ Hermes cannot click Install. You have to.
 If Docker DNS does not resolve from Gitea Mirror, use this app's `10.21.x.x`
 address on the Umbrel network — still do not publish 8000 on the host.
 
+## ntfy ingest (Komodo and anything else)
+
+Komodo's **Ntfy** alerter speaks ntfy: POST to `/<topic>` with a `Title` header
+and a text body. This sidecar is that ntfy door, not a Komodo-only adapter.
+The topic is an Apprise config key, so other ntfy clients can share it.
+
+1. Open the Apprise tile. Create a configuration key, e.g. `alerts`.
+2. Add a Telegram URL (`tgram://<bot-token>/<chat-id>`).
+3. Point the source at `http://apprise-ntfy/alerts` (Docker network only).
+   - Komodo: Alerter type **Ntfy**, URL `http://apprise-ntfy/alerts`
+   - curl: `curl -H 'Title: backup' -d 'ok' http://apprise-ntfy/alerts`
+4. Test. Telegram should light up.
+
+Same host, different keys (`/alerts`, `/uptime`, `/home`) if you want separate
+Apprise configs. One key if everything should hit the same Telegram chat.
+
+Do not publish port 8080. Do not use Komodo's Slack/Discord/Pushover types if
+you want every alert to go through Apprise.
+
 ## Local dev
 
 ```bash
 cd zot24-apprise
+python3 ntfy_ingest_test.py
 docker compose -f docker-compose.local.yml up
 # UI: http://127.0.0.1:8000
+# ntfy ingest: http://127.0.0.1:8080/<key>
 ```
 
 ## Security
