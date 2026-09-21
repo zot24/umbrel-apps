@@ -3,7 +3,7 @@ id: zot24-dockyard
 name: Dockyard
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-dockyard/icon.svg
 category: developer
-version: "2.3.5"
+version: "2.3.6"
 tagline: An isolated Docker sandbox to deploy and run your own containers
 description: >-
   Dockyard is a sandboxed Docker host that lives on your Umbrel: a full Docker
@@ -32,12 +32,10 @@ description: >-
   becomes available on Dockyard's own address on the Umbrel network — so a
   Cloudflare Tunnel, or another app, can point straight at it.
 releaseNotes: >-
-  Keep the Komodo Periphery passkey stable across app updates. The 2.3.4
-  store compose interpolated a different APP_SEED than the key Komodo
-  already had, so Core got Invalid passkey. The first key is now stored
-  in the app data directory and reused. Komodo address is still
-  https://zot24-dockyard_periphery_1:8120 (not the tile on 8120, which
-  is the status page).
+  Fix start after 2.3.5. exports.sh referenced APP_DATA_DIR before Umbrel
+  sets it, so `app start` died with an unbound variable and Dockyard never
+  came back. Read the saved passkey from EXPORTS_APP_DIR instead. If the
+  file is missing, compose still uses APP_SEED.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []
