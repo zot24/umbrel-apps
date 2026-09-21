@@ -24,9 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 
-APPRISE_URL = os.environ.get("APPRISE_URL", "http://zot24-apprise_web_1:8000").rstrip(
-    "/"
-)
+APPRISE_URL = os.environ.get("APPRISE_URL", "http://apprise:8000").rstrip("/")
 DEFAULT_KEY = os.environ.get("DEFAULT_KEY", "notify")
 LISTEN_HOST = os.environ.get("LISTEN_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "8080"))

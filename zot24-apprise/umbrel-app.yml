@@ -23,7 +23,7 @@ description: >-
 
   - Provider: Apprise API
 
-  - Server URL: http://zot24-apprise_web_1:8000
+  - Server URL: http://apprise:8000
 
   - Token/path: gitea-mirror
 
@@ -37,10 +37,10 @@ description: >-
 
 
   ntfy ingest: apps that speak ntfy (Komodo's Ntfy alerter, curl, Uptime
-  Kuma, Home Assistant) POST to http://apprise-ntfy/<key>. The path is an
-  Apprise config key you create in the UI (Telegram URL, etc.). Do not
-  name this `ntfy` on the network, so a real ntfy app can still be
-  installed later.
+  Kuma, Home Assistant) POST to http://apprise-ntfy:8080/<key>. The path
+  is an Apprise config key you create in the UI (Telegram URL, etc.).
+  Do not name this `ntfy` on the network, so a real ntfy app can still
+  be installed later.
 
 
   Security notes:
@@ -56,11 +56,13 @@ description: >-
   - Apprise is open source (BSD-2-Clause) by Chris Caron:
     https://github.com/caronc/apprise — API: https://github.com/caronc/apprise-api
 releaseNotes: >-
-  ntfy-compatible ingest sidecar. POST to http://apprise-ntfy/<key> with
-  a Title header and a body (plain text or JSON). The path is an Apprise
-  config key, so Komodo, Uptime Kuma, Home Assistant, and curl can all
-  share this door. Unique aliases `apprise` and `apprise-ntfy` so the
-  shared `web` name is not used. Do not publish 8080.
+  ntfy-compatible ingest sidecar. POST to http://apprise-ntfy:8080/<key>
+  with a Title header and a body (plain text or JSON). The path is an
+  Apprise config key, so Komodo, Uptime Kuma, Home Assistant, and curl
+  can all share this door. Unique aliases `apprise` and `apprise-ntfy`.
+  Do not publish 8080. On Umbrel the script is mounted from APP_DATA_DIR
+  and ingest talks to http://apprise:8000 (underscores in Host are
+  rejected).
 developer: zot24
 website: https://github.com/caronc/apprise
 dependencies: []
