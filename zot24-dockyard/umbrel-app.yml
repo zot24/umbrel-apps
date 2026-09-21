@@ -3,7 +3,7 @@ id: zot24-dockyard
 name: Dockyard
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-dockyard/icon.svg
 category: developer
-version: "2.3.3"
+version: "2.3.4"
 tagline: An isolated Docker sandbox to deploy and run your own containers
 description: >-
   Dockyard is a sandboxed Docker host that lives on your Umbrel: a full Docker
