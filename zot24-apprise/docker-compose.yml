@@ -49,7 +49,10 @@ services:
   # ntfy-compatible ingest: POST /<apprise-key> with Title + body (or JSON).
   # Komodo's Ntfy alerter, curl, Uptime Kuma, Home Assistant, etc. all work.
   # Alias is apprise-ntfy, not ntfy, so an ntfy app can still be installed.
-  # Example: http://apprise-ntfy/alerts  ->  Apprise config key `alerts`.
+  # Example: http://apprise-ntfy:8080/alerts  ->  Apprise config key `alerts`.
+  # Umbrel runs compose from legacy-compat, so ./file mounts the wrong place.
+  # APP_DATA_DIR is the copied app folder. Use the unique `apprise` alias, not
+  # zot24-apprise_web_1: Django rejects underscores in HTTP_HOST.
   ingest:
     image: caronc/apprise:latest@sha256:feb3ad42d280bca0c58fdff6f77f46e2586a65bbc6d2bff614d31245ff8a399c
     restart: on-failure
@@ -58,11 +61,11 @@ services:
     command: ["python", "/opt/apprise/ntfy_ingest.py"]
     environment:
       TZ: America/Asuncion
-      APPRISE_URL: http://zot24-apprise_web_1:8000
+      APPRISE_URL: http://apprise:8000
       DEFAULT_KEY: notify
       LISTEN_PORT: "8080"
     volumes:
-      - ./ntfy_ingest.py:/opt/apprise/ntfy_ingest.py:ro
+      - ${APP_DATA_DIR}/ntfy_ingest.py:/opt/apprise/ntfy_ingest.py:ro
     depends_on:
       web:
         condition: service_healthy

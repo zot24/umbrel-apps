@@ -27,15 +27,15 @@ Gitea Mirror already has an **Apprise API** provider. This app is that API.
   app_proxy :8000  ──►  Apprise UI :8000
                           /config volume: named keys → notify URLs
 
-  Gitea Mirror     ──►  zot24-apprise_web_1:8000/notify/gitea-mirror
+  Gitea Mirror     ──►  apprise:8000/notify/gitea-mirror
   (Docker network, bypasses the proxy)
 
-  ntfy clients     ──►  apprise-ntfy/<key>   (Komodo Ntfy, curl, Kuma, HA)
+  ntfy clients     ──►  apprise-ntfy:8080/<key>   (Komodo Ntfy, curl, Kuma, HA)
                         ingest formats {title, body}
-                   ──►  zot24-apprise_web_1:8000/notify/<key>
+                   ──►  apprise:8000/notify/<key>
 ```
 
-`web` is a shared name on the Umbrel network. Use `apprise` / `zot24-apprise_web_1` for the API and `apprise-ntfy` / `zot24-apprise_ingest_1` for ingest. Do not alias this as `ntfy`, so a real ntfy app can still be installed.
+`web` is a shared name on the Umbrel network. Use `apprise` for the API and `apprise-ntfy:8080` for ingest. Do not use `zot24-apprise_web_1`: Django rejects underscores in Host. Do not alias ingest as `ntfy`, so a real ntfy app can still be installed.
 
 ## Installing on Umbrel
 
@@ -59,7 +59,7 @@ Hermes cannot click Install. You have to.
 4. In Gitea Mirror → Configuration → Notifications:
    - Enable
    - Provider: **Apprise API**
-   - Server URL: `http://zot24-apprise_web_1:8000`
+   - Server URL: `http://apprise:8000`
    - Token/path: `gitea-mirror`
    - Send Test Notification
 
@@ -74,9 +74,9 @@ The topic is an Apprise config key, so other ntfy clients can share it.
 
 1. Open the Apprise tile. Create a configuration key, e.g. `alerts`.
 2. Add a Telegram URL (`tgram://<bot-token>/<chat-id>`).
-3. Point the source at `http://apprise-ntfy/alerts` (Docker network only).
-   - Komodo: Alerter type **Ntfy**, URL `http://apprise-ntfy/alerts`
-   - curl: `curl -H 'Title: backup' -d 'ok' http://apprise-ntfy/alerts`
+3. Point the source at `http://apprise-ntfy:8080/alerts` (Docker network only).
+   - Komodo: Alerter type **Ntfy**, URL `http://apprise-ntfy:8080/alerts`
+   - curl from another container: `curl -H 'Title: backup' -d 'ok' http://apprise-ntfy:8080/alerts`
 4. Test. Telegram should light up.
 
 Same host, different keys (`/alerts`, `/uptime`, `/home`) if you want separate
