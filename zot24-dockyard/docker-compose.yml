@@ -74,10 +74,10 @@ services:
       PERIPHERY_SSL_ENABLED: "true"
       PERIPHERY_ROOT_DIRECTORY: /etc/komodo
       # Only a Komodo Core that presents this passkey may drive this agent.
-      # It is this installation's own per-install secret; add the same value
-      # to your Komodo Core's passkey list to let them connect. (Direct
-      # socket users don't need this at all.)
-      PERIPHERY_PASSKEYS: ${APP_SEED}
+      # exports.sh pins the first key in APP_DATA_DIR/passkey so an app
+      # update cannot rotate it out from under Komodo. Fallback APP_SEED
+      # is for a first install before exports.sh has run.
+      PERIPHERY_PASSKEYS: ${APP_DOCKYARD_PASSKEY:-${APP_SEED}}
       PERIPHERY_DISABLE_TERMINALS: "false"
     volumes:
       - ${APP_DATA_DIR}/data/dind:/data

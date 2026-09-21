@@ -24,7 +24,9 @@ Drive the daemon however you like:
 
 - **Komodo** — Dockyard includes a Komodo Periphery agent, so if you run
   Komodo, add Dockyard as a server (`https://zot24-dockyard_periphery_1:8120`)
-  with this app's per-install passkey and deploy straight to it.
+  with this app's per-install passkey (file `passkey` in the app data dir)
+  and deploy straight to it. The Umbrel tile on port 8120 is the status
+  page, not Periphery. Do not point Komodo at `umbrel.local:8120`.
 - **Directly** — the daemon's socket lives at
   `<app-data>/data/dind/docker.sock`. Use it from the Docker CLI over SSH
   (`docker -H unix://…`), or mount it into another tool.
