@@ -48,7 +48,7 @@ services:
   # It stays on the default network (umbrel_main_network) so the Umbrel
   # gateway can resolve APP_HOST. Peer filtering is what keeps other apps out.
   manager:
-    image: ghcr.io/zot24/cursor-sandboxes-manager:0.1.0@sha256:3e1ee40688ce61d10d976b5fc226cb3b80569459d0adc291f69be6484b79ed50
+    image: ghcr.io/zot24/cursor-sandboxes-manager:0.1.1@sha256:55b3357a4bd98119ab1a03a74e6e844e5215a0def555e8cfe25d33d94f3b271a
     restart: on-failure
     init: true
     depends_on:
@@ -64,7 +64,7 @@ services:
       APP_PROXY_HOST: zot24-cursor-sandboxes_app_proxy_1
       # Pinned by .github/workflows/build-cursor-sandboxes.yml on every build
       # of sandbox/. The manager pulls exactly this digest into dind.
-      SANDBOX_IMAGE: ghcr.io/zot24/cursor-sandbox-umbrel:0.1.0@sha256:04182f121bd89ce5b7dd85be67fdd6435c454af6c9a093daffc598c5094bbe0f
+      SANDBOX_IMAGE: ghcr.io/zot24/cursor-sandbox-umbrel:0.1.1@sha256:93badc3faf23421cbaf919c389a591d579257c32333aca10fc97ddbbe03f17a8
     volumes:
       - ${APP_DATA_DIR}/data/sock:/sock
       - ${APP_DATA_DIR}/data/manager:/state
