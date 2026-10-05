@@ -47,6 +47,13 @@ Notification gateway (Telegram, Discord, 100+ backends). Gitea Mirror talks to t
 - **App ID**: `zot24-apprise`
 - **Port**: 8000 (UI behind Umbrel login). Notify API internal.
 
+### Cursor Sandboxes
+
+Self-hosted machines for Cursor Cloud Agents: each sandbox is a Cursor "My Machines" worker in its own container, inside a Docker daemon private to the app. Any Cursor plan (personal API key).
+
+- **App ID**: `zot24-cursor-sandboxes`
+- **Port**: 7690 (manager UI behind Umbrel login). Workers are outbound-only.
+
 ## Retired Apps
 
 - **zot24-hermes** (Hermes Agent) — removed 2026-07-20; superseded by the official

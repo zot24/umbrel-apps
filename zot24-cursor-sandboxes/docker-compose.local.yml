@@ -1,0 +1,54 @@
+# Local dev stack: the same three pieces as docker-compose.yml, minus Umbrel.
+#
+#   docker build -t cursor-sandbox-umbrel:dev sandbox
+#   docker compose -f docker-compose.local.yml up -d
+#   # The private daemon cannot see your local images; load the dev build in:
+#   docker save cursor-sandbox-umbrel:dev \
+#     | docker compose -f docker-compose.local.yml exec -T dind docker -H unix:///sock/docker.sock load
+#   open http://localhost:7690
+services:
+  dind:
+    image: docker:28.3.0-dind@sha256:d33eb93fe02683e984e6f8a93c0b3d85bb74f56ec83922bc39fb34ba23ab42bc
+    privileged: true
+    command: >
+      dockerd
+        --host=unix:///sock/docker.sock
+        --data-root=/data/data
+        --exec-root=/data/exec
+        --pidfile=/data/docker.pid
+        --mtu=1450
+    # Named volumes, not bind mounts: macOS Docker Desktop bind mounts cannot
+    # host the daemon's unix socket. On Umbrel (Linux) bind mounts are fine.
+    volumes:
+      - dind-data:/data
+      - dind-sock:/sock
+    healthcheck:
+      test: ["CMD", "docker", "-H", "unix:///sock/docker.sock", "info"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  manager:
+    image: node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+    init: true
+    depends_on:
+      dind:
+        condition: service_healthy
+    command: ["node", "--watch", "/app/server.mjs"]
+    ports:
+      - "127.0.0.1:7690:7690"
+    environment:
+      PORT: "7690"
+      DOCKER_SOCK: /sock/docker.sock
+      DIND_SOCK_PATH: /sock/docker.sock
+      STATE_DIR: /state
+      SANDBOX_IMAGE: cursor-sandbox-umbrel:dev
+    volumes:
+      - dind-sock:/sock
+      - manager-state:/state
+      - ./manager:/app:ro
+
+volumes:
+  dind-data:
+  dind-sock:
+  manager-state:

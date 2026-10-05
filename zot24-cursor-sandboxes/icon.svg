@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#0f1a17"/>
+      <stop offset="1" stop-color="#060a0d"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="1" fill="#000" opacity=".35"/>
+    </pattern>
+  </defs>
+  <rect width="256" height="256" fill="url(#bg)"/>
+  <g fill="none" stroke="#50ffa8" stroke-width="7" stroke-linejoin="miter" filter="url(#glow)">
+    <!-- the sandbox: an isometric box -->
+    <path d="M128 40 L208 84 L208 172 L128 216 L48 172 L48 84 Z"/>
+    <path d="M48 84 L128 128 L208 84 M128 128 L128 216" stroke="#28b870"/>
+  </g>
+  <!-- a terminal cursor on the front face -->
+  <g filter="url(#glow)">
+    <path d="M72 140 L92 152 L72 164" fill="none" stroke="#50ffa8" stroke-width="7" stroke-linecap="square"/>
+    <path d="M100 170 L118 180" stroke="#ffc04d" stroke-width="8" stroke-linecap="square"/>
+  </g>
+  <rect width="256" height="256" fill="url(#scan)"/>
+</svg>
