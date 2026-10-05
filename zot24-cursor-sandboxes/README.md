@@ -69,9 +69,10 @@ Per-sandbox options:
   token to the sandboxed repos.
 - The GitHub token reaches git through a credential helper that reads `$GH_TOKEN` at call
   time; it is never written to `~/.gitconfig`.
-- The manager listens on the Umbrel app network, because that is how the tile reaches it.
-  It accepts connections only from the Docker bridge gateway (the host, where umbreld runs)
-  and from loopback (its own healthcheck). Another app cannot call the API. Writes also
+- The manager listens on the Umbrel app network, because that is how the tile reaches it:
+  browser → `zot24-cursor-sandboxes_app_proxy_1` (Umbrel login) → manager. It accepts
+  connections only from that proxy (resolved by name, `APP_PROXY_HOST`), the Docker bridge
+  gateway (the Umbrel host) and loopback (its own healthcheck). Another app cannot call the API. Writes also
   require `X-CS-Request`, which a browser page on another origin cannot send. Do not expose
   port 7690 publicly.
 - `dind` is on a private bridge, not `umbrel_main_network`, so a port published inside the
