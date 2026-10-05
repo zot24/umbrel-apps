@@ -12,6 +12,7 @@
 // the sandbox's repos and starts `agent worker --name <name> start`.
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
+import { lookup } from 'node:dns/promises';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
@@ -721,11 +722,13 @@ const routes = [
   ],
 ];
 
-// Umbrel puts every app on umbrel_main_network, and the tile login only
-// covers the host gateway. Another app can open this port directly.
-// umbreld runs on the host, so its connections arrive from the bridge
-// gateway. Container-to-container traffic arrives from some other address.
-// Loopback is the in-container healthcheck.
+// Umbrel puts every app on umbrel_main_network, and the Umbrel login only
+// guards the tile's path: browser -> this app's app_proxy container -> here.
+// Any other app on that network could open this port directly, so the
+// manager only answers:
+//   - its own app_proxy (APP_PROXY_HOST, resolved by name below),
+//   - the bridge gateway (the Umbrel host itself),
+//   - loopback (the in-container healthcheck).
 function bridgeGateways() {
   const ips = new Set(['127.0.0.1', '::1']);
   let text = '';
@@ -746,6 +749,35 @@ function bridgeGateways() {
 const PEERS = bridgeGateways();
 if (PEERS.size <= 2) console.error('[peers] no bridge gateway in /proc/net/route; only loopback can connect');
 
+// umbreld names the proxy `${APP_ID}_app_proxy_1`. Its address changes when
+// the proxy is recreated, so an unknown peer triggers a fresh lookup, at
+// most once every 5 seconds so other apps cannot make us spin on DNS. While
+// the name does not resolve yet (manager and proxy start together), retry
+// sooner so the proxy's first request is not refused.
+const APP_PROXY_HOST = process.env.APP_PROXY_HOST || '';
+let proxyIps = new Set();
+let proxyLookupAt = 0;
+let proxyResolved = false;
+
+async function refreshProxyIps() {
+  if (!APP_PROXY_HOST || Date.now() - proxyLookupAt < (proxyResolved ? 5000 : 500)) return;
+  proxyLookupAt = Date.now();
+  try {
+    proxyIps = new Set((await lookup(APP_PROXY_HOST, { all: true })).map((a) => a.address));
+    proxyResolved = true;
+  } catch (e) {
+    proxyIps = new Set();
+    proxyResolved = false;
+    console.error(`[peers] cannot resolve ${APP_PROXY_HOST}: ${e.code || e.message}`);
+  }
+}
+
+async function allowedPeer(ip) {
+  if (PEERS.has(ip) || proxyIps.has(ip)) return true;
+  await refreshProxyIps();
+  return proxyIps.has(ip);
+}
+
 function clientIp(req) {
   const raw = req.socket.remoteAddress || '';
   return raw.startsWith('::ffff:') ? raw.slice(7) : raw;
@@ -763,7 +795,7 @@ const server = http.createServer(async (req, res) => {
   };
   try {
     const ip = clientIp(req);
-    if (!PEERS.has(ip)) throw new UserError('Forbidden.', 403);
+    if (!(await allowedPeer(ip))) throw new UserError('Forbidden.', 403);
     const url = new URL(req.url, 'http://x');
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       return send(200, await readFile(path.join(HERE, 'index.html')), 'text/html; charset=utf-8');
@@ -785,7 +817,16 @@ const server = http.createServer(async (req, res) => {
 
 await loadState();
 if (stateError) console.error(stateError);
-server.listen(PORT, () => console.log(`cursor-sandboxes manager on :${PORT}, image ${IMAGE || '(unset)'}, peers ${[...PEERS].join(',')}`));
+await refreshProxyIps();
+// Also refresh in the background, so a recreated proxy's old address does
+// not stay allowed for whichever container picks it up next.
+setInterval(refreshProxyIps, 30_000).unref();
+server.listen(PORT, () =>
+  console.log(
+    `cursor-sandboxes manager on :${PORT}, image ${IMAGE || '(unset)'}, peers ${[...PEERS, ...proxyIps].join(',')}` +
+      (APP_PROXY_HOST ? ` (app_proxy ${APP_PROXY_HOST})` : ''),
+  ),
+);
 // First reconcile pulls the sandbox image (can take minutes); the UI shows
 // progress meanwhile. Afterwards, keep containers in step every minute.
 serial(reconcile);

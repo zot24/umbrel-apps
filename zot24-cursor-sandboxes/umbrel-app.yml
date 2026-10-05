@@ -3,7 +3,7 @@ id: zot24-cursor-sandboxes
 name: Cursor Sandboxes
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-cursor-sandboxes/icon.svg
 category: developer
-version: "0.1.0"
+version: "0.1.1"
 tagline: Run Cursor Cloud Agents in isolated sandboxes on your Umbrel
 description: >-
   Cursor Sandboxes turns your Umbrel into self-hosted machines for Cursor
@@ -57,7 +57,9 @@ description: >-
   3. Create a sandbox: a name and one or more repositories. It appears in
   Cursor as a machine named after the sandbox.
 releaseNotes: >-
-  First release.
+  Fix the tile answering Forbidden. The manager now also accepts its own
+  app_proxy, which is how the Umbrel login reaches it; other apps are still
+  refused.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []
