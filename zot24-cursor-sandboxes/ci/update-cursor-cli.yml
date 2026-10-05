@@ -1,0 +1,50 @@
+name: "Update: Cursor CLI"
+
+# Weekly check of the Cursor CLI build behind https://cursor.com/install.
+# Opens a PR when the sandbox image pins an older one. After that PR merges,
+# "Build: Cursor Sandboxes" rebuilds the image and pins its digest.
+#
+# Canonical copy lives in the app tree because the repo PAT often lacks
+# `workflow` scope (same as zot24-herdr/ci). Copy this file to
+# .github/workflows/ to activate it.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check and bump the CLI pin
+        id: bump
+        run: bash zot24-cursor-sandboxes/ci/update-cursor-cli.sh
+
+      - name: Open PR if the pin moved
+        if: steps.bump.outputs.changed == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/cursor-cli-${{ steps.bump.outputs.cli_latest }}"
+          git checkout -b "$BRANCH"
+          git add zot24-cursor-sandboxes/sandbox/Dockerfile zot24-cursor-sandboxes/VERSION zot24-cursor-sandboxes/umbrel-app.yml
+          git commit -m "chore(cursor-sandboxes): Cursor CLI ${{ steps.bump.outputs.cli_latest }} (app ${{ steps.bump.outputs.app_version }})"
+          git push -u origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore(cursor-sandboxes): Cursor CLI ${{ steps.bump.outputs.cli_latest }}" \
+            --body "$(cat <<EOF
+          ## Summary
+          - Cursor CLI \`${{ steps.bump.outputs.cli_current }}\` → \`${{ steps.bump.outputs.cli_latest }}\`
+          - App version → \`${{ steps.bump.outputs.app_version }}\`
+
+          After merge, **Build: Cursor Sandboxes** rebuilds the multi-arch sandbox image and pins its digest. Updating the app on Umbrel recreates every sandbox on the new image; home volumes are kept.
+          EOF
+          )"

@@ -1,0 +1,80 @@
+services:
+  # The tile opens the manager: credentials, sandbox list, logs, diagnostics.
+  # PROXY_AUTH_ADD keeps the browser path behind the Umbrel login. The
+  # manager also refuses every connection that is not from the Docker bridge
+  # gateway (the host, where umbreld runs) or loopback, so a sibling app on
+  # umbrel_main_network cannot call the API. Never front this app with a
+  # public tunnel.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-cursor-sandboxes_manager_1
+      APP_PORT: 7690
+      PROXY_AUTH_ADD: "true"
+
+  # Where sandboxes live: a Docker daemon in its own network namespace (same
+  # pattern as Dockyard), so agents never touch the Umbrel host's Docker or
+  # other apps. This service is NOT on umbrel_main_network. Nested published
+  # ports therefore stay on cs_private. The manager reaches it through the
+  # socket volume, not the network.
+  dind:
+    image: docker:28.3.0-dind@sha256:d33eb93fe02683e984e6f8a93c0b3d85bb74f56ec83922bc39fb34ba23ab42bc
+    restart: on-failure
+    privileged: true
+    stop_grace_period: 1m
+    networks:
+      - cs_private
+    # --mtu 1450 leaves headroom under the 1500 of the network this nests in.
+    # The socket gets its own directory so the manager can mount it without
+    # seeing the daemon's storage.
+    command: >
+      dockerd
+        --host=unix:///sock/docker.sock
+        --data-root=/data/data
+        --exec-root=/data/exec
+        --pidfile=/data/docker.pid
+        --mtu=1450
+    volumes:
+      - ${APP_DATA_DIR}/data/dind:/data
+      - ${APP_DATA_DIR}/data/sock:/sock
+    healthcheck:
+      test: ["CMD", "docker", "-H", "unix:///sock/docker.sock", "info"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # Manager UI + reconciler. The code is in the image, not a bind mount:
+  # Umbrel app updates do not copy arbitrary files into the data dir.
+  # It stays on the default network (umbrel_main_network) so the Umbrel
+  # gateway can resolve APP_HOST. Peer filtering is what keeps other apps out.
+  manager:
+    image: ghcr.io/zot24/cursor-sandboxes-manager:0.1.0
+    restart: on-failure
+    init: true
+    depends_on:
+      dind:
+        condition: service_healthy
+    environment:
+      PORT: "7690"
+      DOCKER_SOCK: /sock/docker.sock
+      DIND_SOCK_PATH: /sock/docker.sock
+      STATE_DIR: /state
+      # Pinned by .github/workflows/build-cursor-sandboxes.yml on every build
+      # of sandbox/. The manager pulls exactly this digest into dind.
+      SANDBOX_IMAGE: ghcr.io/zot24/cursor-sandbox-umbrel:0.1.0
+    volumes:
+      - ${APP_DATA_DIR}/data/sock:/sock
+      - ${APP_DATA_DIR}/data/manager:/state
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7690/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# cs_private is only for dind. Umbrel's common compose file sets `default`
+# to the external network umbrel_main_network; manager and app_proxy stay
+# there by not listing a network. Do not attach dind to default.
+networks:
+  cs_private:
+    driver: bridge

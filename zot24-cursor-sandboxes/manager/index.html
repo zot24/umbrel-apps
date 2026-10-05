@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cursor Sandboxes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Oxanium:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --phosphor: #50ffa8;
+  --phosphor-dim: #28b870;
+  --amber: #ffc04d;
+  --amber-dim: #b8862e;
+  --red: #ff6060;
+  --bg: #060a0d;
+  --surface: #0b1016;
+  --text: #d4e0d8;
+  --text-muted: #7a8e82;
+  --line: rgba(80, 255, 168, 0.16);
+  --display: 'Oxanium', 'Fira Code', ui-monospace, monospace;
+  --mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.55 var(--mono);
+  overflow-x: hidden;
+}
+
+/* Layered CRT background: circuit grid, ambient glow, grain, scanlines, vignette. */
+.fx { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.fx.grid {
+  background-image:
+    linear-gradient(rgba(80, 255, 168, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 255, 168, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.fx.glow {
+  background:
+    radial-gradient(600px 400px at 12% 8%, rgba(80, 255, 168, 0.07), transparent 70%),
+    radial-gradient(500px 500px at 92% 85%, rgba(255, 192, 77, 0.05), transparent 70%);
+}
+.fx.grain {
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.fx.scan {
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+  z-index: 50;
+}
+.fx.vignette {
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.65) 100%);
+  z-index: 51;
+}
+
+main { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 28px 16px 96px; }
+
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+h1 {
+  font: 700 26px/1 var(--display);
+  letter-spacing: 0.14em;
+  margin: 0;
+  color: var(--phosphor);
+  text-shadow: 0 0 12px rgba(80, 255, 168, 0.45);
+}
+h1 span { color: var(--text-muted); text-shadow: none; margin: 0 6px; }
+.sub { color: var(--text-muted); font-size: 12px; letter-spacing: 0.08em; margin-top: 6px; text-transform: uppercase; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid currentColor;
+  padding: 4px 10px;
+  font: 600 11px/1.4 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.dot { width: 8px; height: 8px; background: currentColor; box-shadow: 0 0 8px currentColor; flex: none; }
+.ok { color: var(--phosphor); }
+.warn { color: var(--amber); }
+.bad { color: var(--red); }
+.idle { color: var(--text-muted); }
+.blink .dot { animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+
+.panel {
+  position: relative;
+  background: rgba(11, 16, 22, 0.92);
+  border: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+.panel::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-title { font: 600 13px/1.2 var(--display); letter-spacing: 0.2em; text-transform: uppercase; color: var(--text); }
+.panel-body { padding: 16px; }
+.muted { color: var(--text-muted); }
+.small { font-size: 12px; }
+p { margin: 0 0 10px; }
+a { color: var(--phosphor); }
+code, .code {
+  font-family: var(--mono);
+  background: rgba(80, 255, 168, 0.07);
+  border: 1px solid var(--line);
+  padding: 1px 6px;
+  color: var(--phosphor);
+  word-break: break-all;
+}
+
+button, .btn {
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--phosphor);
+  background: transparent;
+  border: 1px solid var(--phosphor-dim);
+  padding: 9px 12px;
+  cursor: pointer;
+  border-radius: 0;
+}
+button::before { content: '> '; color: var(--phosphor-dim); }
+button:hover:not(:disabled) { background: rgba(80, 255, 168, 0.1); box-shadow: 0 0 12px rgba(80, 255, 168, 0.18); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary { background: rgba(80, 255, 168, 0.14); }
+button.amber { color: var(--amber); border-color: var(--amber-dim); }
+button.amber::before { color: var(--amber-dim); }
+button.danger { color: var(--red); border-color: rgba(255, 96, 96, 0.5); }
+button.danger::before { color: rgba(255, 96, 96, 0.6); }
+button.bare { border: 0; padding: 2px 4px; font-size: 11px; }
+button.bare::before { content: ''; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+label { display: block; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin: 14px 0 6px; }
+label .muted { text-transform: none; letter-spacing: 0; }
+input[type=text], input[type=password], input[type=email], textarea {
+  width: 100%;
+  font: 13px/1.5 var(--mono);
+  color: var(--text);
+  background: #05080b;
+  border: 1px solid var(--line);
+  padding: 9px 10px;
+  border-radius: 0;
+  outline: none;
+}
+input:focus, textarea:focus { border-color: var(--phosphor-dim); box-shadow: 0 0 0 1px rgba(80, 255, 168, 0.25); }
+input:disabled { opacity: 0.5; }
+textarea { min-height: 110px; resize: vertical; }
+.check { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); cursor: pointer; }
+.check input { appearance: none; width: 14px; height: 14px; border: 1px solid var(--phosphor-dim); margin: 3px 0 0; flex: none; cursor: pointer; }
+.check input:checked { background: var(--phosphor); box-shadow: 0 0 8px rgba(80, 255, 168, 0.5); }
+.check small { display: block; color: var(--text-muted); font-size: 12px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+@media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13px; }
+.kv dt { color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; padding-top: 2px; }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+.sandboxes { display: grid; gap: 14px; }
+.sb { border: 1px solid var(--line); background: rgba(6, 10, 13, 0.7); }
+.sb-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px dashed var(--line); }
+.sb-name { font: 600 18px/1.1 var(--display); letter-spacing: 0.08em; color: var(--text); }
+.sb-body { padding: 12px 14px; display: grid; gap: 12px; }
+.sb-err { border-left: 2px solid var(--red); padding: 6px 10px; color: var(--red); background: rgba(255, 96, 96, 0.06); font-size: 12px; overflow-wrap: anywhere; }
+.repos { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.repos li { overflow-wrap: anywhere; }
+.repos li::before { content: '+ '; color: var(--phosphor-dim); }
+.trigger { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.empty { padding: 28px 16px; text-align: center; color: var(--text-muted); }
+.empty b { color: var(--text); font-family: var(--display); letter-spacing: 0.14em; }
+
+.progress { height: 6px; background: rgba(80, 255, 168, 0.08); border: 1px solid var(--line); position: relative; overflow: hidden; }
+.progress > i {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+  background: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor), 4px 0 12px var(--phosphor);
+  transition: width 0.4s ease;
+}
+.progress.amber > i { background: var(--amber); box-shadow: 0 0 10px var(--amber), 4px 0 12px var(--amber); }
+.progress.indeterminate > i { width: 30%; animation: sweep 1.2s ease-in-out infinite; }
+@keyframes sweep { from { left: -30%; } to { left: 100%; } }
+
+.alert { border: 1px solid; padding: 12px 14px; margin-bottom: 18px; background: rgba(11, 16, 22, 0.92); }
+.alert.warn { border-color: var(--amber-dim); }
+.alert.bad { border-color: rgba(255, 96, 96, 0.6); }
+.alert-title { font: 600 12px/1.2 var(--display); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 8px; }
+.alert pre { white-space: pre-wrap; margin: 0; font-size: 12px; color: var(--text); }
+
+/* Modals: dark backdrop, sharp box, gradient top line. Click outside closes. */
+.backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(2, 4, 6, 0.78);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 8vh 16px 16px;
+  overflow-y: auto;
+}
+.backdrop.hidden { display: none; }
+.box {
+  position: relative; width: min(680px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--phosphor-dim);
+  box-shadow: 0 0 40px rgba(80, 255, 168, 0.12);
+}
+.box.wide { width: min(980px, 100%); }
+.box::before {
+  content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 2px;
+  background: linear-gradient(90deg, var(--phosphor), var(--amber));
+}
+.box .panel-body { max-height: 74vh; overflow: auto; }
+.box pre.out {
+  margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: 12px; line-height: 1.5; color: var(--text);
+  background: #05080b; border: 1px solid var(--line); padding: 12px; min-height: 120px;
+}
+.form-err { display: none; margin-top: 14px; }
+.form-err.on { display: block; }
+.shake { animation: shake 0.42s cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-8px); }
+  40%, 60% { transform: translateX(8px); }
+}
+
+/* Full-screen states for critical operations and errors. */
+.overlay {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.overlay.hidden { display: none; }
+.overlay.amber {
+  background: rgba(30, 20, 4, 0.82);
+  background-image: repeating-linear-gradient(to bottom, rgba(255, 192, 77, 0.06) 0 2px, transparent 2px 5px);
+  animation: scanroll 1.6s linear infinite;
+}
+@keyframes scanroll { to { background-position: 0 50px; } }
+.overlay.red { background: rgba(40, 4, 4, 0.86); animation: flash 0.5s ease-out; }
+@keyframes flash { from { background: rgba(255, 96, 96, 0.55); } }
+.overlay .ov-box { width: min(560px, 100%); border: 1px solid; padding: 22px; background: rgba(6, 10, 13, 0.95); }
+.overlay.amber .ov-box { border-color: var(--amber); color: var(--amber); }
+.overlay.red .ov-box { border-color: var(--red); color: var(--red); }
+.ov-title { font: 700 16px/1.3 var(--display); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; }
+.ov-icon { font-size: 26px; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; transform: scale(0.9); } }
+.ov-msg { color: var(--text); font-size: 13px; margin-bottom: 14px; overflow-wrap: anywhere; white-space: pre-wrap; }
+
+.corner { position: fixed; right: 16px; bottom: 16px; z-index: 55; display: flex; gap: 8px; }
+.corner button { width: 32px; height: 32px; padding: 0; font: 600 14px/1 var(--display); background: var(--surface); }
+.corner button::before { content: ''; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="fx grid"></div>
+<div class="fx glow"></div>
+<div class="fx grain"></div>
+<div class="fx scan"></div>
+<div class="fx vignette"></div>
+
+<main>
+  <header>
+    <div>
+      <h1>CURSOR<span>//</span>SANDBOXES</h1>
+      <div class="sub">Self-hosted Cloud Agent workers on your Umbrel</div>
+    </div>
+    <div id="link" class="badge idle"><span class="dot"></span><span>Booting</span></div>
+  </header>
+
+  <div id="alerts"></div>
+
+  <section class="panel" id="creds">
+    <div class="panel-header">
+      <div class="panel-title">Credentials</div>
+      <div id="creds-badge" class="badge idle"><span class="dot"></span><span>--</span></div>
+    </div>
+    <div class="panel-body" id="creds-body"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Sandboxes</div>
+      <div class="row">
+        <span id="sb-count" class="badge idle"><span class="dot"></span><span>0 online</span></span>
+        <button class="primary" id="new-sb">New sandbox</button>
+      </div>
+    </div>
+    <div class="panel-body"><div id="list" class="sandboxes"></div></div>
+  </section>
+</main>
+
+<div class="corner"><button id="help" title="How to use">?</button></div>
+
+<div id="modal" class="backdrop hidden"><div class="box panel" id="modal-box"></div></div>
+<div id="overlay" class="overlay hidden"><div class="ov-box" id="overlay-box"></div></div>
+
+<script>
+'use strict';
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const MIN_PROGRESS_MS = 2600; // progress stays visible long enough to notice
+
+let S = null;          // last /api/state
+let editingCreds = false;
+let modalOnClose = null;
+
+async function api(method, url, body) {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'X-CS-Request': '1' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// Keep a progress bar up for at least MIN_PROGRESS_MS, even when the work is instant.
+async function withMinDuration(promise) {
+  const [r] = await Promise.allSettled([promise, sleep(MIN_PROGRESS_MS)]);
+  if (r.status === 'rejected') throw r.reason;
+  return r.value;
+}
+
+function badge(el, cls, text, blink = false) {
+  el.className = `badge ${cls}${blink ? ' blink' : ''}`;
+  el.innerHTML = `<span class="dot"></span><span>${esc(text)}</span>`;
+}
+
+function ago(iso) {
+  if (!iso) return 'never';
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return `${Math.floor(s)}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+// Copy must work over plain HTTP (Umbrel's default), where navigator.clipboard is unavailable.
+function copy(text, btn) {
+  const done = () => { if (btn) { const t = btn.textContent; btn.textContent = 'copied'; setTimeout(() => (btn.textContent = t), 1200); } };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, () => fallback());
+  } else fallback();
+  function fallback() {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch {}
+    ta.remove();
+  }
+}
+
+// ---------------------------------------------------------------- status
+
+function sandboxStatus(sb) {
+  const c = sb.container;
+  if (!c) {
+    if (!S.image.present) return ['warn', 'Awaiting image'];
+    if (!S.settings.apiKeySet) return ['bad', 'No API key'];
+    return ['warn', 'Provisioning'];
+  }
+  if (sb.stopped && c.state !== 'running') return ['idle', 'Stopped'];
+  if (c.state === 'running') {
+    const online = sb.worker ? sb.worker.connected : c.health === 'healthy';
+    if (online && sb.worker && sb.worker.activeSessions > 0) return ['ok', `Agent active (${sb.worker.activeSessions})`, true];
+    if (online) return ['ok', 'Online'];
+    if (c.health === 'unhealthy') return ['bad', 'Offline'];
+    return ['warn', 'Connecting', true];
+  }
+  return ['bad', c.state === 'restarting' ? 'Failing' : 'Exited'];
+}
+
+// ---------------------------------------------------------------- render
+
+function render() {
+  if (!S) return;
+  renderAlerts();
+  renderCreds();
+  renderList();
+  const online = S.sandboxes.filter((sb) => sandboxStatus(sb)[0] === 'ok').length;
+  badge($('#sb-count'), online ? 'ok' : 'idle', `${online} online`);
+  const problems = S.stateError || S.daemonError;
+  if (problems) badge($('#link'), 'bad', 'Fault');
+  else if (!S.image.present) badge($('#link'), 'warn', 'Provisioning', true);
+  else if (!S.settings.apiKeySet) badge($('#link'), 'warn', 'Needs key');
+  else badge($('#link'), 'ok', 'Operational');
+}
+
+function renderAlerts() {
+  const out = [];
+  if (S.stateError) out.push(alertBlock('bad', 'State file unreadable', `${S.stateError}\n\nNothing is reconciled until this is fixed, so no sandbox is touched.`));
+  if (S.daemonError) out.push(alertBlock('bad', 'Docker daemon unreachable', S.daemonError));
+  if (S.image.pulling || (!S.image.present && !S.image.error)) {
+    const pct = Math.round((S.image.progress || 0) * 100);
+    out.push(`<div class="alert warn"><div class="alert-title warn">Provisioning sandbox image</div>
+      <p class="small muted">First start downloads the sandbox image (about 500 MB) into the app's private Docker. Credentials and sandboxes can be set up meanwhile; they start when this finishes.</p>
+      <div class="progress amber${pct ? '' : ' indeterminate'}"><i style="width:${pct}%"></i></div>
+      <p class="small muted" style="margin:8px 0 0">${pct ? `${pct}%` : 'Starting download'} &middot; <span class="code">${esc(S.image.ref)}</span></p></div>`);
+  } else if (S.image.error) {
+    out.push(alertBlock('bad', 'Sandbox image download failed', `${S.image.error}\n\nRetrying every minute.`));
+  }
+  if (S.reconcileError && !S.daemonError) out.push(alertBlock('bad', 'Could not apply changes', S.reconcileError));
+  $('#alerts').innerHTML = out.join('');
+}
+
+function alertBlock(cls, title, msg) {
+  return `<div class="alert ${cls}"><div class="alert-title ${cls}">${esc(title)}</div><pre>${esc(msg)}</pre></div>`;
+}
+
+function renderCreds() {
+  const s = S.settings;
+  if (!s.apiKeySet) badge($('#creds-badge'), 'warn', 'Key required', true);
+  else badge($('#creds-badge'), 'ok', 'Verified');
+  const body = $('#creds-body');
+  const showForm = !s.apiKeySet || editingCreds;
+  if (body.dataset.mode === (showForm ? 'form' : 'view') && showForm) return; // keep typed input
+  body.dataset.mode = showForm ? 'form' : 'view';
+  if (!showForm) {
+    body.innerHTML = `<dl class="kv">
+      <dt>Cursor</dt><dd><span class="ok">${esc(s.apiKeyOwner || 'verified')}</span> <span class="muted">key ${esc(s.apiKeyHint)}</span></dd>
+      <dt>GitHub</dt><dd>${s.githubTokenSet ? `<span class="ok">@${esc(s.githubLogin || 'token set')}</span>` : '<span class="muted">none (public repos only, no push)</span>'}</dd>
+      <dt>Commits as</dt><dd>${s.gitName || s.gitEmail ? esc(`${s.gitName} <${s.gitEmail}>`) : '<span class="muted">git default</span>'}</dd>
+    </dl>
+    <div class="row" style="margin-top:14px"><button id="edit-creds">Edit credentials</button></div>`;
+    $('#edit-creds').onclick = () => { editingCreds = true; body.dataset.mode = ''; renderCreds(); };
+    return;
+  }
+  body.innerHTML = `
+    ${s.apiKeySet ? '' : `<p>Sandboxes connect to Cursor as <b>you</b>. Create a personal API key in
+      <a href="https://cursor.com/dashboard" target="_blank" rel="noopener">Cursor Dashboard &rarr; API Keys</a>
+      and paste it here. It is checked with Cursor before it is saved.</p>`}
+    <form id="creds-form" autocomplete="off">
+      <label for="f-key">Cursor API key ${s.apiKeySet ? `<span class="muted">(set, ${esc(s.apiKeyHint)}; leave empty to keep)</span>` : ''}</label>
+      <input id="f-key" type="password" placeholder="${s.apiKeySet ? 'unchanged' : 'key_...'}" spellcheck="false">
+      <label for="f-gh">GitHub token <span class="muted">(optional: private repos and pushing branches)</span></label>
+      <input id="f-gh" type="password" placeholder="${s.githubTokenSet ? `unchanged (@${esc(s.githubLogin)})` : 'github_pat_... (fine-grained, scoped to the repos)'}" spellcheck="false">
+      ${s.githubTokenSet ? '<label class="check"><input type="checkbox" id="f-gh-clear"><span>Remove the GitHub token</span></label>' : ''}
+      <div class="grid2">
+        <div><label for="f-gname">Commit name</label><input id="f-gname" type="text" value="${esc(s.gitName)}"></div>
+        <div><label for="f-gemail">Commit email</label><input id="f-gemail" type="email" value="${esc(s.gitEmail)}"></div>
+      </div>
+      <div id="creds-progress" style="display:none;margin-top:16px"><div class="progress indeterminate"><i></i></div><p class="small muted" style="margin:8px 0 0">Verifying with Cursor and GitHub...</p></div>
+      <div class="alert bad form-err" id="creds-err"></div>
+      <div class="row" style="margin-top:16px">
+        <button class="primary" type="submit">${s.apiKeySet ? 'Save' : 'Verify and save'}</button>
+        ${s.apiKeySet ? '<button type="button" id="cancel-creds">Cancel</button>' : ''}
+      </div>
+    </form>`;
+  if ($('#cancel-creds')) $('#cancel-creds').onclick = () => { editingCreds = false; body.dataset.mode = ''; renderCreds(); };
+  $('#creds-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const payload = {
+      gitName: $('#f-gname').value,
+      gitEmail: $('#f-gemail').value,
+    };
+    const key = $('#f-key').value.trim();
+    const gh = $('#f-gh').value.trim();
+    if (key) payload.apiKey = key;
+    if (gh) payload.githubToken = gh;
+    if ($('#f-gh-clear')?.checked) payload.clearGithubToken = true;
+    if (!S.settings.apiKeySet && !key) return showFormError($('#creds-err'), 'Paste your Cursor API key.');
+    const prog = $('#creds-progress');
+    prog.style.display = 'block';
+    $('#creds-err').classList.remove('on');
+    for (const b of body.querySelectorAll('button')) b.disabled = true;
+    try {
+      await withMinDuration(api('POST', '/api/settings', payload));
+      editingCreds = false;
+      body.dataset.mode = '';
+      await refresh();
+    } catch (err) {
+      prog.style.display = 'none';
+      for (const b of body.querySelectorAll('button')) b.disabled = false;
+      showFormError($('#creds-err'), err.message);
+    }
+  };
+}
+
+function showFormError(el, msg) {
+  el.innerHTML = `<div class="alert-title bad">&#9888;&#xFE0E; Rejected</div><pre>${esc(msg)}</pre>`;
+  el.classList.add('on');
+  const box = el.closest('.box, .panel');
+  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+}
+
+function renderList() {
+  const list = $('#list');
+  $('#new-sb').disabled = !S.settings.apiKeySet || !!S.stateError;
+  if (!S.sandboxes.length) {
+    list.innerHTML = `<div class="empty"><b>NO SANDBOXES</b><br><br>${S.settings.apiKeySet
+      ? 'Create one: give it a name and the repositories it should work on.'
+      : 'Add your Cursor API key above, then create a sandbox.'}</div>`;
+    return;
+  }
+  list.innerHTML = S.sandboxes.map((sb) => {
+    const [cls, text, blink] = sandboxStatus(sb);
+    const c = sb.container;
+    const w = sb.worker;
+    const running = c && c.state === 'running';
+    const meta = [];
+    if (w) meta.push(`last activity ${ago(w.lastActivity)}`);
+    if (running) meta.push(`up since ${ago(c.startedAt).replace(' ago', '')}`);
+    if (c && c.restarts) meta.push(`${c.restarts} restarts`);
+    if (sb.docker) meta.push('docker access');
+    if (sb.connectWorkspace) meta.push('connect workspace');
+    return `<article class="sb" data-name="${esc(sb.name)}">
+      <div class="sb-head">
+        <div class="sb-name">${esc(sb.name)}</div>
+        <span class="badge ${cls}${blink ? ' blink' : ''}"><span class="dot"></span><span>${esc(text)}</span></span>
+      </div>
+      <div class="sb-body">
+        <ul class="repos">${sb.repos.map((r) => `<li>${esc(r.url.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, ''))}${r.branch ? ` <span class="muted">@ ${esc(r.branch)}</span>` : ''}</li>`).join('')}</ul>
+        ${sb.lastError && cls !== 'ok' ? `<div class="sb-err">${esc(sb.lastError)}</div>` : ''}
+        <div class="trigger"><span class="muted">TARGET</span> <span class="code">worker=${esc(sb.name)}</span>
+          <button class="bare" data-act="copy">copy</button>
+          <span class="muted small">${esc(meta.join(' / '))}</span></div>
+        <div class="row">
+          <button data-act="logs">Logs</button>
+          <button data-act="diagnose" ${running ? '' : 'disabled'}>Diagnose</button>
+          <button data-act="restart" ${c ? '' : 'disabled'}>Restart</button>
+          ${sb.stopped ? '<button class="primary" data-act="start">Start</button>' : '<button class="amber" data-act="stop">Stop</button>'}
+          <button data-act="edit">Edit</button>
+          <button class="danger" data-act="delete">Delete</button>
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+$('#list').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const name = btn.closest('[data-name]').dataset.name;
+  const sb = S.sandboxes.find((x) => x.name === name);
+  ({
+    copy: () => copy(`worker=${name}`, btn),
+    logs: () => openLogs(name),
+    diagnose: () => openDiagnose(name),
+    restart: () => simpleAction(name, 'restart', 'Restarting'),
+    stop: () => simpleAction(name, 'stop', 'Stopping'),
+    start: () => simpleAction(name, 'start', 'Starting'),
+    edit: () => openSandboxForm(sb),
+    delete: () => openDelete(name),
+  })[btn.dataset.act]();
+});
+
+// ---------------------------------------------------------------- modals
+
+function openModal(html, { wide = false, onClose } = {}) {
+  const box = $('#modal-box');
+  box.className = `box panel${wide ? ' wide' : ''}`;
+  box.innerHTML = html;
+  $('#modal').classList.remove('hidden');
+  modalOnClose = onClose || null;
+}
+function closeModal() {
+  $('#modal').classList.add('hidden');
+  $('#modal-box').innerHTML = '';
+  if (modalOnClose) modalOnClose();
+  modalOnClose = null;
+}
+$('#modal').addEventListener('mousedown', (e) => { if (e.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!$('#overlay').classList.contains('hidden') && $('#overlay').dataset.dismissable) hideOverlay();
+  else if (!$('#modal').classList.contains('hidden')) closeModal();
+});
+
+function reposToText(repos) {
+  return repos.map((r) => `${r.url.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '')}${r.branch ? ` ${r.branch}` : ''}`).join('\n');
+}
+function textToRepos(text) {
+  return text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => {
+    const [url, branch] = l.split(/\s+/);
+    return branch ? { url, branch } : { url };
+  });
+}
+
+function openSandboxForm(existing) {
+  const edit = !!existing;
+  openModal(`
+    <div class="panel-header"><div class="panel-title">${edit ? `Edit // ${esc(existing.name)}` : 'New sandbox'}</div></div>
+    <div class="panel-body"><form id="sb-form" autocomplete="off">
+      <label for="sb-name">Name <span class="muted">(the worker name: agents target it with worker=&lt;name&gt;)</span></label>
+      <input id="sb-name" type="text" maxlength="32" placeholder="umbrel-1" value="${esc(existing?.name || '')}" ${edit ? 'disabled' : ''} spellcheck="false">
+      <label for="sb-repos">Repositories <span class="muted">(one per line: owner/repo or an https:// URL, optional branch after a space)</span></label>
+      <textarea id="sb-repos" spellcheck="false" placeholder="acme/web&#10;acme/api develop">${esc(existing ? reposToText(existing.repos) : '')}</textarea>
+      <p class="small muted" style="margin-top:6px">Each repo is cloned into the sandbox. Changing the branch later updates a clean checkout. Local changes are kept, and they block the switch until you commit or discard them.</p>
+      <label class="check"><input type="checkbox" id="sb-docker" ${existing?.docker ? 'checked' : ''}><span>Docker access
+        <small>This is root on the Umbrel, not just the other sandboxes. The private daemon runs in a privileged container, so an agent with the socket can start a privileged container and mount the host disks. Leave this off unless you mean that.</small></span></label>
+      <label class="check"><input type="checkbox" id="sb-cw" ${existing?.connectWorkspace ? 'checked' : ''}><span>Connect workspace
+        <small>Lets the Cursor app open an agent's live workspace (files, terminal, ports) on this sandbox.</small></span></label>
+      ${edit ? '<p class="small muted" style="margin-top:14px">Saving recreates the container. A clean checkout follows a new branch or URL. A dirty checkout is not touched, and the worker will not start until those changes are committed or discarded. Caches on the home volume are kept.</p>' : ''}
+      <div id="sb-progress" style="display:none;margin-top:16px"><div class="progress indeterminate"><i></i></div><p class="small muted" style="margin:8px 0 0">${edit ? 'Applying' : 'Provisioning sandbox'}...</p></div>
+      <div class="alert bad form-err" id="sb-err"></div>
+      <div class="row" style="margin-top:16px"><button class="primary" type="submit">${edit ? 'Save and recreate' : 'Create sandbox'}</button></div>
+    </form></div>`);
+  $('#sb-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const repos = textToRepos($('#sb-repos').value);
+    const body = { repos, docker: $('#sb-docker').checked, connectWorkspace: $('#sb-cw').checked };
+    const btn = $('#sb-form button[type=submit]');
+    btn.disabled = true;
+    $('#sb-progress').style.display = 'block';
+    $('#sb-err').classList.remove('on');
+    try {
+      if (edit) await withMinDuration(api('POST', `/api/sandboxes/${existing.name}`, body));
+      else await withMinDuration(api('POST', '/api/sandboxes', { name: $('#sb-name').value.trim(), ...body }));
+      closeModal();
+      await refresh();
+    } catch (err) {
+      btn.disabled = false;
+      $('#sb-progress').style.display = 'none';
+      showFormError($('#sb-err'), err.message);
+    }
+  };
+  if (!edit) $('#sb-name').focus();
+}
+
+function openLogs(name) {
+  let timer = null;
+  openModal(`<div class="panel-header"><div class="panel-title">Logs // ${esc(name)}</div><span class="badge ok blink"><span class="dot"></span><span>Live</span></span></div>
+    <div class="panel-body"><pre class="out" id="log-out">loading...</pre></div>`, { wide: true, onClose: () => clearInterval(timer) });
+  const load = async () => {
+    const out = $('#log-out');
+    if (!out) return;
+    try {
+      const { logs } = await api('GET', `/api/sandboxes/${name}/logs`);
+      const atBottom = out.parentElement.scrollTop + out.parentElement.clientHeight >= out.parentElement.scrollHeight - 30;
+      out.textContent = logs.trim() || '(no output yet)';
+      if (atBottom) out.parentElement.scrollTop = out.parentElement.scrollHeight;
+    } catch (err) { out.textContent = `error: ${err.message}`; }
+  };
+  load();
+  timer = setInterval(load, 3000);
+}
+
+async function openDiagnose(name) {
+  openModal(`<div class="panel-header"><div class="panel-title">Diagnose // ${esc(name)}</div><span class="badge warn blink" id="dx-badge"><span class="dot"></span><span>Running</span></span></div>
+    <div class="panel-body"><p class="small muted">Runs <span class="code">agent worker debug</span> inside the sandbox: auth, privacy, routing and visibility checks.</p>
+    <div class="progress indeterminate" id="dx-prog"><i></i></div><pre class="out" id="dx-out" style="margin-top:12px">waiting for report...</pre></div>`, { wide: true });
+  try {
+    const r = await withMinDuration(api('POST', `/api/sandboxes/${name}/diagnose`));
+    if (!$('#dx-out')) return;
+    $('#dx-prog').remove();
+    $('#dx-out').textContent = r.output.trim() || '(no output)';
+    badge($('#dx-badge'), r.code === 0 ? 'ok' : 'bad', r.code === 0 ? 'Passed' : `Exit ${r.code}`);
+  } catch (err) {
+    if (!$('#dx-out')) return;
+    $('#dx-prog').remove();
+    $('#dx-out').textContent = err.message;
+    badge($('#dx-badge'), 'bad', 'Failed');
+  }
+}
+
+function openDelete(name) {
+  openModal(`<div class="panel-header"><div class="panel-title bad">Delete // ${esc(name)}</div></div>
+    <div class="panel-body"><form id="del-form">
+      <p>This removes the sandbox container <b>and its home volume</b>: every checkout, uncommitted change, cache and installed tool in it. Work that was pushed is safe.</p>
+      <label for="del-confirm">Type <span class="code">${esc(name)}</span> to confirm</label>
+      <input id="del-confirm" type="text" autocomplete="off" spellcheck="false">
+      <div class="alert bad form-err" id="del-err"></div>
+      <div class="row" style="margin-top:16px"><button class="danger" type="submit" id="del-go" disabled>Delete permanently</button></div>
+    </form></div>`);
+  $('#del-confirm').oninput = (e) => { $('#del-go').disabled = e.target.value !== name; };
+  $('#del-confirm').focus();
+  $('#del-form').onsubmit = async (e) => {
+    e.preventDefault();
+    if ($('#del-confirm').value !== name) return;
+    closeModal();
+    showOverlay('amber', 'Purging sandbox', `Removing ${name}: container, then volume.`, true);
+    try {
+      await withMinDuration(api('DELETE', `/api/sandboxes/${name}`));
+      hideOverlay();
+      await refresh();
+    } catch (err) {
+      showError(`Delete ${name} failed`, err.message);
+    }
+  };
+}
+
+async function simpleAction(name, action, label) {
+  showOverlay('amber', `${label} ${name}`, '', true);
+  try {
+    await withMinDuration(api('POST', `/api/sandboxes/${name}/${action}`));
+    hideOverlay();
+    await refresh();
+  } catch (err) {
+    showError(`${label} ${name} failed`, err.message);
+  }
+}
+
+function openHelp() {
+  openModal(`<div class="panel-header"><div class="panel-title">How this works</div></div>
+    <div class="panel-body small">
+      <p>Each sandbox is a container in this app's private Docker daemon, running a Cursor <b>My Machines</b> worker named after the sandbox. Cursor runs the agent loop and the model in its cloud. The sandbox runs the agent's file edits, terminal commands and local MCP servers against its own clones of your repos.</p>
+      <p>The worker opens an outbound connection to Cursor. Nothing on your Umbrel is exposed.</p>
+      <label>Send work to a sandbox</label>
+      <dl class="kv">
+        <dt>Cursor</dt><dd>Pick the sandbox in the Cloud Agent machine picker.</dd>
+        <dt>Slack</dt><dd><span class="code">@Cursor worker=&lt;name&gt; fix the flaky test</span></dd>
+        <dt>GitHub</dt><dd><span class="code">@cursoragent worker=&lt;name&gt; ...</span> on an issue or PR</dd>
+        <dt>Linear</dt><dd><span class="code">worker=&lt;name&gt;</span> in the issue body</dd>
+      </dl>
+      <p style="margin-top:12px">Cursor only routes a request to a sandbox whose repositories include the one the request targets.</p>
+      <label>Good to know</label>
+      <p>Agents run as <span class="code">agent</span> with passwordless sudo inside the sandbox. They can read the sandbox's environment, which includes your Cursor key and GitHub token, so use a fine-grained GitHub token limited to these repos.</p>
+      <p>Everything under <span class="code">/home/agent</span> persists across restarts and app updates. Packages installed with apt do not survive an app update.</p>
+    </div>`);
+}
+
+function showOverlay(kind, title, msg, busy) {
+  const ov = $('#overlay');
+  ov.className = `overlay ${kind}`;
+  delete ov.dataset.dismissable;
+  $('#overlay-box').innerHTML = `<div class="ov-title">${kind === 'red' ? '<span class="ov-icon">&#9888;&#xFE0E;</span>' : ''}${esc(title)}</div>
+    ${msg ? `<div class="ov-msg">${esc(msg)}</div>` : ''}
+    ${busy ? '<div class="progress amber indeterminate"><i></i></div>' : ''}`;
+}
+function hideOverlay() { $('#overlay').className = 'overlay hidden'; }
+function showError(title, msg) {
+  showOverlay('red', title, msg, false);
+  const ov = $('#overlay');
+  ov.dataset.dismissable = '1';
+  $('#overlay-box').insertAdjacentHTML('beforeend', '<p class="small muted" style="margin:0">Click anywhere to dismiss.</p>');
+  const box = $('#overlay-box');
+  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+}
+$('#overlay').addEventListener('mousedown', () => { if ($('#overlay').dataset.dismissable) hideOverlay(); });
+
+$('#new-sb').onclick = () => openSandboxForm(null);
+$('#help').onclick = openHelp;
+
+// ---------------------------------------------------------------- polling
+
+async function refresh() {
+  try {
+    S = await api('GET', '/api/state');
+    render();
+  } catch (err) {
+    badge($('#link'), 'bad', 'Manager offline');
+  }
+}
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 4000);
+</script>
+</body>
+</html>

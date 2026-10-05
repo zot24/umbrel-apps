@@ -1,0 +1,74 @@
+manifestVersion: 1.1
+id: zot24-cursor-sandboxes
+name: Cursor Sandboxes
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-cursor-sandboxes/icon.svg
+category: developer
+version: "0.1.0"
+tagline: Run Cursor Cloud Agents in isolated sandboxes on your Umbrel
+description: >-
+  Cursor Sandboxes turns your Umbrel into self-hosted machines for Cursor
+  Cloud Agents. Cursor keeps running the agent loop and the model in its
+  cloud; the agent's file edits, terminal commands and local MCP servers run
+  here, against your own clones of your repositories. Your code, build caches
+  and credentials stay on your Umbrel.
+
+
+  Each sandbox is a Cursor "My Machines" worker in its own container, inside
+  a Docker daemon private to this app. Sandboxes cannot reach your Umbrel's
+  Docker, your other apps, or each other. Give each one a name and the
+  repositories it should work on, then send it work from the Cursor app,
+  Slack (@Cursor worker=<name> ...), GitHub (@cursoragent worker=<name> ...)
+  or Linear.
+
+
+  Works on any Cursor plan: sandboxes sign in with your personal API key.
+  Workers only make outbound connections to Cursor, so nothing on your
+  Umbrel is exposed to the internet.
+
+
+  What each sandbox comes with:
+
+
+  - A Linux dev toolchain: git, Node.js 22, Python 3, build-essential,
+  ripgrep, jq, the GitHub CLI and the Docker CLI. The agent has sudo inside
+  its sandbox to install anything else.
+
+
+  - A persistent home: checkouts, caches and anything installed into the home
+  directory survive restarts and app updates.
+
+
+  - Optional Docker access. This is not contained: the private daemon is a
+  privileged container, so an agent with the socket can reach the Umbrel
+  host. Leave it off unless you want that.
+
+
+  Setup:
+
+
+  1. Open the app and paste a personal API key from Cursor Dashboard → API
+  Keys. It is checked with Cursor before it is saved.
+
+
+  2. Optionally add a fine-grained GitHub token, limited to the repositories
+  you use here, so sandboxes can clone private repos and push branches.
+
+
+  3. Create a sandbox: a name and one or more repositories. It appears in
+  Cursor as a machine named after the sandbox.
+releaseNotes: >-
+  First release.
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 7690
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
