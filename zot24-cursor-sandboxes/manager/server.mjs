@@ -1,8 +1,9 @@
 // Cursor Sandboxes manager: the Umbrel tile and the reconciler.
 //
-// Node standard library only. It runs on the stock node:22-alpine image and
-// ships in the app folder (like Dockyard's status.py), so changing it needs
-// no image build. It drives the app's private Docker daemon over its unix
+// Node standard library only. The code is baked into
+// ghcr.io/zot24/cursor-sandboxes-manager (manager/Dockerfile) so an app
+// update actually ships it. Umbrel does not refresh arbitrary files under
+// the app data dir. It drives the app's private Docker daemon over its unix
 // socket and keeps one container per sandbox in step with state.json:
 //
 //   state.json (desired)  ->  reconcile()  ->  cs-<name> containers (actual)
@@ -10,6 +11,7 @@
 // Every sandbox container runs the sandbox image (../sandbox), which clones
 // the sandbox's repos and starts `agent worker --name <name> start`.
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
@@ -719,6 +721,36 @@ const routes = [
   ],
 ];
 
+// Umbrel puts every app on umbrel_main_network, and the tile login only
+// covers the host gateway. Another app can open this port directly.
+// umbreld runs on the host, so its connections arrive from the bridge
+// gateway. Container-to-container traffic arrives from some other address.
+// Loopback is the in-container healthcheck.
+function bridgeGateways() {
+  const ips = new Set(['127.0.0.1', '::1']);
+  let text = '';
+  try {
+    text = readFileSync('/proc/net/route', 'utf8');
+  } catch {
+    return ips;
+  }
+  for (const line of text.trim().split('\n').slice(1)) {
+    const gw = line.trim().split(/\s+/)[2];
+    if (!gw || gw === '00000000' || gw.length !== 8) continue;
+    const b = Buffer.from(gw, 'hex');
+    ips.add(`${b[3]}.${b[2]}.${b[1]}.${b[0]}`);
+  }
+  return ips;
+}
+
+const PEERS = bridgeGateways();
+if (PEERS.size <= 2) console.error('[peers] no bridge gateway in /proc/net/route; only loopback can connect');
+
+function clientIp(req) {
+  const raw = req.socket.remoteAddress || '';
+  return raw.startsWith('::ffff:') ? raw.slice(7) : raw;
+}
+
 const server = http.createServer(async (req, res) => {
   const send = (status, body, type = 'application/json') => {
     res.writeHead(status, {
@@ -730,6 +762,8 @@ const server = http.createServer(async (req, res) => {
     res.end(type === 'application/json' ? JSON.stringify(body) : body);
   };
   try {
+    const ip = clientIp(req);
+    if (!PEERS.has(ip)) throw new UserError('Forbidden.', 403);
     const url = new URL(req.url, 'http://x');
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       return send(200, await readFile(path.join(HERE, 'index.html')), 'text/html; charset=utf-8');
@@ -751,7 +785,7 @@ const server = http.createServer(async (req, res) => {
 
 await loadState();
 if (stateError) console.error(stateError);
-server.listen(PORT, () => console.log(`cursor-sandboxes manager on :${PORT}, image ${IMAGE || '(unset)'}`));
+server.listen(PORT, () => console.log(`cursor-sandboxes manager on :${PORT}, image ${IMAGE || '(unset)'}, peers ${[...PEERS].join(',')}`));
 // First reconcile pulls the sandbox image (can take minutes); the UI shows
 // progress meanwhile. Afterwards, keep containers in step every minute.
 serial(reconcile);

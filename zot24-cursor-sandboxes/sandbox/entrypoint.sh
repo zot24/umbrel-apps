@@ -66,26 +66,85 @@ if [ -n "${GH_TOKEN:-}" ]; then
     '!f() { test "$1" = get || exit 0; echo username=x-access-token; echo "password=$GH_TOKEN"; }; f'
 fi
 
-# Clone each repo once. An existing checkout is never touched: it may hold
-# an agent's uncommitted work.
+# Clone each configured repo, and keep an existing checkout in step with the
+# URL and branch when the worktree is clean. A dirty checkout is never
+# reset or deleted: the worker refuses to start until that is resolved.
+# The marker lives in .git so it is not an untracked file in the worktree.
 mkdir -p "$HOME/work"
+declare -A wanted=()
 worker_dirs=()
-while IFS=$'\t' read -r url branch; do
-  [ -n "$url" ] || continue
-  dir="$HOME/work/$(basename "$url" .git)"
+
+marker_of() { printf '%s/.git/cs-clone' "$1"; }
+
+worktree_dirty() {
+  [ -n "$(git -C "$1" status --porcelain)" ]
+}
+
+sync_repo() {
+  local url="$1" branch="$2"
+  local dir="$HOME/work/$(basename "$url" .git)"
+  local marker origin current
+  marker="$(marker_of "$dir")"
   if [ ! -d "$dir/.git" ]; then
     log "cloning $url${branch:+ ($branch)}"
     rm -rf "$dir.partial"
-    clone=(git clone --quiet)
+    local -a clone=(git clone --quiet)
     if [ -n "$branch" ]; then clone+=(--branch "$branch"); fi
     if ! GIT_TERMINAL_PROMPT=0 "${clone[@]}" -- "$url" "$dir.partial"; then
       rm -rf "$dir.partial"
       fail "could not clone $url. Private repo? Add a GitHub token on the setup page."
     fi
     mv "$dir.partial" "$dir"
+    printf '%s\t%s\n' "$url" "$branch" >"$marker"
+    return
   fi
+
+  origin="$(git -C "$dir" remote get-url origin)"
+  current="$(git -C "$dir" rev-parse --abbrev-ref HEAD)"
+  if [ "$origin" = "$url" ] && { [ -z "$branch" ] || [ "$current" = "$branch" ]; }; then
+    printf '%s\t%s\n' "$url" "$branch" >"$marker"
+    return
+  fi
+  if worktree_dirty "$dir"; then
+    fail "$dir has local changes, so it was not switched${branch:+ to $branch} ($url). Commit or discard them, or delete the sandbox."
+  fi
+  log "updating $dir${branch:+ to $branch}"
+  git -C "$dir" remote set-url origin "$url"
+  if ! GIT_TERMINAL_PROMPT=0 git -C "$dir" fetch --quiet origin; then
+    fail "could not fetch $url"
+  fi
+  if [ -n "$branch" ]; then
+    if ! git -C "$dir" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+      fail "branch $branch was not found in $url"
+    fi
+    git -C "$dir" checkout --quiet -B "$branch" "origin/$branch"
+  fi
+  printf '%s\t%s\n' "$url" "$branch" >"$marker"
+}
+
+repos_file="$HOME/.cs-repos.tsv"
+printf '%s' "${CS_REPOS:-[]}" | jq -r '.[] | [.url, (.branch // "")] | @tsv' >"$repos_file"
+while IFS=$'\t' read -r url branch || [ -n "${url:-}" ]; do
+  [ -n "$url" ] || continue
+  dir="$HOME/work/$(basename "$url" .git)"
+  sync_repo "$url" "$branch"
+  wanted["$dir"]=1
   worker_dirs+=(--worker-dir "$dir")
-done < <(jq -r '.[] | [.url, (.branch // "")] | @tsv' <<<"${CS_REPOS:-[]}")
+done <"$repos_file"
+rm -f "$repos_file"
+
+shopt -s nullglob
+for dir in "$HOME/work"/*; do
+  [ -d "$dir/.git" ] || continue
+  [ -f "$(marker_of "$dir")" ] || continue
+  [ -n "${wanted[$dir]+x}" ] && continue
+  if worktree_dirty "$dir"; then
+    log "leaving $(basename "$dir") (removed from this sandbox, but it has local changes)"
+    continue
+  fi
+  log "removing $(basename "$dir") (no longer in this sandbox)"
+  rm -rf "$dir"
+done
 
 [ "${#worker_dirs[@]}" -gt 0 ] || fail "no repositories configured for this sandbox."
 

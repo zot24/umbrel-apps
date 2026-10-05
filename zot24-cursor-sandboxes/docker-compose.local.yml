@@ -22,6 +22,8 @@ services:
     volumes:
       - dind-data:/data
       - dind-sock:/sock
+    networks:
+      - cs_private
     healthcheck:
       test: ["CMD", "docker", "-H", "unix:///sock/docker.sock", "info"]
       interval: 5s
@@ -47,6 +49,10 @@ services:
       - dind-sock:/sock
       - manager-state:/state
       - ./manager:/app:ro
+
+networks:
+  cs_private:
+    driver: bridge
 
 volumes:
   dind-data:

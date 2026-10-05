@@ -38,8 +38,9 @@ description: >-
   directory survive restarts and app updates.
 
 
-  - Optional Docker access, so agents can build and run containers (in this
-  app's private daemon, never your Umbrel's).
+  - Optional Docker access. This is not contained: the private daemon is a
+  privileged container, so an agent with the socket can reach the Umbrel
+  host. Leave it off unless you want that.
 
 
   Setup:

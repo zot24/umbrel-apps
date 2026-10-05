@@ -599,12 +599,12 @@ function openSandboxForm(existing) {
       <input id="sb-name" type="text" maxlength="32" placeholder="umbrel-1" value="${esc(existing?.name || '')}" ${edit ? 'disabled' : ''} spellcheck="false">
       <label for="sb-repos">Repositories <span class="muted">(one per line: owner/repo or an https:// URL, optional branch after a space)</span></label>
       <textarea id="sb-repos" spellcheck="false" placeholder="acme/web&#10;acme/api develop">${esc(existing ? reposToText(existing.repos) : '')}</textarea>
-      <p class="small muted" style="margin-top:6px">Each repo is cloned once into the sandbox. Cursor only sends a request here when the repo it targets is one of these.</p>
+      <p class="small muted" style="margin-top:6px">Each repo is cloned into the sandbox. Changing the branch later updates a clean checkout. Local changes are kept, and they block the switch until you commit or discard them.</p>
       <label class="check"><input type="checkbox" id="sb-docker" ${existing?.docker ? 'checked' : ''}><span>Docker access
-        <small>Agents can run docker against the app's private daemon. That daemon also runs the other sandboxes, so this sandbox can reach them. Your Umbrel stays out of reach.</small></span></label>
+        <small>This is root on the Umbrel, not just the other sandboxes. The private daemon runs in a privileged container, so an agent with the socket can start a privileged container and mount the host disks. Leave this off unless you mean that.</small></span></label>
       <label class="check"><input type="checkbox" id="sb-cw" ${existing?.connectWorkspace ? 'checked' : ''}><span>Connect workspace
         <small>Lets the Cursor app open an agent's live workspace (files, terminal, ports) on this sandbox.</small></span></label>
-      ${edit ? '<p class="small muted" style="margin-top:14px">Saving recreates the container. The home volume, checkouts and caches are kept; running agents are interrupted.</p>' : ''}
+      ${edit ? '<p class="small muted" style="margin-top:14px">Saving recreates the container. A clean checkout follows a new branch or URL. A dirty checkout is not touched, and the worker will not start until those changes are committed or discarded. Caches on the home volume are kept.</p>' : ''}
       <div id="sb-progress" style="display:none;margin-top:16px"><div class="progress indeterminate"><i></i></div><p class="small muted" style="margin:8px 0 0">${edit ? 'Applying' : 'Provisioning sandbox'}...</p></div>
       <div class="alert bad form-err" id="sb-err"></div>
       <div class="row" style="margin-top:16px"><button class="primary" type="submit">${edit ? 'Save and recreate' : 'Create sandbox'}</button></div>

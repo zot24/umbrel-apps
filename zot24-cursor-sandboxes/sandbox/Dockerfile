@@ -41,7 +41,11 @@ RUN set -eux; \
       | tar -xz -C /opt/cursor-agent --strip-components=1; \
     ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/agent; \
     ln -s /opt/cursor-agent/cursor-agent /usr/local/bin/cursor-agent; \
-    agent --version
+    test -x /usr/local/bin/agent
+# Do not run `agent --version` here. The CLI is a native binary and the
+# arm64 build is emulated on the amd64 runner; executing it crashes the
+# build (same reason gh and the docker CLI are not executed below).
+# The entrypoint prints the version when a sandbox starts.
 
 # GitHub CLI (agents use it for issues/PRs) and the Docker CLI (only useful
 # when a sandbox is created with Docker access; the daemon is the app's own).

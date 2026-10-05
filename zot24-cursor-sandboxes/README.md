@@ -15,9 +15,9 @@ its own clones of your repositories.
 ```
 Umbrel
 └── zot24-cursor-sandboxes
-    ├── manager   node:22-alpine running manager/server.mjs: the tile UI + reconciler
+    ├── manager   ghcr.io/zot24/cursor-sandboxes-manager (tile UI + reconciler)
     │              state: data/manager/state.json (keys, sandbox list), mode 0600
-    └── dind      private Docker daemon, own network namespace (same pattern as Dockyard)
+    └── dind      private Docker daemon, own network namespace, not on the Umbrel network
          ├── cs-<name>   one container per sandbox, image = SANDBOX_IMAGE
          │    └── agent worker --name <name> --worker-dir ~/work/<repo>... start
          └── cs-<name>-home   that sandbox's /home/agent volume (checkouts, caches, tools)
@@ -43,7 +43,8 @@ Umbrel
    limited to the repos you put in sandboxes (see Security).
 3. Create a sandbox: a name and 1-20 repositories (`owner/repo`, an `https://` URL, or a
    `git@github.com:` URL, optionally followed by a branch). Each repo is cloned into
-   `/home/agent/work/<repo>` once and never touched again by the entrypoint.
+   `/home/agent/work/<repo>`. A later edit follows a new branch or URL when the checkout
+   is clean. Local changes are kept, and they stop the worker until you commit or discard them.
 4. Send it work:
    - Cursor app: pick the sandbox in the Cloud Agent machine picker.
    - Slack: `@Cursor worker=<name> fix the flaky test`
@@ -55,9 +56,9 @@ Umbrel
 
 Per-sandbox options:
 
-- **Docker access** mounts the private daemon's socket. Agents can then build and run
-  containers, and can also see and control the other sandboxes. The Umbrel host stays out
-  of reach.
+- **Docker access** mounts the private daemon's socket. That daemon runs in a privileged
+  container, so this is root on the Umbrel: an agent can start a privileged container and
+  mount the host disks. It can also see and control the other sandboxes. Leave it off.
 - **Connect workspace** passes `--connect-workspace`, so the Cursor app can open an agent's live
   workspace (files, terminal, ports).
 
@@ -68,9 +69,13 @@ Per-sandbox options:
   token to the sandboxed repos.
 - The GitHub token reaches git through a credential helper that reads `$GH_TOKEN` at call
   time; it is never written to `~/.gitconfig`.
-- The manager's write endpoints require an `X-CS-Request` header, which cross-site pages cannot
-  send without a CORS preflight the manager never approves. The tile itself is behind the
-  Umbrel login. Do not expose port 7690 publicly.
+- The manager listens on the Umbrel app network, because that is how the tile reaches it.
+  It accepts connections only from the Docker bridge gateway (the host, where umbreld runs)
+  and from loopback (its own healthcheck). Another app cannot call the API. Writes also
+  require `X-CS-Request`, which a browser page on another origin cannot send. Do not expose
+  port 7690 publicly.
+- `dind` is on a private bridge, not `umbrel_main_network`, so a port published inside the
+  private daemon is not reachable by other apps.
 
 ## Data
 
@@ -82,10 +87,14 @@ Per-sandbox options:
 
 ## Images and updates
 
-- `sandbox/` builds `ghcr.io/zot24/cursor-sandbox-umbrel` (linux/amd64 + linux/arm64) via
-  `.github/workflows/build-cursor-sandboxes.yml`, which pins the digest into `SANDBOX_IMAGE`
-  in `docker-compose.yml`. The GHCR package must be **public**: the Umbrel pulls it without
-  credentials.
+- `sandbox/` builds `ghcr.io/zot24/cursor-sandbox-umbrel` and `manager/` builds
+  `ghcr.io/zot24/cursor-sandboxes-manager` (linux/amd64 + linux/arm64) via
+  `.github/workflows/build-cursor-sandboxes.yml`, which pins both digests into
+  `docker-compose.yml`. Both GHCR packages must be **public**: the Umbrel pulls them
+  without credentials. New packages are private until that workflow (or you) flips them.
+  The app will not install until those digest pins are on `main`.
+- The manager used to be a bind-mounted `server.mjs`. Umbrel updates do not copy that
+  file, so the code is in the image instead. Local dev still bind-mounts it.
 - The Cursor CLI is pinned (`ARG CURSOR_AGENT_VERSION`) and installed under `/opt`, outside the
   home volume, so it never drifts at runtime. `ci/update-cursor-cli.sh` + `ci/update-cursor-cli.yml`
   check `https://cursor.com/install` weekly and open a PR that bumps the pin and the app's patch
