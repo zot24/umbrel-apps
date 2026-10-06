@@ -1,19 +1,23 @@
 {
-  "checked_at": "2026-08-31T23:47:03Z",
+  "checked_at": "2026-10-06T18:08:35Z",
   "image_pins": {
     "herdr": {
       "current": "0.8.2",
-      "latest_stable": "0.8.2"
+      "latest_stable": "0.9.3"
     },
     "ttyd": {
       "current": "1.7.7",
       "latest_stable": "1.7.7"
+    },
+    "moshi-hook": {
+      "current": "0.3.19",
+      "latest_stable": "0.4.18"
     }
   },
   "volume_clis_latest": {
-    "claude-code": "2.1.252",
-    "vercel": "59.10.0",
-    "supabase": "2.116.0",
+    "claude-code": "2.1.291",
+    "vercel": "62.5.0",
+    "supabase": "2.120.0",
     "grok": "install.sh (unpinned)",
     "kimi": "install.sh (unpinned)",
     "gh": "apt (image rebuild)"

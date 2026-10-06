@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.9.5"
+version: "0.9.6"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -104,6 +104,16 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.6: Herdr 0.8.2 to 0.9.3. A laptop running Herdr 0.9 can now attach
+  with `herdr --remote`; against the 0.8 server it could only offer to stop
+  it. moshi-hook 0.3.19 to 0.4.18. The image's own herdr and moshi-hook now
+  win over older copies left on the data volume, which had kept the Moshi
+  daemon on a stale build. A GitHub token saved on the setup page now also
+  signs in `git clone` and `git push` over HTTPS, not just `gh`. Updating
+  restarts the Herdr server: the layout comes back, but processes running
+  in panes stop.
+
+
   0.9.5: Adds the Pi coding-agent harness (pi.dev) to the bootstrapped
   CLIs, alongside Claude Code, Grok, and Kimi. Installed on the persistent
   volume as `pi`; set it in HERDR_BOOTSTRAP_TOOLS or leave the default set.

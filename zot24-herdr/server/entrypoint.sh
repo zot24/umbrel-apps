@@ -57,6 +57,15 @@ if [ -r /data/.env ]; then
 fi
 PROFILE
 fi
+
+# git over HTTPS to github.com authenticates through gh, which takes the
+# GITHUB_TOKEN the setup page writes to .env (or a `gh auth login`). Without
+# this, `gh` works but `git clone/push` of a private repo prompts for a
+# password. Left alone if the user already configured a github.com helper.
+if ! git config --global --get-all credential.https://github.com.helper >/dev/null 2>&1; then
+    git config --global credential.https://github.com.helper ''
+    git config --global --add credential.https://github.com.helper '!/usr/bin/gh auth git-credential'
+fi
 EOF
 
 # Optional agent/platform CLI bootstrap onto the persistent volume.
