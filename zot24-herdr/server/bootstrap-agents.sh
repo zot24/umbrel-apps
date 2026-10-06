@@ -58,6 +58,43 @@ install_grok() {
     log "WARN: grok install failed (network or auth). Retry later."
     return 0
   fi
+  if have grok && have herdr; then
+    herdr integration install grok >/dev/null 2>&1 || true
+  fi
+}
+
+install_codex() {
+  install_npm_pkg "@openai/codex"
+  # Codex keeps auth, config and hooks in ~/.codex (/data/.codex, on the
+  # volume). herdr refuses to install its hook until that directory exists,
+  # and a fresh install has not created it yet.
+  mkdir -p /data/.codex
+  if have codex && have herdr; then
+    herdr integration install codex >/dev/null 2>&1 || true
+  fi
+  codex_login_from_env
+}
+
+# The Codex TUI ignores OPENAI_API_KEY in the environment; it only uses the
+# credentials in ~/.codex/auth.json. Log in with the setup page's key, and
+# re-run it each start so a changed key takes effect. Leave a ChatGPT
+# sign-in (`codex login --device-auth`) alone.
+codex_login_from_env() {
+  [ -n "${OPENAI_API_KEY:-}" ] && have codex || return 0
+  local status
+  status="$(codex login status 2>&1 || true)"
+  case "$status" in
+    "Not logged in"* | *"API key"*) ;;
+    *)
+      log "codex: already signed in another way — not touching it"
+      return 0
+      ;;
+  esac
+  if printenv OPENAI_API_KEY | codex login --with-api-key >/dev/null 2>&1; then
+    log "codex: signed in with OPENAI_API_KEY"
+  else
+    log "WARN: codex login --with-api-key failed"
+  fi
 }
 
 install_kimi() {
@@ -115,12 +152,12 @@ install_gh_note() {
 # --- driver ------------------------------------------------------------------
 
 # HERDR_BOOTSTRAP_TOOLS controls the set. Space-separated tokens:
-#   claude grok kimi vercel supabase pi all
+#   claude codex grok kimi vercel supabase pi all
 # Default: all of the above (minus anything you strip).
 resolve_tools() {
   local raw="${HERDR_BOOTSTRAP_TOOLS:-all}"
   if [ "$raw" = "all" ]; then
-    echo "claude grok kimi vercel supabase pi"
+    echo "claude codex grok kimi vercel supabase pi"
     return
   fi
   echo "$raw"
@@ -138,6 +175,7 @@ main() {
   for t in $tools; do
     case "$t" in
       claude) install_claude ;;
+      codex) install_codex ;;
       grok) install_grok ;;
       kimi) install_kimi ;;
       pi) install_pi ;;
@@ -160,11 +198,11 @@ main() {
   fi
 
   log "done — versions:"
-  for bin in claude grok kimi vercel supabase pi gh herdr node npm; do
+  for bin in claude codex grok kimi vercel supabase pi gh herdr node npm; do
     if have "$bin"; then
       printf '  %-10s %s\n' "$bin" "$(command -v "$bin")" >&2
       case "$bin" in
-        claude|grok|kimi|vercel|supabase|pi|gh|herdr|node|npm)
+        claude|codex|grok|kimi|vercel|supabase|pi|gh|herdr|node|npm)
           "$bin" --version >/dev/null 2>&1 && "$bin" --version 2>&1 | head -1 | sed 's/^/    /' >&2 || true
           ;;
       esac

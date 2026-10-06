@@ -152,7 +152,7 @@ The local process is a thin client; the server on your Umbrel owns the
 session. Use `--remote-keybindings server` to apply the container's
 keybindings instead of your laptop's.
 
-## Signing in (GitHub, Grok, …)
+## Signing in (GitHub, Codex, Grok, …)
 
 Easiest: paste keys on the setup page (Umbrel tile → tile password → **Edit
 keys**). They land in `/data/.env`, and an SSH login picks them up right away.
@@ -163,13 +163,18 @@ Herdr panes started before the save don't; restart the app for those.
   so no `gh auth login` is needed.
 - **Grok**: an xAI API key from [console.x.ai](https://console.x.ai) in the
   Grok field (`XAI_API_KEY`).
+- **Codex**: an OpenAI API key in the Codex (OpenAI) field (`OPENAI_API_KEY`).
+  Codex ignores that variable on its own, so the bootstrap runs
+  `codex login --with-api-key` with it on every start. It leaves a ChatGPT
+  sign-in alone.
 
-Prefer signing in with your account instead of pasting a key? Both CLIs have
-a device-code flow that works over SSH. Run it, then open the printed link on
+Prefer signing in with your account instead of pasting a key? These CLIs
+have a device-code flow that works over SSH. Run it, then open the printed link on
 any device and enter the code:
 
 ```bash
 ssh -t -p 7683 node@your-umbrel grok login --device-auth
+ssh -t -p 7683 node@your-umbrel codex login --device-auth   # ChatGPT plan
 ssh -t -p 7683 node@your-umbrel gh auth login --web --hostname github.com --git-protocol https
 ```
 
@@ -188,14 +193,18 @@ humans) drive work here; secrets stay in `/data/.env`.
 | **gh** (GitHub CLI) | Baked into the image | `gh` |
 | **git**, **curl**, **node 22**, **npm** | Baked into the image | — |
 | **Claude Code** | Bootstrap / npm | `claude` |
+| **Codex** (OpenAI) | Bootstrap / npm `@openai/codex` | `codex` |
 | **Grok Build** (xAI) | Bootstrap via `https://x.ai/cli/install.sh` | `grok` |
 | **Kimi Code** (Moonshot) | Bootstrap via official script (npm fallback) | `kimi` |
+| **Pi** (pi.dev) | Bootstrap / npm `@earendil-works/pi-coding-agent` | `pi` |
 | **Vercel CLI** | Bootstrap / npm | `vercel` |
 | **Supabase CLI** | Bootstrap / npm | `supabase` |
 
 All bootstrapped tools install onto the **persistent volume**
 (`NPM_CONFIG_PREFIX=/data/.npm-global`, Grok under `/data/.grok`, etc.) so
-they survive image updates.
+they survive image updates. The bootstrap also runs `herdr integration
+install` for Claude Code, Codex, Grok, Kimi and Pi, so Herdr shows each
+agent's state and resumes its session after a restart.
 
 ### One-shot bootstrap (recommended)
 
@@ -204,12 +213,13 @@ In `/data/.env` (see `data-env.example`):
 ```bash
 HERDR_BOOTSTRAP_AGENTS=1
 # HERDR_BOOTSTRAP_TOOLS=all
-# # or a subset: claude grok kimi vercel supabase
+# # or a subset: claude codex grok kimi pi vercel supabase
 HERDR_AGENT_TOKEN=generate-a-long-random-string
 
 ANTHROPIC_API_KEY=…
 # XAI_API_KEY=…          # and/or GROK_DEPLOYMENT_KEY=
 # MOONSHOT_API_KEY=…     # Kimi
+# OPENAI_API_KEY=…       # Codex
 GITHUB_TOKEN=…           # also used by gh
 # GH_TOKEN=…
 GIT_AUTHOR_NAME=…
@@ -231,6 +241,7 @@ HERDR_BOOTSTRAP_TOOLS="claude vercel" bash /usr/local/lib/herdr-umbrel/bootstrap
 
 ```bash
 npm install -g @anthropic-ai/claude-code
+npm install -g @openai/codex
 npm install -g vercel
 npm install -g supabase
 # Kimi (npm fallback; script path is preferred in bootstrap)
@@ -238,7 +249,7 @@ npm install -g @moonshot-ai/kimi-code
 # Grok
 curl -fsSL https://x.ai/cli/install.sh | GROK_BIN_DIR=/data/.grok/bin HOME=/data bash
 
-herdr integration install claude   # when supported
+herdr integration install claude   # also codex, grok, kimi, pi
 herdr integration status
 ```
 
@@ -259,6 +270,7 @@ Everything lives under the app data volume mounted at `/data` (which is also
 | --- | --- |
 | `/data/.config/herdr/` | config.toml, server socket, session state, logs |
 | `/data/.npm-global/` | npm-installed CLIs (`claude`, `vercel`, `supabase`, …) |
+| `/data/.codex/` | Codex auth, config + Herdr hook |
 | `/data/.grok/` | Grok Build CLI binary + auth |
 | `/data/.local/bin/`, `/data/.kimi/` | Kimi / other user-local bins |
 | `/data/workspaces/` | your git clones / project dirs |
@@ -297,11 +309,12 @@ Full template: [`data-env.example`](./data-env.example).
 ```bash
 HERDR_AGENT_TOKEN=generate-a-long-random-string
 HERDR_BOOTSTRAP_AGENTS=1
-HERDR_BOOTSTRAP_TOOLS=all          # claude grok kimi vercel supabase
+HERDR_BOOTSTRAP_TOOLS=all          # claude codex grok kimi pi vercel supabase
 
 ANTHROPIC_API_KEY=
 # XAI_API_KEY= / GROK_DEPLOYMENT_KEY=
 # MOONSHOT_API_KEY=
+# OPENAI_API_KEY=                 # Codex
 GITHUB_TOKEN=
 GH_TOKEN=
 GIT_AUTHOR_NAME=

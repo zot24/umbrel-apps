@@ -8,10 +8,10 @@ HERDR_AGENT_TOKEN=replace-me-with-long-random
 # --- bootstrap CLIs onto the persistent volume at start ---
 # HERDR_BOOTSTRAP_AGENTS=1
 # Tools (space-separated). Default when unset inside script: all
-#   claude grok kimi vercel supabase
+#   claude codex grok kimi vercel supabase pi
 # HERDR_BOOTSTRAP_TOOLS=all
 # Extra npm packages (optional):
-# HERDR_BOOTSTRAP_PACKAGES=@openai/codex
+# HERDR_BOOTSTRAP_PACKAGES=some-npm-package
 
 # --- coding agents ---
 # ANTHROPIC_API_KEY=          # Claude Code
@@ -19,7 +19,7 @@ HERDR_AGENT_TOKEN=replace-me-with-long-random
 # GROK_DEPLOYMENT_KEY=        # Grok Build CLI enterprise/deploy auth (optional)
 # MOONSHOT_API_KEY=           # Kimi / Moonshot
 # KIMI_API_KEY=               # alias some builds accept
-# OPENAI_API_KEY=
+# OPENAI_API_KEY=             # Codex (bootstrap runs `codex login --with-api-key`)
 
 # --- git / github (gh is baked into the image) ---
 # GITHUB_TOKEN=
