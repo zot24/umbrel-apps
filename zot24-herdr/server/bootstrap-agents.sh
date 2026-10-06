@@ -5,7 +5,7 @@ set -euo pipefail
 
 export HOME=/data
 export NPM_CONFIG_PREFIX=/data/.npm-global
-export PATH="/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:/data/.kimi-code/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+export PATH="/usr/local/bin:/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:/data/.kimi-code/bin:/usr/bin:/bin:${PATH:-}"
 
 mkdir -p \
   /data/.npm-global \

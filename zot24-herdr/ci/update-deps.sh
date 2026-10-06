@@ -99,7 +99,9 @@ path, ver, sha_x, sha_a = sys.argv[1:]
 text = Path(path).read_text()
 text = re.sub(r"(#   - herdr v)[0-9.]+", rf"\g<1>{ver}", text, count=1)
 text = re.sub(r"^ARG HERDR_VERSION=.*$", f"ARG HERDR_VERSION={ver}", text, count=1, flags=re.M)
-text = re.sub(r"(# v)[0-9.]+( release assets on )[0-9-]+", rf"\g<1>{ver}\g<2>auto", text, count=1)
+import datetime
+today = datetime.date.today().isoformat()
+text = re.sub(r"(# v)[0-9.]+( release assets on )[0-9a-z-]+", rf"\g<1>{ver}\g<2>{today}", text, count=1)
 text = re.sub(r"^ARG HERDR_SHA256_X86_64=.*$", f"ARG HERDR_SHA256_X86_64={sha_x}", text, count=1, flags=re.M)
 text = re.sub(r"^ARG HERDR_SHA256_AARCH64=.*$", f"ARG HERDR_SHA256_AARCH64={sha_a}", text, count=1, flags=re.M)
 Path(path).write_text(text)

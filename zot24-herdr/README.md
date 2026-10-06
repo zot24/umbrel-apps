@@ -9,7 +9,7 @@ and everything is exactly where you left it.
 - **App ID**: `zot24-herdr`
 - **Ports**: 7681 web terminal (behind Umbrel auth, never published) · 7682
   agent-bridge (internal only, sibling apps) · 7683 SSH (published, key-only)
-- **Upstream**: [ogulcancelik/herdr](https://github.com/ogulcancelik/herdr) v0.7.5 (AGPL-3.0)
+- **Upstream**: [ogulcancelik/herdr](https://github.com/ogulcancelik/herdr) v0.9.3 (AGPL-3.0)
 
 ## How it's wired
 
@@ -131,7 +131,9 @@ Herdr still owns persistence.
 
 ### (c) Laptop — `herdr --remote`
 
-With the wrapper from (b) in place and Herdr installed locally:
+Install Herdr 0.9 or newer locally (`herdr update` if you have an older
+one) and add your laptop's key the same way as the phone's. No host-side
+wrapper is needed; this goes straight to the app's sshd on 7683:
 
 ```
 # ~/.ssh/config
@@ -149,6 +151,30 @@ herdr --remote umbrel-herdr --session agents
 The local process is a thin client; the server on your Umbrel owns the
 session. Use `--remote-keybindings server` to apply the container's
 keybindings instead of your laptop's.
+
+## Signing in (GitHub, Grok, …)
+
+Easiest: paste keys on the setup page (Umbrel tile → tile password → **Edit
+keys**). They land in `/data/.env`, and an SSH login picks them up right away.
+Herdr panes started before the save don't; restart the app for those.
+
+- **GitHub**: a [fine-grained token](https://github.com/settings/personal-access-tokens)
+  in the GitHub field is used by `gh` *and* by `git clone/push` over HTTPS,
+  so no `gh auth login` is needed.
+- **Grok**: an xAI API key from [console.x.ai](https://console.x.ai) in the
+  Grok field (`XAI_API_KEY`).
+
+Prefer signing in with your account instead of pasting a key? Both CLIs have
+a device-code flow that works over SSH. Run it, then open the printed link on
+any device and enter the code:
+
+```bash
+ssh -t -p 7683 node@your-umbrel grok login --device-auth
+ssh -t -p 7683 node@your-umbrel gh auth login --web --hostname github.com --git-protocol https
+```
+
+An agent that already has SSH access can run these itself and send you the
+link and code. Sign-ins persist on the data volume.
 
 ## Setting up agents + platform CLIs
 

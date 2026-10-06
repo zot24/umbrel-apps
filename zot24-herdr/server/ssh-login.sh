@@ -18,8 +18,12 @@ export PATH="/usr/local/bin:/data/.npm-global/bin:/data/.grok/bin:/data/.local/b
 # same PATH (agent CLIs under /data/.npm-global/bin) and the same /data/.env
 # secrets an interactive session gets. moshi-hook / herdr / mosh-server must
 # resolve in non-interactive SSH (Moshi preflight) even if .profile is old.
+#
+# The login profile runs first and may push volume dirs ahead of /usr/local/bin
+# (installs seeded before 0.9.6 do), so put the image's binaries back in front:
+# `herdr --remote` and Moshi must reach the pinned herdr, not a stale copy.
 if [ -n "${SSH_ORIGINAL_COMMAND:-}" ]; then
-    exec bash -lc "$SSH_ORIGINAL_COMMAND"
+    exec bash -lc "PATH=/usr/local/bin:\$PATH; $SSH_ORIGINAL_COMMAND"
 fi
 
 exec herdr
