@@ -73,6 +73,9 @@ for bin in moshi-hook moshi herdr; do
         mv -f "$stale" "$stale.stale"
         ln -s "/usr/local/bin/$bin" "$stale"
         echo "[entrypoint] $stale now links to the image's $bin (old copy: $bin.stale)" >&2
+    elif [ ! -e "$stale" ] && [ ! -L "$stale" ] && [ -e "$stale.stale" ]; then
+        # 0.9.8 renamed it away without leaving a link.
+        ln -s "/usr/local/bin/$bin" "$stale"
     fi
 done
 
