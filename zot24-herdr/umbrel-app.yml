@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.9.7"
+version: "0.9.8"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -104,6 +104,14 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.8: Fixes Moshi (mosh) connections. mosh-server refused to start when
+  the session asked for a locale the image does not ship (en_US.UTF-8); SSH
+  sessions now use C.UTF-8. Installs from before 0.9.6 also get their login
+  profile fixed so the image's moshi-hook and herdr come first in PATH, and
+  the stale copies in /data/.local/bin are renamed to *.stale. That clears
+  Moshi's "daemon 0.4.x, hook 0.3.x" version warning.
+
+
   0.9.7: Adds OpenAI Codex to the bootstrapped agents, next to Claude Code,
   Grok, Kimi, and Pi. It installs on the persistent volume as `codex`, with
   Herdr's Codex integration so Herdr can track its state and resume it after

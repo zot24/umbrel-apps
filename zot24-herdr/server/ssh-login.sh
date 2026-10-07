@@ -22,6 +22,13 @@ export PATH="/usr/local/bin:/data/.npm-global/bin:/data/.grok/bin:/data/.local/b
 # The login profile runs first and may push volume dirs ahead of /usr/local/bin
 # (installs seeded before 0.9.6 do), so put the image's binaries back in front:
 # `herdr --remote` and Moshi must reach the pinned herdr, not a stale copy.
+#
+# The image ships only the C.UTF-8 locale, but AcceptEnv lets the client push
+# its own (e.g. LANG=en_US.UTF-8). mosh-server refuses to start on a
+# locale it cannot load, so the Moshi connection dies right after SSH. Pin the
+# one that exists; LC_ALL wins over whatever LANG the client or .profile sets.
+export LANG=C.UTF-8 LC_ALL=C.UTF-8
+
 if [ -n "${SSH_ORIGINAL_COMMAND:-}" ]; then
     exec bash -lc "PATH=/usr/local/bin:\$PATH; $SSH_ORIGINAL_COMMAND"
 fi
