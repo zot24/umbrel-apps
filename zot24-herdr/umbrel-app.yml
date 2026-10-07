@@ -108,7 +108,7 @@ releaseNotes: >-
   the session asked for a locale the image does not ship (en_US.UTF-8); SSH
   sessions now use C.UTF-8. Installs from before 0.9.6 also get their login
   profile fixed so the image's moshi-hook and herdr come first in PATH, and
-  the stale copies in /data/.local/bin are renamed to *.stale. That clears
+  the stale copies in /data/.local/bin become links to them. That clears
   Moshi's "daemon 0.4.x, hook 0.3.x" version warning.
 
 
