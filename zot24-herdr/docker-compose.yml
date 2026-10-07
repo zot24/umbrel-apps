@@ -42,6 +42,11 @@ services:
       # Tile password (umbrel-app.yml deterministicPassword). Web-gate login.
       APP_PASSWORD: ${APP_PASSWORD}
       APP_SEED: ${APP_SEED}
+      # Playwright Renderer, if installed: exports.sh reads its bearer token so
+      # agents here can call /render. The token is empty when the renderer is
+      # not installed (or not booted yet); restart Herdr after that.
+      PLAYWRIGHT_RENDERER_URL: http://zot24-playwright-renderer_playwright_1:3030
+      PLAYWRIGHT_RENDERER_TOKEN: ${APP_ZOT24_HERDR_RENDERER_TOKEN:-}
     # Optional user-provided secrets (ANTHROPIC_API_KEY, OPENAI_API_KEY, …)
     # and git identity (GIT_AUTHOR_NAME, …). Drop a KEY=VALUE file at
     # <app-data>/data/.env over SSH; it is read on every (re)start.
