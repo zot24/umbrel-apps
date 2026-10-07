@@ -1,7 +1,7 @@
 name: "Update: Herdr deps"
 
 # Weekly check of upstream herdr + ttyd pins. Opens a PR when the Dockerfile
-# is behind latest stable. Volume CLIs (claude/grok/kimi/vercel/supabase) are
+# is behind latest stable. Volume CLIs (claude/codex/grok/kimi/pi/vercel/supabase) are
 # not baked into the image — bootstrap-agents.sh upgrades them on every start.
 #
 # Canonical copy lives in the app tree because the repo PAT often lacks
@@ -61,6 +61,6 @@ jobs:
 
           After merge, **Build: Herdr** rebuilds the multi-arch image and pins the digest. Then update the app on Umbrel.
 
-          Volume CLIs (Claude Code, Grok, Kimi, Vercel, Supabase) are not in the image.
+          Volume CLIs (Claude Code, Codex, Grok, Kimi, Pi, Vercel, Supabase) are not in the image.
           EOF
           )"

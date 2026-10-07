@@ -36,7 +36,7 @@ const KEYS = [
   ["ANTHROPIC_API_KEY", "anthropic", "Claude Code"],
   ["XAI_API_KEY", "grok", "Grok"],
   ["MOONSHOT_API_KEY", "kimi", "Kimi"],
-  ["OPENAI_API_KEY", "openai", "OpenAI"],
+  ["OPENAI_API_KEY", "openai", "Codex (OpenAI)"],
   ["GITHUB_TOKEN", "github", "GitHub"],
   ["VERCEL_TOKEN", "vercel", "Vercel"],
   ["SUPABASE_ACCESS_TOKEN", "supabase", "Supabase"],

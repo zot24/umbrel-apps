@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.9.6"
+version: "0.9.7"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -17,7 +17,7 @@ description: >-
 
 
   - Web: open the app tile. Umbrel login, then the tile password, then a
-    setup page for Claude Code / Grok / Kimi / GitHub keys. After that you
+    setup page for Claude Code / Codex / Grok / Kimi / GitHub keys. After that you
     land in the Herdr TUI. The terminal is writable (keyboard works).
 
 
@@ -57,7 +57,7 @@ description: >-
      password shown on this tile.
 
 
-  2. Paste API keys (Claude Code, Grok, GitHub, …) on the setup page. They
+  2. Paste API keys (Claude Code, Codex, Grok, GitHub, …) on the setup page. They
      are written to this app's data volume. Empty fields leave existing
      values. Skip if you only want the TUI.
 
@@ -104,6 +104,15 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.7: Adds OpenAI Codex to the bootstrapped agents, next to Claude Code,
+  Grok, Kimi, and Pi. It installs on the persistent volume as `codex`, with
+  Herdr's Codex integration so Herdr can track its state and resume it after
+  a restart. A key in the setup page's Codex (OpenAI) field signs Codex in
+  on the next start. To use your ChatGPT plan instead, run `codex login
+  --device-auth` over SSH. The bootstrap also refreshes Herdr's Grok
+  integration, which had gone stale.
+
+
   0.9.6: Herdr 0.8.2 to 0.9.3. A laptop running Herdr 0.9 can now attach
   with `herdr --remote`; against the 0.8 server it could only offer to stop
   it. moshi-hook 0.3.19 to 0.4.18. The image's own herdr and moshi-hook now

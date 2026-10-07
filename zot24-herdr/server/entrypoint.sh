@@ -69,8 +69,8 @@ fi
 EOF
 
 # Optional agent/platform CLI bootstrap onto the persistent volume.
-# Set HERDR_BOOTSTRAP_AGENTS=1 in /data/.env to install Claude, Grok, Kimi,
-# Vercel, Supabase (see bootstrap-agents.sh / HERDR_BOOTSTRAP_TOOLS).
+# Set HERDR_BOOTSTRAP_AGENTS=1 in /data/.env to install Claude, Codex, Grok,
+# Kimi, Pi, Vercel, Supabase (see bootstrap-agents.sh / HERDR_BOOTSTRAP_TOOLS).
 if [ "${HERDR_BOOTSTRAP_AGENTS:-0}" = "1" ]; then
     gosu "$RUN_USER" bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh || \
         echo "[entrypoint] bootstrap-agents failed (non-fatal)" >&2
