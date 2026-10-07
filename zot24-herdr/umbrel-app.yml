@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.9.8"
+version: "0.9.9"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -104,6 +104,12 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.9: Fixes a 0.9.8 regression that broke Moshi agent hooks (approvals,
+  notifications) on installs from before 0.9.6. The stale moshi-hook in
+  /data/.local/bin is now replaced by a link to the current one instead of
+  being removed, since older hooks call it by that path.
+
+
   0.9.8: Fixes Moshi (mosh) connections. mosh-server refused to start when
   the session asked for a locale the image does not ship (en_US.UTF-8); SSH
   sessions now use C.UTF-8. Installs from before 0.9.6 also get their login
