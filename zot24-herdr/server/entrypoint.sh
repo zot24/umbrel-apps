@@ -46,7 +46,7 @@ if [ ! -f /data/.profile ]; then
 # Seeded by the Herdr Umbrel app on first run. Yours to edit.
 export NPM_CONFIG_PREFIX=/data/.npm-global
 export PATH=/usr/local/bin:/data/.npm-global/bin:/data/.grok/bin:/data/.local/bin:/data/.kimi/bin:/data/.kimi-code/bin:$PATH
-export LANG=${LANG:-C.UTF-8}
+export LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 # Secrets + git identity from the app's .env, so an SSH session has the same
 # environment as the web terminal. Same file compose reads at container start.
@@ -57,6 +57,19 @@ if [ -r /data/.env ]; then
 fi
 PROFILE
 fi
+
+# Profiles seeded before 0.9.6 put /usr/local/bin after the volume dirs, so
+# login shells (Herdr panes, `bash -lc`) still ran stale copies an older
+# installer left in /data/.local/bin, e.g. moshi-hook 0.3.x, which Moshi then
+# flags against the 0.4.x daemon. Move the image's dir to the front of that
+# old PATH line, and set the stale binaries aside (renamed, not deleted).
+sed -i 's#^export PATH=/data/\.npm-global/bin:#export PATH=/usr/local/bin:/data/.npm-global/bin:#' /data/.profile
+for bin in moshi-hook moshi herdr; do
+    if [ -e "/data/.local/bin/$bin" ] || [ -L "/data/.local/bin/$bin" ]; then
+        mv -f "/data/.local/bin/$bin" "/data/.local/bin/$bin.stale"
+        echo "[entrypoint] moved stale /data/.local/bin/$bin aside ($bin.stale)" >&2
+    fi
+done
 
 # git over HTTPS to github.com authenticates through gh, which takes the
 # GITHUB_TOKEN the setup page writes to .env (or a `gh auth login`). Without
