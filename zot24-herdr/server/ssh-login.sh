@@ -29,6 +29,14 @@ export PATH="/usr/local/bin:/data/.npm-global/bin:/data/.grok/bin:/data/.local/b
 # one that exists; LC_ALL wins over whatever LANG the client or .profile sets.
 export LANG=C.UTF-8 LC_ALL=C.UTF-8
 
+# Sibling-app values (Playwright Renderer URL + token) that the entrypoint
+# copied out of the container env; see entrypoint.sh.
+if [ -r /data/.config/herdr-umbrel/siblings.env ]; then
+    set -a
+    . /data/.config/herdr-umbrel/siblings.env
+    set +a
+fi
+
 if [ -n "${SSH_ORIGINAL_COMMAND:-}" ]; then
     exec bash -lc "PATH=/usr/local/bin:\$PATH; $SSH_ORIGINAL_COMMAND"
 fi

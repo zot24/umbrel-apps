@@ -3,7 +3,7 @@ id: zot24-playwright-renderer
 name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
 category: developer
-version: "0.3.0"
+version: "0.3.1"
 tagline: Self-hosted headless-browser renderer with residential-IP egress
 description: >-
   Playwright Renderer is a project-agnostic self-hosted headless-browser
@@ -72,12 +72,20 @@ description: >-
   3. Install Playwright Renderer. The server auto-generates a bearer token
      on first boot and persists it to /data/.env on the app's Docker volume.
 
-  4. Open the app's Logs view in the Umbrel dashboard and copy the
-     "RENDERER_TOKEN=..." banner the server prints on first start.
+  4. Read the token: `echo $PLAYWRIGHT_RENDERER_TOKEN` in Herdr (if
+     installed, after restarting it once), `sudo cat
+     ~/umbrel/app-data/zot24-playwright-renderer/data/.env` on the host, or
+     the first-boot "RENDERER_TOKEN=..." banner in this app's Logs view.
 
   5. Test with: curl -X POST https://playwright.<your-domain>/render
      -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
 releaseNotes: >-
+  0.3.1: Docs only. Explains where the generated bearer token lives and how
+  to read it, including from Herdr 0.9.9, which picks it up as
+  $PLAYWRIGHT_RENDERER_TOKEN. No image change.
+
+
+  0.3.0:
   Session auto-refresh, two layers.
 
 

@@ -285,6 +285,23 @@ agents with installed integrations resume natively
 do not survive a full container stop — same as any Herdr server restart.
 
 
+## Playwright Renderer
+
+If the Playwright Renderer app is installed, its URL and bearer token arrive
+here as `PLAYWRIGHT_RENDERER_URL` and `PLAYWRIGHT_RENDERER_TOKEN`, in the web
+terminal, SSH, and Moshi sessions. Agents can render a page with:
+
+```bash
+curl -sS -X POST "$PLAYWRIGHT_RENDERER_URL/render" \
+  -H "Authorization: Bearer $PLAYWRIGHT_RENDERER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com"}'
+```
+
+The token is generated on the renderer's first boot, so restart Herdr once
+after installing it. An empty `PLAYWRIGHT_RENDERER_TOKEN` means it is not
+installed or has not booted yet.
+
 ## Sibling apps / Hermes agent-bridge
 
 Human attach path stays the web terminal (ttyd on **7681**, Umbrel login).

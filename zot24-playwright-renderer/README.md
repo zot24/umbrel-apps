@@ -64,26 +64,30 @@ The renderer's container hostname (`zot24-playwright-renderer_playwright_1`)
 is also exported via `exports.sh` as `$APP_ZOT24_PLAYWRIGHT_RENDERER_IP` for
 other Umbrel apps that want to reference it without hard-coding.
 
-## Generate a renderer token
+## The renderer token
 
-The bearer token clients must send on every `/render` call. Generate one:
+Every `/render` call needs a bearer token. You don't have to make one: on
+first boot the server generates a 256-bit token and saves it to
+`<app-data>/data/.env` (`RENDERER_TOKEN=…`), where it survives restarts and
+updates. To see it:
 
-```bash
-openssl rand -hex 32
-```
+- **From Herdr** (if installed): `echo $PLAYWRIGHT_RENDERER_TOKEN` in any
+  Herdr terminal. Herdr reads it from this app's data folder on start;
+  restart Herdr once after this app first boots.
+- **On the Umbrel host:**
+  `sudo cat ~/umbrel/app-data/zot24-playwright-renderer/data/.env`
+- **In the app's logs**, on first boot only: a `RENDERER_TOKEN=…` banner.
 
-Save the output — both this Umbrel app and any client (e.g. your scraper
-Worker) need it. Treat it like any other secret.
+To pick your own token, put `RENDERER_TOKEN=<value>` in that file
+(`openssl rand -hex 32` makes a good one) and restart the app. Clients such as
+a scraper Worker need the same value. Treat it like any other secret.
 
 ## Installing on Umbrel
 
 Add this community app store to Umbrel (`App Store → Community App Stores →
 Add → https://github.com/zot24/umbrel-apps`), then install **Playwright
-Renderer**. During install you'll be prompted for one env value:
-
-| Env var          | What to paste                                        |
-|------------------|------------------------------------------------------|
-| `RENDERER_TOKEN` | The token from `openssl rand -hex 32` above          |
+Renderer**. There is nothing to enter at install time; see the token section
+above to read the generated token.
 
 ## Verifying it works
 

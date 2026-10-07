@@ -81,6 +81,21 @@ if ! git config --global --get-all credential.https://github.com.helper >/dev/nu
 fi
 EOF
 
+# Values other Umbrel apps share through compose (see docker-compose.yml),
+# written where SSH sessions can read them: an SSH login inherits none of
+# the container's env. ssh-login.sh sources this file. Regenerated on every
+# start so a token rotated in the sibling app reaches SSH too.
+gosu "$RUN_USER" bash -s <<'EOF'
+set -euo pipefail
+dir=/data/.config/herdr-umbrel
+mkdir -p "$dir"
+umask 077
+{
+    printf 'PLAYWRIGHT_RENDERER_URL=%q\n' "${PLAYWRIGHT_RENDERER_URL:-}"
+    printf 'PLAYWRIGHT_RENDERER_TOKEN=%q\n' "${PLAYWRIGHT_RENDERER_TOKEN:-}"
+} > "$dir/siblings.env"
+EOF
+
 # Optional agent/platform CLI bootstrap onto the persistent volume.
 # Set HERDR_BOOTSTRAP_AGENTS=1 in /data/.env to install Claude, Codex, Grok,
 # Kimi, Pi, Vercel, Supabase (see bootstrap-agents.sh / HERDR_BOOTSTRAP_TOOLS).
