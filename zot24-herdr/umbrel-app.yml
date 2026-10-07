@@ -107,7 +107,10 @@ releaseNotes: >-
   0.9.9: Fixes a 0.9.8 regression that broke Moshi agent hooks (approvals,
   notifications) on installs from before 0.9.6. The stale moshi-hook in
   /data/.local/bin is now replaced by a link to the current one instead of
-  being removed, since older hooks call it by that path.
+  being removed, since older hooks call it by that path. Once Moshi is
+  paired, each start also refreshes the Moshi hooks for the installed
+  agents (Claude, Codex, Grok, Kimi, Pi), so the agent inbox and Chat View
+  stop showing "Not set up" after a moshi-hook update.
 
 
   0.9.8: Fixes Moshi (mosh) connections. mosh-server refused to start when

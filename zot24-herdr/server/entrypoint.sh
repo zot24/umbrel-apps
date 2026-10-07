@@ -205,6 +205,27 @@ chmod 600 "$run_dir/sshd_config"
 echo "ssh: listening on ${ssh_port} (key auth only, user 'node')"
 EOF
 
+# Agent hooks are written by `moshi-hook install` and pinned to the moshi-hook
+# that wrote them, so an image bump leaves them outdated: Moshi then shows the
+# agent inbox and Chat View as "Not set up" for that agent. Once the box is
+# paired (host.json exists), rewrite them on every start for each agent that
+# is installed. Agents that are not installed are skipped, so this never
+# creates their config dirs.
+if [ -f /data/.local/state/moshi/host.json ]; then
+    gosu "$RUN_USER" env HOME=/data bash -s <<'EOF' || echo "[entrypoint] moshi-hook install failed (non-fatal)" >&2
+targets=()
+[ -d /data/.claude ] && targets+=(claude)
+[ -d /data/.codex ] && targets+=(codex)
+[ -d /data/.grok ] && targets+=(grok)
+{ [ -d /data/.kimi-code ] || [ -d /data/.kimi ]; } && targets+=(kimi)
+[ -d /data/.pi ] && targets+=(pi)
+if [ ${#targets[@]} -gt 0 ]; then
+    list=$(IFS=,; echo "${targets[*]}")
+    cd /data && /usr/local/bin/moshi-hook install --target "$list"
+fi
+EOF
+fi
+
 # moshi-hook daemon: agent approvals / inbox after Easy Pair. Linux defaults
 # to file-backed secrets on /data (no Keychain). Skip install.sh's /dev/tty
 # first-run prompt. Logs go to docker logs — serve never prints Easy Pair URLs.
