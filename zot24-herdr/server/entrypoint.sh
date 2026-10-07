@@ -62,12 +62,17 @@ fi
 # login shells (Herdr panes, `bash -lc`) still ran stale copies an older
 # installer left in /data/.local/bin, e.g. moshi-hook 0.3.x, which Moshi then
 # flags against the 0.4.x daemon. Move the image's dir to the front of that
-# old PATH line, and set the stale binaries aside (renamed, not deleted).
+# old PATH line, and swap each stale binary for a symlink to the image's copy.
+# A symlink, not a removal: agent hooks written by the old installer call
+# '/data/.local/bin/moshi-hook' by absolute path, and Moshi's own mosh
+# command puts $HOME/.local/bin first in PATH.
 sed -i 's#^export PATH=/data/\.npm-global/bin:#export PATH=/usr/local/bin:/data/.npm-global/bin:#' /data/.profile
 for bin in moshi-hook moshi herdr; do
-    if [ -e "/data/.local/bin/$bin" ] || [ -L "/data/.local/bin/$bin" ]; then
-        mv -f "/data/.local/bin/$bin" "/data/.local/bin/$bin.stale"
-        echo "[entrypoint] moved stale /data/.local/bin/$bin aside ($bin.stale)" >&2
+    stale="/data/.local/bin/$bin"
+    if [ -e "$stale" ] && [ ! -L "$stale" ]; then
+        mv -f "$stale" "$stale.stale"
+        ln -s "/usr/local/bin/$bin" "$stale"
+        echo "[entrypoint] $stale now links to the image's $bin (old copy: $bin.stale)" >&2
     fi
 done
 
