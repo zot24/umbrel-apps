@@ -11,6 +11,8 @@
 #   - mosh + tmux + openssh-client (Moshi preflight; Herdr is the multiplexer)
 #   - Node.js 22 + npm (agent CLIs install into the persistent /data volume)
 #   - git, curl, gh (GitHub CLI for agent workflows inside the box)
+#   - bubblewrap (the system bwrap Codex's Linux sandbox looks for at
+#     /usr/bin/bwrap; see the README for the container settings it also needs)
 #
 # Multi-arch: built with docker buildx for linux/amd64 + linux/arm64;
 # TARGETARCH selects the matching pinned herdr binary.
@@ -33,6 +35,7 @@ ARG TTYD_SHA256_AARCH64=b38acadd89d1d396a0f5649aa52c539edbad07f4bc7348b27b4f4b72
 # GitHub CLI — install from official apt repo (bookworm).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        bubblewrap \
         ca-certificates \
         curl \
         git \
@@ -55,7 +58,8 @@ RUN apt-get update \
     # this app. The entrypoint generates a per-install key on the /data volume
     # instead (which also keeps the fingerprint stable across app updates).
     && rm -f /etc/ssh/ssh_host_* \
-    && gh --version
+    && gh --version \
+    && bwrap --version
 
 # Pinned herdr + ttyd binaries, each verified against the recorded sha256
 # for the arch.

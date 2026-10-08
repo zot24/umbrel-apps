@@ -181,6 +181,34 @@ ssh -t -p 7683 node@your-umbrel gh auth login --web --hostname github.com --git-
 An agent that already has SSH access can run these itself and send you the
 link and code. Sign-ins persist on the data volume.
 
+### Codex sandbox (bubblewrap)
+
+Codex sandboxes the commands it runs with bubblewrap. The image ships
+`/usr/bin/bwrap`, but Docker's default seccomp profile blocks the user
+namespaces (and the mount / pivot_root calls inside them) that bwrap needs,
+so with this app's default container settings a sandboxed command fails
+with:
+
+```
+bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces.
+```
+
+The host kernel is not the problem; the container's seccomp filter is.
+Making the sandbox work needs the `server` service to run with:
+
+```yaml
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined   # Umbrel hosts run Docker's docker-default AppArmor profile, which denies mount
+```
+
+`cap_add: [SYS_ADMIN]` is neither needed nor enough (bwrap then fails at
+`pivot_root`). This app does not set these by default: they drop the
+container's syscall filter and AppArmor profile, which widens what a process
+in the container can ask of the host kernel. Without them, run Codex with
+its sandbox off (the container is the boundary), e.g.
+`codex --sandbox danger-full-access`.
+
 ## Setting up agents + platform CLIs
 
 This image is the **credential + CLI home** for coding agents. Hermes (and
@@ -192,6 +220,7 @@ humans) drive work here; secrets stay in `/data/.env`.
 | --- | --- | --- |
 | **gh** (GitHub CLI) | Baked into the image | `gh` |
 | **git**, **curl**, **node 22**, **npm** | Baked into the image | — |
+| **bubblewrap** (`bwrap`) | Baked into the image (Codex sandbox) | `bwrap` |
 | **Claude Code** | Bootstrap / npm | `claude` |
 | **Codex** (OpenAI) | Bootstrap / npm `@openai/codex` | `codex` |
 | **Grok Build** (xAI) | Bootstrap via `https://x.ai/cli/install.sh` | `grok` |
@@ -391,7 +420,7 @@ This app lives in the [zot24/umbrel-apps](https://github.com/zot24/umbrel-apps)
 community store repo as `zot24-herdr/`:
 
 ```
-server/Dockerfile        # node:22-bookworm-slim + herdr (pinned sha256) + ttyd + mosh
+server/Dockerfile        # node:22-bookworm-slim + herdr (pinned sha256) + ttyd + mosh + bwrap
 server/entrypoint.sh     # chown /data, seed config, start herdr server + ttyd
 docker-compose.yml       # Umbrel production compose (app_proxy + server)
 docker-compose.local.yml # local dev (build from source, publishes 7681)
