@@ -129,3 +129,56 @@ test('a queued job gets one runner, with its JIT config and the box limits', asy
   assert.ok(!s.log().includes(TOKEN), 'the token is not logged');
   assert.ok(saved.includes(TOKEN), 'the token is kept in state.json');
 });
+
+// Requests to the fake for the served repo, as a string: V is a visibility
+// read (GET /repos/{repo}), Q a read of its queued runs.
+function polls(gh, from = 0) {
+  return gh.requests
+    .slice(from)
+    .map((r) => (r.startsWith(`GET /repos/${REPO} `) ? 'V' : r.startsWith(`GET /repos/${REPO}/actions/runs?status=queued`) ? 'Q' : ''))
+    .join('');
+}
+
+test('visibility is re-read on every poll, before the queue', async (t) => {
+  const s = await stack(t);
+  await s.serve();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  const from = s.gh.requests.length;
+  await s.ticks(6);
+  const seq = polls(s.gh, from);
+  assert.ok((seq.match(/Q/g) || []).length >= 5, `queue read on every poll: ${seq}`);
+  assert.match(seq, /^Q?(VQ)+V?$/, 'every queue read follows a fresh visibility read');
+  // Unchanged visibility costs a 304, which GitHub does not count against
+  // the rate limit.
+  assert.ok(s.gh.requests.slice(from).some((r) => r === `GET /repos/${REPO} 304`));
+});
+
+test('a repo made public is seen on the next poll and its queue is not read again', async (t) => {
+  const s = await stack(t);
+  await s.serve();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  s.gh.repos[REPO].private = false;
+  const from = s.gh.requests.length;
+  await s.ticks(3);
+  assert.equal((await s.repo()).private, false);
+  // A pass already past its visibility read when the flip landed may read
+  // the queue once more; after that, never.
+  assert.match(polls(s.gh, from), /^Q?V+$/);
+  assert.equal(s.docker.runners().length, 0, 'its idle runner is gone');
+  assert.equal(s.gh.runners.size, 0, 'and deregistered');
+});
+
+test('while paused, a repo with a runner still up keeps having its visibility read', async (t) => {
+  const s = await stack(t);
+  await s.serve();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  const [c] = s.docker.runners();
+  s.docker.takeJob(c, 'build 1');
+  s.gh.assign(c.Labels['ghr.runner-id']);
+  await waitFor('runner busy', async () => (await s.state()).runners[0]?.busy);
+  assert.equal((await s.api('POST', '/api/settings', { paused: true })).status, 200);
+  await s.ticks(1);
+  const from = s.gh.requests.length;
+  await s.ticks(3);
+  assert.match(polls(s.gh, from), /^V{3,}$/, 'visibility read on every pass, queue not read');
+});

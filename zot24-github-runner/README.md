@@ -99,8 +99,9 @@ and no app to maintain; it expires on the date you pick, and the page shows that
 ## Safety
 
 - **Private repositories only.** A self-hosted runner on a public repository can run code from
-  anyone's fork pull request. Public repositories are refused when added, re-checked every five
-  minutes, and dropped (idle runners removed) if one is made public. On a private repository only
+  anyone's fork pull request. Public repositories are refused when added, and every served
+  repository's visibility is read again on every poll (every 15 seconds, before its queue), so
+  one made public is dropped at the next poll (idle runners removed). On a private repository only
   people with access can push or open pull requests; GitHub's "Run workflows from fork pull
   requests" setting for private repositories is off by default, keep it off.
 - **A fixed concurrency cap.** No more than 1 to 4 runners (default 2) exist at once, whatever is

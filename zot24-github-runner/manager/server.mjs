@@ -70,7 +70,6 @@ const RUNNER_GID = Number(process.env.RUNNER_GID || RUNNER_UID);
 const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
 const LABELS = runnerLabels(ARCH);
 const HISTORY_MAX = 50;
-const REPO_RECHECK_MS = Number(process.env.REPO_RECHECK_MS || 5 * 60_000);
 const ORPHAN_SWEEP_MS = 60 * 60_000;
 const IMAGE_PRUNE_MS = 24 * 3600_000;
 
@@ -627,19 +626,23 @@ function servable(repo) {
   return state.repos.some((r) => r.name === repo) && st?.private === true;
 }
 
-async function pollRepo(repo) {
+// One poll of a served repository: its visibility, then (with `queue`) its
+// queued jobs. A poll that fails starts nothing (queued 0).
+async function pollRepo(repo, { queue = true } = {}) {
   const st = repoStatus.get(repo) || {};
   repoStatus.set(repo, st);
   try {
-    // Re-read visibility now and then: a repository made public stops
-    // being served at once (its idle runners are removed below).
-    if (!st.checkedAt || Date.now() - st.checkedAt > REPO_RECHECK_MS) {
-      const info = await gh('GET', `/repos/${repo}`);
-      st.private = info.private === true;
-      st.checkedAt = Date.now();
-    }
+    // Visibility on every poll, before the queue, so a repository made
+    // public is not served from the next poll on. The read is ETag-cached:
+    // while nothing changes GitHub answers 304, which costs no rate limit.
+    const info = await gh('GET', `/repos/${repo}`);
+    st.private = info.private === true;
     if (!st.private) {
       Object.assign(st, { queued: 0, oldestQueuedAt: '', error: 'Public repository: not served. Self-hosted runners must never run public repos.' });
+      return;
+    }
+    if (!queue) {
+      Object.assign(st, { queued: 0, oldestQueuedAt: '', error: '' });
       return;
     }
     let queued = 0;
@@ -738,10 +741,14 @@ async function tick() {
     if (state.settings.dockerForJobs) await ensureExternals();
     await collect();
 
-    if (active()) {
-      for (const r of state.repos) await pollRepo(r.name);
-      for (const name of [...repoStatus.keys()]) if (!state.repos.some((r) => r.name === name)) repoStatus.delete(name);
+    // Every pass re-reads each served repo's visibility. While paused, only
+    // repos that still have a runner up are read, and their queues are not.
+    if (state.settings.token && !tokenError) {
+      for (const r of state.repos) {
+        if (active() || alive.some((x) => x.repo === r.name)) await pollRepo(r.name, { queue: active() });
+      }
     }
+    for (const name of [...repoStatus.keys()]) if (!state.repos.some((r) => r.name === name)) repoStatus.delete(name);
 
     // Idle runners go when the app is paused, the token is gone, their repo
     // was removed or went public, or nobody gave them a job in time.
@@ -984,7 +991,6 @@ const routes = [
           Object.assign(s, { token, tokenLogin: checked.login, tokenExpires: checked.expires });
           tokenError = '';
           etags.clear();
-          for (const st of repoStatus.values()) st.checkedAt = 0;
         }
         if (b.clearToken === true) Object.assign(s, { token: '', tokenLogin: '', tokenExpires: '' });
         if (b.maxRunners !== undefined) s.maxRunners = b.maxRunners;
@@ -1030,7 +1036,7 @@ const routes = [
       const result = await mutate(() => {
         if (state.repos.some((r) => r.name.toLowerCase() === fullName.toLowerCase())) throw new UserError(`${fullName} is already served.`, 409);
         state.repos.push({ name: fullName, addedAt: new Date().toISOString() });
-        repoStatus.set(fullName, { private: true, checkedAt: Date.now(), queued: 0 });
+        repoStatus.set(fullName, { private: true, queued: 0 });
         return { ok: true, repo: fullName };
       });
       serial(tick);
