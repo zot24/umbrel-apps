@@ -3,7 +3,7 @@ id: zot24-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
 category: developer
-version: "0.1.0"
+version: "0.1.1"
 tagline: Run your private repos' GitHub Actions jobs on your Umbrel
 description: >-
   GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
@@ -68,7 +68,14 @@ description: >-
   Before uninstalling, use "Remove runners from GitHub" on the app's page,
   then revoke the token on GitHub.
 releaseNotes: >-
-  First release.
+  Safety fixes. A served repository's visibility is now checked on every
+  poll (every 15 seconds) instead of every five minutes. If it is made
+  public, all of its runners are stopped at once, a running job included,
+  and it is not served again until it is private and you press re-enable
+  on its row. Jobs from forks, including pull_request_target runs, are
+  never run here, whatever their labels; the repository's row counts the
+  skipped ones that asked for this runner. The description now states when
+  four runners can use all of a small box's memory or CPUs.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []
