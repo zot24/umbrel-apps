@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.9.9"
+version: "0.9.10"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -104,6 +104,14 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.10: The image now ships bubblewrap (bwrap), so Codex finds the system
+  sandbox binary at /usr/bin/bwrap and stops warning that it is missing.
+  This does not turn Codex's sandbox on by itself: Docker's default seccomp
+  profile still blocks the user namespaces bwrap needs, so sandboxed Codex
+  commands keep failing until the container's security settings change
+  (see the README). Nothing else changes.
+
+
   0.9.9: If the Playwright Renderer app is installed, Herdr gets its URL and
   bearer token as $PLAYWRIGHT_RENDERER_URL and $PLAYWRIGHT_RENDERER_TOKEN,
   in the web terminal, SSH, and Moshi sessions alike, so agents can call
