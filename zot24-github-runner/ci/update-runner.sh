@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Check the latest actions/runner release. If docker-compose.yml pins an
-# older ghcr.io/actions/actions-runner, rewrite RUNNER_IMAGE (tag + index
-# digest, in both compose files) and bump the app's patch version (VERSION,
-# umbrel-app.yml) so Umbrel offers the update. Does not commit; the Action
-# opens a PR.
+# Check the latest actions/runner release. If runner/Dockerfile is built FROM
+# an older ghcr.io/actions/actions-runner, rewrite its FROM line (tag + index
+# digest) and bump the app's patch version (VERSION, umbrel-app.yml) so
+# Umbrel offers the update. Does not commit; the Action opens a PR. Merging
+# it makes build-github-runner.yml rebuild ghcr.io/zot24/github-runner-image
+# on the new base and pin it as RUNNER_IMAGE.
 #
 # Why weekly: a runner older than the latest release updates itself at the
 # start of every job, a ~150 MB download per job.
@@ -14,15 +15,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 APP="$ROOT/zot24-github-runner"
-COMPOSE="$APP/docker-compose.yml"
-LOCAL="$APP/docker-compose.local.yml"
+DOCKERFILE="$APP/runner/Dockerfile"
 MANIFEST="$APP/umbrel-app.yml"
 VERSION_FILE="$APP/VERSION"
 IMG=ghcr.io/actions/actions-runner
 
 out() { if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "$1=$2" >> "$GITHUB_OUTPUT"; fi; }
 
-CUR="$(grep -oE "RUNNER_IMAGE: ${IMG}:[0-9.]+" "$COMPOSE" | sed -E 's/.*://')"
+CUR="$(grep -oE "^FROM ${IMG}:[0-9.]+@" "$DOCKERFILE" | sed -E 's/.*:([0-9.]+)@$/\1/')"
 auth=()
 if [ -n "${GH_TOKEN:-}" ]; then auth=(-H "Authorization: Bearer $GH_TOKEN"); fi
 LATEST="$(curl -fsSL ${auth[@]+"${auth[@]}"} -H 'Accept: application/vnd.github+json' \
@@ -57,20 +57,19 @@ APP_CUR="$(tr -d ' \n' < "$VERSION_FILE")"
 IFS=. read -r MAJ MIN PAT <<<"$APP_CUR"
 APP_NEW="$MAJ.$MIN.$((PAT + 1))"
 
-for f in "$COMPOSE" "$LOCAL"; do
-  sed -i.bak -E "s|RUNNER_IMAGE: ${IMG}:[^ ]+|RUNNER_IMAGE: ${IMG}:${LATEST}@${DIGEST}|" "$f"
-  rm -f "$f.bak"
-done
+sed -i.bak -E "s|^FROM ${IMG}:[^ ]+|FROM ${IMG}:${LATEST}@${DIGEST}|" "$DOCKERFILE"
+rm -f "$DOCKERFILE.bak"
 printf '%s\n' "$APP_NEW" > "$VERSION_FILE"
 sed -i.bak -E "s|^version: \"[^\"]+\"|version: \"$APP_NEW\"|" "$MANIFEST"
 # releaseNotes is a folded block: replace its body (the indented lines after
-# the key) with one line about this bump.
+# the key, blank paragraph breaks included, up to the next top-level key)
+# with one line about this bump.
 python3 - "$MANIFEST" "$CUR" "$LATEST" <<'PY'
 import re, sys
 path, cur, latest = sys.argv[1:]
 text = open(path).read()
 notes = f"releaseNotes: >-\n  GitHub Actions runner {cur} -> {latest}. The next job runs on the new image.\n"
-text = re.sub(r"^releaseNotes: >-\n(?:  .*\n)+", notes, text, count=1, flags=re.M)
+text = re.sub(r"^releaseNotes: >-\n(?:(?:  .*)?\n)+?(?=^\S)", notes, text, count=1, flags=re.M)
 open(path, "w").write(text)
 PY
 rm -f "$MANIFEST.bak"

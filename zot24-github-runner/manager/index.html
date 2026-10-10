@@ -467,7 +467,7 @@ function renderAlerts() {
   if (S.image.pulling || (!S.image.present && !S.image.error && !S.daemonError)) {
     const pct = Math.round((S.image.progress || 0) * 100);
     out.push(`<div class="alert warn"><div class="alert-title warn">Provisioning runner image</div>
-      <p class="small muted">First start downloads GitHub's runner image (about 500 MB) into the app's private Docker. The token and repositories can be set up meanwhile.</p>
+      <p class="small muted">First start downloads the runner image (GitHub's, plus build tools; several hundred MB) into the app's private Docker. The token and repositories can be set up meanwhile.</p>
       <div class="progress amber${pct ? '' : ' indeterminate'}"><i style="width:${pct}%"></i></div>
       <p class="small muted" style="margin:8px 0 0">${pct ? `${pct}%` : 'Starting download'} &middot; <span class="code">${esc(S.image.ref)}</span></p></div>`);
   } else if (S.image.error) {
@@ -887,7 +887,7 @@ function openHelp() {
         <li>Nothing survives a job: no workspace, no tool cache, no credentials.</li>
       </ul>
       <label>Coming from ubuntu-latest</label>
-      <p>The runner image is GitHub's own minimal one (Ubuntu 24.04, git, curl, jq, unzip, the Docker CLI, sudo). It does not have the hosted image's preinstalled toolchains: use <span class="code">actions/setup-node</span>, <span class="code">setup-python</span>, <span class="code">setup-go</span> and friends, or <span class="code">sudo apt-get install</span> what a job needs (for example <span class="code">build-essential</span>). The README has the full list.</p>
+      <p>The runner image is GitHub's own minimal one (Ubuntu 24.04, git, curl, jq, unzip, the Docker CLI, sudo) plus <span class="code">zstd</span> and <span class="code">build-essential</span> (gcc, g++, make). It does not have the hosted image's preinstalled toolchains: use <span class="code">actions/setup-node</span>, <span class="code">setup-python</span>, <span class="code">setup-go</span> and friends, or <span class="code">sudo apt-get install</span> what a job needs (for example <span class="code">cmake</span>). The README has the full list.</p>
       <label>Removing it</label>
       <p>Settings &rarr; Remove runners from GitHub, then uninstall the app, then revoke the token on GitHub.</p>
     </div>`);
