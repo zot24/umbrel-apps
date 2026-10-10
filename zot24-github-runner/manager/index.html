@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitHub Runner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Oxanium:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --phosphor: #50ffa8;
+  --phosphor-dim: #28b870;
+  --amber: #ffc04d;
+  --amber-dim: #b8862e;
+  --red: #ff6060;
+  --bg: #060a0d;
+  --surface: #0b1016;
+  --text: #d4e0d8;
+  --text-muted: #7a8e82;
+  --line: rgba(80, 255, 168, 0.16);
+  --display: 'Oxanium', 'Fira Code', ui-monospace, monospace;
+  --mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.55 var(--mono);
+  overflow-x: hidden;
+}
+
+/* Layered CRT background: circuit grid, ambient glow, grain, scanlines, vignette. */
+.fx { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.fx.grid {
+  background-image:
+    linear-gradient(rgba(80, 255, 168, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(80, 255, 168, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.fx.glow {
+  background:
+    radial-gradient(600px 400px at 12% 8%, rgba(80, 255, 168, 0.07), transparent 70%),
+    radial-gradient(500px 500px at 92% 85%, rgba(255, 192, 77, 0.05), transparent 70%);
+}
+.fx.grain {
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.fx.scan {
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px);
+  z-index: 50;
+}
+.fx.vignette {
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.65) 100%);
+  z-index: 51;
+}
+
+main { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 28px 16px 96px; }
+
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+h1 {
+  font: 700 26px/1 var(--display);
+  letter-spacing: 0.14em;
+  margin: 0;
+  color: var(--phosphor);
+  text-shadow: 0 0 12px rgba(80, 255, 168, 0.45);
+}
+h1 span { color: var(--text-muted); text-shadow: none; margin: 0 6px; }
+.sub { color: var(--text-muted); font-size: 12px; letter-spacing: 0.08em; margin-top: 6px; text-transform: uppercase; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid currentColor;
+  padding: 4px 10px;
+  font: 600 11px/1.4 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.dot { width: 8px; height: 8px; background: currentColor; box-shadow: 0 0 8px currentColor; flex: none; }
+.ok { color: var(--phosphor); }
+.warn { color: var(--amber); }
+.bad { color: var(--red); }
+.idle { color: var(--text-muted); }
+.blink .dot { animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+
+.panel {
+  position: relative;
+  background: rgba(11, 16, 22, 0.92);
+  border: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+.panel::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--phosphor-dim), transparent);
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.panel-title { font: 600 13px/1.2 var(--display); letter-spacing: 0.2em; text-transform: uppercase; color: var(--text); }
+.panel-body { padding: 16px; }
+.muted { color: var(--text-muted); }
+.small { font-size: 12px; }
+p { margin: 0 0 10px; }
+a { color: var(--phosphor); }
+code, .code {
+  font-family: var(--mono);
+  background: rgba(80, 255, 168, 0.07);
+  border: 1px solid var(--line);
+  padding: 1px 6px;
+  color: var(--phosphor);
+  word-break: break-all;
+}
+
+button, .btn {
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--phosphor);
+  background: transparent;
+  border: 1px solid var(--phosphor-dim);
+  padding: 9px 12px;
+  cursor: pointer;
+  border-radius: 0;
+}
+button::before { content: '> '; color: var(--phosphor-dim); }
+button:hover:not(:disabled) { background: rgba(80, 255, 168, 0.1); box-shadow: 0 0 12px rgba(80, 255, 168, 0.18); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary { background: rgba(80, 255, 168, 0.14); }
+button.amber { color: var(--amber); border-color: var(--amber-dim); }
+button.amber::before { color: var(--amber-dim); }
+button.danger { color: var(--red); border-color: rgba(255, 96, 96, 0.5); }
+button.danger::before { color: rgba(255, 96, 96, 0.6); }
+button.bare { border: 0; padding: 2px 4px; font-size: 11px; }
+button.bare::before { content: ''; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+label { display: block; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin: 14px 0 6px; }
+label .muted { text-transform: none; letter-spacing: 0; }
+input[type=text], input[type=password], input[type=email], textarea {
+  width: 100%;
+  font: 13px/1.5 var(--mono);
+  color: var(--text);
+  background: #05080b;
+  border: 1px solid var(--line);
+  padding: 9px 10px;
+  border-radius: 0;
+  outline: none;
+}
+input:focus, textarea:focus { border-color: var(--phosphor-dim); box-shadow: 0 0 0 1px rgba(80, 255, 168, 0.25); }
+input:disabled { opacity: 0.5; }
+textarea { min-height: 110px; resize: vertical; }
+.check { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); cursor: pointer; }
+.check input { appearance: none; width: 14px; height: 14px; border: 1px solid var(--phosphor-dim); margin: 3px 0 0; flex: none; cursor: pointer; }
+.check input:checked { background: var(--phosphor); box-shadow: 0 0 8px rgba(80, 255, 168, 0.5); }
+.check small { display: block; color: var(--text-muted); font-size: 12px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+@media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13px; }
+.kv dt { color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; padding-top: 2px; }
+.kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+.sandboxes { display: grid; gap: 14px; }
+.sb { border: 1px solid var(--line); background: rgba(6, 10, 13, 0.7); }
+.sb-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px dashed var(--line); }
+.sb-name { font: 600 18px/1.1 var(--display); letter-spacing: 0.08em; color: var(--text); }
+.sb-body { padding: 12px 14px; display: grid; gap: 12px; }
+.sb-err { border-left: 2px solid var(--red); padding: 6px 10px; color: var(--red); background: rgba(255, 96, 96, 0.06); font-size: 12px; overflow-wrap: anywhere; }
+.repos { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.repos li { overflow-wrap: anywhere; }
+.repos li::before { content: '+ '; color: var(--phosphor-dim); }
+.trigger { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.empty { padding: 28px 16px; text-align: center; color: var(--text-muted); }
+.empty b { color: var(--text); font-family: var(--display); letter-spacing: 0.14em; }
+
+.progress { height: 6px; background: rgba(80, 255, 168, 0.08); border: 1px solid var(--line); position: relative; overflow: hidden; }
+.progress > i {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+  background: var(--phosphor);
+  box-shadow: 0 0 10px var(--phosphor), 4px 0 12px var(--phosphor);
+  transition: width 0.4s ease;
+}
+.progress.amber > i { background: var(--amber); box-shadow: 0 0 10px var(--amber), 4px 0 12px var(--amber); }
+.progress.indeterminate > i { width: 30%; animation: sweep 1.2s ease-in-out infinite; }
+@keyframes sweep { from { left: -30%; } to { left: 100%; } }
+
+.alert { border: 1px solid; padding: 12px 14px; margin-bottom: 18px; background: rgba(11, 16, 22, 0.92); }
+.alert.warn { border-color: var(--amber-dim); }
+.alert.bad { border-color: rgba(255, 96, 96, 0.6); }
+.alert-title { font: 600 12px/1.2 var(--display); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 8px; }
+.alert pre { white-space: pre-wrap; margin: 0; font-size: 12px; color: var(--text); }
+
+/* Modals: dark backdrop, sharp box, gradient top line. Click outside closes. */
+.backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(2, 4, 6, 0.78);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 8vh 16px 16px;
+  overflow-y: auto;
+}
+.backdrop.hidden { display: none; }
+.box {
+  position: relative; width: min(680px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--phosphor-dim);
+  box-shadow: 0 0 40px rgba(80, 255, 168, 0.12);
+}
+.box.wide { width: min(980px, 100%); }
+.box::before {
+  content: ''; position: absolute; left: 0; right: 0; top: -1px; height: 2px;
+  background: linear-gradient(90deg, var(--phosphor), var(--amber));
+}
+.box .panel-body { max-height: 74vh; overflow: auto; }
+.box pre.out {
+  margin: 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: 12px; line-height: 1.5; color: var(--text);
+  background: #05080b; border: 1px solid var(--line); padding: 12px; min-height: 120px;
+}
+.form-err { display: none; margin-top: 14px; }
+.form-err.on { display: block; }
+.shake { animation: shake 0.42s cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-8px); }
+  40%, 60% { transform: translateX(8px); }
+}
+
+/* Full-screen states for critical operations and errors. */
+.overlay {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.overlay.hidden { display: none; }
+.overlay.amber {
+  background: rgba(30, 20, 4, 0.82);
+  background-image: repeating-linear-gradient(to bottom, rgba(255, 192, 77, 0.06) 0 2px, transparent 2px 5px);
+  animation: scanroll 1.6s linear infinite;
+}
+@keyframes scanroll { to { background-position: 0 50px; } }
+.overlay.red { background: rgba(40, 4, 4, 0.86); animation: flash 0.5s ease-out; }
+@keyframes flash { from { background: rgba(255, 96, 96, 0.55); } }
+.overlay .ov-box { width: min(560px, 100%); border: 1px solid; padding: 22px; background: rgba(6, 10, 13, 0.95); }
+.overlay.amber .ov-box { border-color: var(--amber); color: var(--amber); }
+.overlay.red .ov-box { border-color: var(--red); color: var(--red); }
+.ov-title { font: 700 16px/1.3 var(--display); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; }
+.ov-icon { font-size: 26px; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; transform: scale(0.9); } }
+.ov-msg { color: var(--text); font-size: 13px; margin-bottom: 14px; overflow-wrap: anywhere; white-space: pre-wrap; }
+
+.corner { position: fixed; right: 16px; bottom: 16px; z-index: 55; display: flex; gap: 8px; }
+.corner button { width: 32px; height: 32px; padding: 0; font: 600 14px/1 var(--display); background: var(--surface); }
+.corner button::before { content: ''; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+/* Page-specific pieces. */
+pre.snippet {
+  margin: 0; padding: 12px 14px; font-size: 13px; line-height: 1.6;
+  background: #05080b; border: 1px solid var(--line); color: var(--phosphor);
+  white-space: pre; overflow-x: auto;
+}
+pre.snippet .k { color: var(--text-muted); }
+.list { display: grid; gap: 10px; }
+.item { border: 1px solid var(--line); background: rgba(6, 10, 13, 0.7); padding: 10px 12px; display: grid; gap: 8px; }
+.item-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.item-name { font: 600 15px/1.2 var(--display); letter-spacing: 0.06em; color: var(--text); overflow-wrap: anywhere; }
+.item-meta { font-size: 12px; color: var(--text-muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chips button { font-size: 11px; padding: 6px 8px; text-transform: none; letter-spacing: 0; }
+.chips button::before { content: '+ '; }
+.seg { display: inline-flex; border: 1px solid var(--phosphor-dim); }
+.seg button { border: 0; border-right: 1px solid var(--phosphor-dim); padding: 8px 14px; }
+.seg button:last-child { border-right: 0; }
+.seg button::before { content: ''; }
+.seg button.on { background: rgba(80, 255, 168, 0.2); box-shadow: inset 0 0 10px rgba(80, 255, 168, 0.25); }
+table.hist { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.hist th { text-align: left; font-weight: 500; color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px; padding: 0 8px 8px 0; border-bottom: 1px solid var(--line); }
+table.hist td { padding: 8px 8px 8px 0; border-bottom: 1px dashed var(--line); vertical-align: top; overflow-wrap: anywhere; }
+table.hist tr[data-tail] { cursor: pointer; }
+table.hist tr[data-tail]:hover td { background: rgba(80, 255, 168, 0.04); }
+.danger-zone { border-top: 1px dashed rgba(255, 96, 96, 0.35); margin-top: 18px; padding-top: 14px; }
+.steps { margin: 0 0 12px; padding-left: 20px; }
+.steps li { margin-bottom: 4px; }
+.steps li::marker { color: var(--phosphor-dim); }
+</style>
+</head>
+<body>
+<div class="fx grid"></div>
+<div class="fx glow"></div>
+<div class="fx grain"></div>
+<div class="fx scan"></div>
+<div class="fx vignette"></div>
+
+<main>
+  <header>
+    <div>
+      <h1>GITHUB<span>//</span>RUNNER</h1>
+      <div class="sub">Self-hosted GitHub Actions runners on your Umbrel</div>
+    </div>
+    <div id="link" class="badge idle"><span class="dot"></span><span>Booting</span></div>
+  </header>
+
+  <div id="alerts"></div>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Workflow</div>
+      <button class="bare" id="copy-snippet">copy</button>
+    </div>
+    <div class="panel-body">
+      <pre class="snippet" id="snippet"><span class="k">jobs:</span>
+  <span class="k">build:</span>
+    runs-on: [self-hosted, umbrel]</pre>
+      <p class="small muted" style="margin:10px 0 0">Jobs with these labels, in the private repositories below, run here: one fresh container per job, wiped when it ends. GitHub does not bill self-hosted runner minutes.</p>
+    </div>
+  </section>
+
+  <section class="panel" id="creds">
+    <div class="panel-header">
+      <div class="panel-title">GitHub token</div>
+      <div id="creds-badge" class="badge idle"><span class="dot"></span><span>--</span></div>
+    </div>
+    <div class="panel-body" id="creds-body"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Repositories</div>
+      <div class="row">
+        <span id="repo-count" class="badge idle"><span class="dot"></span><span>0 served</span></span>
+        <button class="primary" id="add-repo">Add repository</button>
+      </div>
+    </div>
+    <div class="panel-body"><div id="repos" class="list"></div></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div class="panel-title">Runners</div>
+      <span id="run-count" class="badge idle"><span class="dot"></span><span>0 / 0</span></span>
+    </div>
+    <div class="panel-body">
+      <div id="runners" class="list"></div>
+      <p class="small muted" id="limits" style="margin:12px 0 0"></p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><div class="panel-title">Recent jobs</div></div>
+    <div class="panel-body" id="history"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-header"><div class="panel-title">Settings</div></div>
+    <div class="panel-body" id="settings"></div>
+  </section>
+</main>
+
+<div class="corner"><button id="help" title="How this works">?</button></div>
+
+<div id="modal" class="backdrop hidden"><div class="box panel" id="modal-box"></div></div>
+<div id="overlay" class="overlay hidden"><div class="ov-box" id="overlay-box"></div></div>
+
+<script>
+'use strict';
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const MIN_PROGRESS_MS = 2600; // progress stays visible long enough to notice
+const GB = 1024 ** 3;
+
+let S = null;          // last /api/state
+let editingCreds = false;
+let settingsDirty = false;
+let modalOnClose = null;
+
+async function api(method, url, body) {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'X-GHR-Request': '1' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// Keep a progress bar up for at least MIN_PROGRESS_MS, even when the work is instant.
+async function withMinDuration(promise) {
+  const [r] = await Promise.allSettled([promise, sleep(MIN_PROGRESS_MS)]);
+  if (r.status === 'rejected') throw r.reason;
+  return r.value;
+}
+
+function badge(el, cls, text, blink = false) {
+  el.className = `badge ${cls}${blink ? ' blink' : ''}`;
+  el.innerHTML = `<span class="dot"></span><span>${esc(text)}</span>`;
+}
+const pill = (cls, text, blink = false) => `<span class="badge ${cls}${blink ? ' blink' : ''}"><span class="dot"></span><span>${esc(text)}</span></span>`;
+
+function dur(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
+function ago(t) {
+  if (!t) return 'never';
+  return `${dur(Date.now() - new Date(t).getTime()).split(' ')[0]} ago`;
+}
+const gb = (b) => `${(b / GB).toFixed(b % GB ? 1 : 0)} GB`;
+
+// Copy must work over plain HTTP (Umbrel's default), where navigator.clipboard is unavailable.
+function copy(text, btn) {
+  const done = () => { if (btn) { const t = btn.textContent; btn.textContent = 'copied'; setTimeout(() => (btn.textContent = t), 1200); } };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, () => fallback());
+  } else fallback();
+  function fallback() {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch {}
+    ta.remove();
+  }
+}
+
+// ---------------------------------------------------------------- render
+
+function render() {
+  if (!S) return;
+  renderAlerts();
+  renderCreds();
+  renderRepos();
+  renderRunners();
+  renderHistory();
+  renderSettings();
+  const s = S.settings;
+  const busy = S.runners.filter((r) => r.busy).length;
+  if (S.stateError || S.daemonError) badge($('#link'), 'bad', 'Fault');
+  else if (!S.image.present) badge($('#link'), 'warn', 'Provisioning', true);
+  else if (!s.tokenSet) badge($('#link'), 'warn', 'Needs token');
+  else if (s.tokenError) badge($('#link'), 'bad', 'Token rejected');
+  else if (s.paused) badge($('#link'), 'idle', 'Paused');
+  else if (!S.repos.length) badge($('#link'), 'warn', 'No repositories');
+  else if (busy) badge($('#link'), 'ok', `Running ${busy} job${busy > 1 ? 's' : ''}`, true);
+  else badge($('#link'), 'ok', 'Ready');
+}
+
+function alertBlock(cls, title, msg) {
+  return `<div class="alert ${cls}"><div class="alert-title ${cls}">${esc(title)}</div><pre>${esc(msg)}</pre></div>`;
+}
+
+function renderAlerts() {
+  const out = [];
+  const s = S.settings;
+  if (S.stateError) out.push(alertBlock('bad', 'State file unreadable', `${S.stateError}\n\nNothing is scheduled until this is fixed, so no runner is touched.`));
+  if (S.daemonError) out.push(alertBlock('bad', 'Private Docker daemon unreachable', S.daemonError));
+  if (S.image.pulling || (!S.image.present && !S.image.error && !S.daemonError)) {
+    const pct = Math.round((S.image.progress || 0) * 100);
+    out.push(`<div class="alert warn"><div class="alert-title warn">Provisioning runner image</div>
+      <p class="small muted">First start downloads GitHub's runner image (about 500 MB) into the app's private Docker. The token and repositories can be set up meanwhile.</p>
+      <div class="progress amber${pct ? '' : ' indeterminate'}"><i style="width:${pct}%"></i></div>
+      <p class="small muted" style="margin:8px 0 0">${pct ? `${pct}%` : 'Starting download'} &middot; <span class="code">${esc(S.image.ref)}</span></p></div>`);
+  } else if (S.image.error) {
+    out.push(alertBlock('bad', 'Runner image download failed', `${S.image.error}\n\nRetrying on the next poll.`));
+  }
+  if (s.tokenError) out.push(alertBlock('bad', 'GitHub refused the token', `${s.tokenError}\n\nNo runners start until you save a working token.`));
+  if (S.tickError && !S.daemonError) out.push(alertBlock('bad', 'Scheduler error', S.tickError));
+  if (S.rate.remaining !== null && S.rate.remaining < 1000) {
+    out.push(alertBlock('warn', 'GitHub API budget running low', `${S.rate.remaining} of ${S.rate.limit} requests left until ${new Date(S.rate.reset).toLocaleTimeString()}. Polling slows down until then.`));
+  }
+  $('#alerts').innerHTML = out.join('');
+}
+
+function renderCreds() {
+  const s = S.settings;
+  if (!s.tokenSet) badge($('#creds-badge'), 'warn', 'Token required', true);
+  else if (s.tokenError) badge($('#creds-badge'), 'bad', 'Rejected');
+  else badge($('#creds-badge'), 'ok', 'Verified');
+  const body = $('#creds-body');
+  const showForm = !s.tokenSet || editingCreds;
+  if (body.dataset.mode === (showForm ? 'form' : 'view') && showForm) return; // keep typed input
+  body.dataset.mode = showForm ? 'form' : 'view';
+  if (!showForm) {
+    const exp = s.tokenExpires ? new Date(s.tokenExpires.replace(' UTC', 'Z').replace(' ', 'T')) : null;
+    const soon = exp && exp - Date.now() < 14 * 86400_000;
+    body.innerHTML = `<dl class="kv">
+      <dt>Account</dt><dd><span class="ok">@${esc(s.tokenLogin || 'verified')}</span> <span class="muted">token ${esc(s.tokenHint)}</span></dd>
+      <dt>Expires</dt><dd>${exp && !isNaN(exp) ? `<span class="${soon ? 'warn' : ''}">${esc(exp.toLocaleDateString())}</span>${soon ? ' <span class="muted">(soon: make a new one and paste it here)</span>' : ''}` : '<span class="muted">no expiry reported</span>'}</dd>
+      <dt>Stored</dt><dd class="muted">On this Umbrel only (app data, mode 0600). Runners never see it.</dd>
+    </dl>
+    <div class="row" style="margin-top:14px"><button id="edit-creds">Replace token</button></div>`;
+    $('#edit-creds').onclick = () => { editingCreds = true; body.dataset.mode = ''; renderCreds(); };
+    return;
+  }
+  body.innerHTML = `
+    <p>The runner registers itself on each repository with a <b>fine-grained</b> token that only you hold. Create one:</p>
+    <ol class="steps small">
+      <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub &rarr; Settings &rarr; Fine-grained tokens &rarr; Generate new token</a>.</li>
+      <li>Repository access: <b>Only select repositories</b>, and pick the private repos this runner should serve.</li>
+      <li>Repository permissions: <b>Administration: Read and write</b> (register runners) and <b>Actions: Read-only</b> (see queued jobs). Nothing else; Metadata is added on its own.</li>
+      <li>Generate it and paste it below. It is checked with GitHub before it is saved.</li>
+    </ol>
+    <form id="creds-form" autocomplete="off">
+      <label for="f-token">Fine-grained token ${s.tokenSet ? `<span class="muted">(set, ${esc(s.tokenHint)})</span>` : ''}</label>
+      <input id="f-token" type="password" placeholder="github_pat_..." spellcheck="false">
+      <div id="creds-progress" style="display:none;margin-top:16px"><div class="progress indeterminate"><i></i></div><p class="small muted" style="margin:8px 0 0">Verifying with GitHub...</p></div>
+      <div class="alert bad form-err" id="creds-err"></div>
+      <div class="row" style="margin-top:16px">
+        <button class="primary" type="submit">Verify and save</button>
+        ${s.tokenSet ? '<button type="button" id="cancel-creds">Cancel</button><button type="button" class="danger" id="clear-creds">Remove token</button>' : ''}
+      </div>
+    </form>`;
+  if ($('#cancel-creds')) $('#cancel-creds').onclick = () => { editingCreds = false; body.dataset.mode = ''; renderCreds(); };
+  if ($('#clear-creds')) $('#clear-creds').onclick = () => saveCreds({ clearToken: true });
+  $('#creds-form').onsubmit = (e) => {
+    e.preventDefault();
+    const token = $('#f-token').value.trim();
+    if (!token) return showFormError($('#creds-err'), 'Paste the token.');
+    saveCreds({ token });
+  };
+}
+
+async function saveCreds(payload) {
+  const body = $('#creds-body');
+  $('#creds-progress').style.display = 'block';
+  $('#creds-err').classList.remove('on');
+  for (const b of body.querySelectorAll('button')) b.disabled = true;
+  try {
+    await withMinDuration(api('POST', '/api/settings', payload));
+    editingCreds = false;
+    body.dataset.mode = '';
+    await refresh();
+  } catch (err) {
+    $('#creds-progress').style.display = 'none';
+    for (const b of body.querySelectorAll('button')) b.disabled = false;
+    showFormError($('#creds-err'), err.message);
+  }
+}
+
+function showFormError(el, msg) {
+  el.innerHTML = `<div class="alert-title bad">&#9888;&#xFE0E; Rejected</div><pre>${esc(msg)}</pre>`;
+  el.classList.add('on');
+  const box = el.closest('.box, .panel');
+  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+}
+
+function renderRepos() {
+  const s = S.settings;
+  $('#add-repo').disabled = !s.tokenSet || !!S.stateError;
+  badge($('#repo-count'), S.repos.length ? 'ok' : 'idle', `${S.repos.length} served`);
+  if (!S.repos.length) {
+    $('#repos').innerHTML = `<div class="empty"><b>NO REPOSITORIES</b><br><br>${s.tokenSet
+      ? 'Add the private repositories whose jobs should run here.'
+      : 'Add a token above, then the private repositories whose jobs should run here.'}</div>`;
+    return;
+  }
+  $('#repos').innerHTML = S.repos.map((r) => {
+    let st;
+    if (r.error) st = pill('bad', r.private === false ? 'Public: refused' : 'Error');
+    else if (r.running) st = pill('ok', `${r.running} running`, true);
+    else if (r.queued) st = pill('warn', `${r.queued} queued`, true);
+    else if (r.polledAt) st = pill('ok', 'Private, idle');
+    else st = pill('idle', s.paused ? 'Paused' : 'Checking');
+    const meta = [];
+    if (r.queued && r.running) meta.push(`${r.queued} queued`);
+    if (r.backoffUntil) meta.push(`retrying in ${dur(r.backoffUntil - Date.now())}`);
+    if (r.polledAt) meta.push(`checked ${ago(r.polledAt)}`);
+    return `<div class="item" data-repo="${esc(r.name)}">
+      <div class="item-head"><div class="item-name">${esc(r.name)}</div><div class="row">${st}<button class="bare" data-act="remove">remove</button></div></div>
+      ${r.error ? `<div class="sb-err">${esc(r.error)}</div>` : ''}
+      ${meta.length ? `<div class="item-meta">${esc(meta.join(' / '))}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+$('#repos').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act=remove]');
+  if (!btn) return;
+  const name = btn.closest('[data-repo]').dataset.repo;
+  openModal(`<div class="panel-header"><div class="panel-title">Stop serving // ${esc(name)}</div></div>
+    <div class="panel-body"><p>Jobs from <b>${esc(name)}</b> stop running here. A job already running finishes. Its workflows that ask for <span class="code">[self-hosted, umbrel]</span> will wait in GitHub's queue until another runner takes them.</p>
+    <div class="alert bad form-err" id="rm-err"></div>
+    <div class="row" style="margin-top:16px"><button class="amber" id="rm-go">Stop serving</button></div></div>`);
+  $('#rm-go').onclick = async () => {
+    $('#rm-go').disabled = true;
+    try {
+      await withMinDuration(api('DELETE', `/api/repos/${name.split('/').map(encodeURIComponent).join('/')}`));
+      closeModal();
+      await refresh();
+    } catch (err) { $('#rm-go').disabled = false; showFormError($('#rm-err'), err.message); }
+  };
+});
+
+function runnerState(r) {
+  if (r.busy) return ['ok', 'Running job', true];
+  if (r.listening) return ['ok', 'Waiting for job'];
+  if (r.connected) return ['warn', 'Connecting', true];
+  return ['warn', 'Starting', true];
+}
+
+function renderRunners() {
+  const s = S.settings;
+  const busy = S.runners.filter((r) => r.busy).length;
+  badge($('#run-count'), busy ? 'ok' : 'idle', `${S.runners.length} / ${s.maxRunners}`, busy > 0);
+  const L = S.limits;
+  $('#limits').textContent = S.host.ncpu
+    ? `At most ${s.maxRunners} at once. Each job: ${L.cpus} CPU, ${gb(L.memory)} memory, ${L.pids} processes, ${L.maxJobHours} h. A runner that gets no job in ${L.idleMinutes} min is removed. Labels: ${S.labels.join(', ')}.`
+    : '';
+  if (!S.runners.length) {
+    $('#runners').innerHTML = `<div class="empty"><b>IDLE</b><br><br>No runner is up. One starts within about ${Math.round(S.pollMs / 1000)} s of a matching job being queued in a served repository, and is gone when the job ends.</div>`;
+    return;
+  }
+  $('#runners').innerHTML = S.runners.map((r) => {
+    const [cls, text, blink] = runnerState(r);
+    const meta = [r.repo, `up ${dur(Date.now() - r.createdAt)}`];
+    if (r.docker) meta.push('docker');
+    return `<div class="item" data-runner="${esc(r.name)}">
+      <div class="item-head"><div class="item-name">${esc(r.name)}</div>${pill(cls, text, blink)}</div>
+      ${r.job ? `<div>&gt; ${esc(r.job)} <span class="muted small">for ${esc(dur(Date.now() - new Date(r.jobStartedAt).getTime()))}</span></div>` : ''}
+      <div class="item-meta">${esc(meta.join(' / '))}</div>
+      <div class="row"><button data-act="logs">Logs</button><button class="danger" data-act="stop">Stop</button></div>
+    </div>`;
+  }).join('');
+}
+
+$('#runners').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const name = btn.closest('[data-runner]').dataset.runner;
+  if (btn.dataset.act === 'logs') return openLogs(name);
+  const r = S.runners.find((x) => x.name === name);
+  openModal(`<div class="panel-header"><div class="panel-title bad">Stop // ${esc(name)}</div></div>
+    <div class="panel-body"><p>${r?.busy ? `This runner is in the middle of <b>${esc(r.job)}</b>. Stopping it fails that job on GitHub.` : 'This runner has no job. It is deregistered from GitHub and removed.'}</p>
+    <div class="alert bad form-err" id="stop-err"></div>
+    <div class="row" style="margin-top:16px"><button class="danger" id="stop-go">Stop runner</button></div></div>`);
+  $('#stop-go').onclick = async () => {
+    closeModal();
+    showOverlay('amber', `Stopping ${name}`, 'Deregistering from GitHub, then removing the container and its work folder.', true);
+    try {
+      await withMinDuration(api('POST', `/api/runners/${name}/stop`));
+      hideOverlay();
+      await refresh();
+    } catch (err) { showError(`Stop ${name} failed`, err.message); }
+  };
+});
+
+const RESULT_CLASS = { Succeeded: 'ok', Failed: 'bad', Canceled: 'idle', Cancelled: 'idle', TimedOut: 'bad', Stopped: 'warn', Lost: 'bad', NoJob: 'bad' };
+const RESULT_TEXT = { NoJob: 'Runner failed', Lost: 'Runner lost', TimedOut: 'Timed out' };
+
+function renderHistory() {
+  if (!S.history.length) {
+    $('#history').innerHTML = '<div class="empty"><b>NO JOBS YET</b></div>';
+    return;
+  }
+  $('#history').innerHTML = `<table class="hist"><thead><tr><th>When</th><th>Repository</th><th>Job</th><th>Result</th><th>Took</th></tr></thead><tbody>
+    ${S.history.slice(0, 20).map((h) => {
+      const took = h.jobStartedAt ? dur(new Date(h.finishedAt) - new Date(h.jobStartedAt)) : '';
+      return `<tr ${h.hasTail ? `data-tail="${h.index}" title="Show the runner's last lines"` : ''}>
+        <td class="muted">${esc(ago(h.finishedAt))}</td><td>${esc(h.repo)}</td><td>${esc(h.job || '-')}</td>
+        <td>${pill(RESULT_CLASS[h.result] || 'warn', RESULT_TEXT[h.result] || h.result)}</td><td class="muted">${esc(took)}</td></tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+$('#history').addEventListener('click', async (e) => {
+  const tr = e.target.closest('tr[data-tail]');
+  if (!tr) return;
+  const h = S.history[Number(tr.dataset.tail)];
+  openModal(`<div class="panel-header"><div class="panel-title">${esc(h.runner)} // ${esc(h.repo)}</div></div>
+    <div class="panel-body"><pre class="out" id="tail-out">loading...</pre></div>`, { wide: true });
+  try {
+    const { tail } = await api('GET', `/api/history/${tr.dataset.tail}`);
+    $('#tail-out').textContent = tail || '(no output)';
+  } catch (err) { $('#tail-out').textContent = `error: ${err.message}`; }
+});
+
+let draft = null; // settings being edited, kept across polls
+function renderSettings() {
+  const s = S.settings;
+  if (!settingsDirty) draft = { maxRunners: s.maxRunners, dockerForJobs: s.dockerForJobs, paused: s.paused };
+  const body = $('#settings');
+  body.innerHTML = `
+    <label>Parallel jobs</label>
+    <div class="seg" id="seg">${Array.from({ length: s.maxRunnersLimit }, (_, i) => i + 1).map((n) => `<button type="button" data-n="${n}" class="${draft.maxRunners === n ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <p class="small muted" style="margin-top:6px">A hard cap: no more than this many runners exist at once. Each gets half of this Umbrel's CPUs and memory divided by this number, so a full set stays within half. A change applies to runners started after it.</p>
+    <label class="check"><input type="checkbox" id="s-docker" ${draft.dockerForJobs ? 'checked' : ''}><span>Docker for jobs
+      <small>Off: <span class="code">container:</span> jobs, <span class="code">services:</span> and Docker actions fail. On: jobs get this app's private Docker daemon (never the Umbrel's own). That daemon runs privileged, so a job with it can take over the Umbrel host. Only turn this on if every workflow in the served repos is yours.</small></span></label>
+    <label class="check"><input type="checkbox" id="s-paused" ${draft.paused ? 'checked' : ''}><span>Pause
+      <small>Start no new runners. Idle ones are deregistered; a running job finishes.</small></span></label>
+    <div class="alert bad form-err" id="set-err"></div>
+    <div class="row" style="margin-top:16px"><button class="primary" id="set-save" ${settingsDirty ? '' : 'disabled'}>Save settings</button></div>
+    <div class="danger-zone">
+      <p class="small muted">Before uninstalling: pause the app and remove every runner registration it made from GitHub. Then revoke the token on GitHub.</p>
+      <button class="danger" id="unregister">Remove runners from GitHub</button>
+    </div>`;
+  const mark = () => { settingsDirty = true; $('#set-save').disabled = false; };
+  $('#seg').onclick = (e) => {
+    const b = e.target.closest('button[data-n]');
+    if (!b) return;
+    draft.maxRunners = Number(b.dataset.n);
+    for (const x of body.querySelectorAll('#seg button')) x.classList.toggle('on', x === b);
+    mark();
+  };
+  $('#s-docker').onchange = (e) => { draft.dockerForJobs = e.target.checked; mark(); };
+  $('#s-paused').onchange = (e) => { draft.paused = e.target.checked; mark(); };
+  $('#set-save').onclick = saveSettings;
+  $('#unregister').onclick = openUnregister;
+}
+
+async function saveSettings() {
+  const turningDockerOn = draft.dockerForJobs && !S.settings.dockerForJobs;
+  if (turningDockerOn) {
+    openModal(`<div class="panel-header"><div class="panel-title warn">Docker for jobs</div></div>
+      <div class="panel-body"><p>Jobs will be able to run any container in this app's private Docker daemon. That daemon is a <b>privileged</b> container, so a job can start a privileged container of its own and reach the Umbrel's disks and processes.</p>
+      <p>This is fine when every workflow and every action those workflows use is something you trust. It is not a sandbox.</p>
+      <label for="dk-confirm">Type <span class="code">docker</span> to confirm</label>
+      <input id="dk-confirm" type="text" autocomplete="off" spellcheck="false">
+      <div class="row" style="margin-top:16px"><button class="amber" id="dk-go" disabled>Turn on Docker for jobs</button></div></div>`);
+    $('#dk-confirm').oninput = (e) => { $('#dk-go').disabled = e.target.value !== 'docker'; };
+    $('#dk-confirm').focus();
+    $('#dk-go').onclick = () => { closeModal(); applySettings(); };
+    return;
+  }
+  applySettings();
+}
+
+async function applySettings() {
+  showOverlay('amber', 'Applying settings', '', true);
+  try {
+    await withMinDuration(api('POST', '/api/settings', { ...draft }));
+    settingsDirty = false;
+    hideOverlay();
+    await refresh();
+  } catch (err) { showError('Settings not saved', err.message); }
+}
+
+function openUnregister() {
+  openModal(`<div class="panel-header"><div class="panel-title bad">Remove runners from GitHub</div></div>
+    <div class="panel-body"><form id="un-form">
+      <p>This pauses the app and deletes every runner registration it made (named <span class="code">umbrel-xxxxxxxx</span>) from the served repositories. A runner in the middle of a job finishes it and then deregisters itself.</p>
+      <p class="small muted">Afterwards: uninstall the app, revoke the token at GitHub &rarr; Settings &rarr; Fine-grained tokens, and point the workflows back at <span class="code">ubuntu-latest</span>.</p>
+      <label for="un-confirm">Type <span class="code">remove</span> to confirm</label>
+      <input id="un-confirm" type="text" autocomplete="off" spellcheck="false">
+      <div class="row" style="margin-top:16px"><button class="danger" type="submit" id="un-go" disabled>Remove from GitHub</button></div>
+    </form></div>`);
+  $('#un-confirm').oninput = (e) => { $('#un-go').disabled = e.target.value !== 'remove'; };
+  $('#un-confirm').focus();
+  $('#un-form').onsubmit = async (e) => {
+    e.preventDefault();
+    closeModal();
+    showOverlay('amber', 'Removing runners from GitHub', 'Pausing, then deleting registrations repository by repository.', true);
+    try {
+      const r = await withMinDuration(api('POST', '/api/unregister'));
+      hideOverlay();
+      openModal(`<div class="panel-header"><div class="panel-title">Done</div></div>
+        <div class="panel-body"><pre class="out">${esc(r.report.join('\n'))}</pre></div>`, { wide: true });
+      await refresh();
+    } catch (err) { showError('Removing runners failed', err.message); }
+  };
+}
+
+// ---------------------------------------------------------------- modals
+
+function openModal(html, { wide = false, onClose } = {}) {
+  const box = $('#modal-box');
+  box.className = `box panel${wide ? ' wide' : ''}`;
+  box.innerHTML = html;
+  $('#modal').classList.remove('hidden');
+  modalOnClose = onClose || null;
+}
+function closeModal() {
+  $('#modal').classList.add('hidden');
+  $('#modal-box').innerHTML = '';
+  if (modalOnClose) modalOnClose();
+  modalOnClose = null;
+}
+$('#modal').addEventListener('mousedown', (e) => { if (e.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!$('#overlay').classList.contains('hidden') && $('#overlay').dataset.dismissable) hideOverlay();
+  else if (!$('#modal').classList.contains('hidden')) closeModal();
+});
+
+async function openAddRepo() {
+  openModal(`<div class="panel-header"><div class="panel-title">Add repository</div></div>
+    <div class="panel-body"><form id="repo-form" autocomplete="off">
+      <label for="repo-in">Private repository <span class="muted">(owner/repo or its GitHub URL)</span></label>
+      <input id="repo-in" type="text" placeholder="you/your-private-repo" spellcheck="false">
+      <div class="small muted" style="margin-top:10px" id="repo-pick">Loading the repositories your token can see...</div>
+      <p class="small muted" style="margin-top:12px">Before it is saved, the app checks with GitHub that the repository is private, that the token can register runners on it, and that it can see its job queue. Public repositories are refused: a self-hosted runner on one can run anyone's pull request.</p>
+      <div id="repo-progress" style="display:none;margin-top:16px"><div class="progress indeterminate"><i></i></div><p class="small muted" style="margin:8px 0 0">Checking with GitHub...</p></div>
+      <div class="alert bad form-err" id="repo-err"></div>
+      <div class="row" style="margin-top:16px"><button class="primary" type="submit">Verify and add</button></div>
+    </form></div>`);
+  $('#repo-in').focus();
+  $('#repo-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const repo = $('#repo-in').value.trim();
+    if (!repo) return showFormError($('#repo-err'), 'Enter a repository.');
+    const btn = $('#repo-form button[type=submit]');
+    btn.disabled = true;
+    $('#repo-progress').style.display = 'block';
+    $('#repo-err').classList.remove('on');
+    try {
+      await withMinDuration(api('POST', '/api/repos', { repo }));
+      closeModal();
+      await refresh();
+    } catch (err) {
+      btn.disabled = false;
+      $('#repo-progress').style.display = 'none';
+      showFormError($('#repo-err'), err.message);
+    }
+  };
+  try {
+    const { repos } = await api('GET', '/api/github/repos');
+    const pick = $('#repo-pick');
+    if (!pick) return;
+    const served = new Set(S.repos.map((r) => r.name.toLowerCase()));
+    const left = repos.filter((r) => !served.has(r.toLowerCase()));
+    pick.innerHTML = left.length
+      ? `Private repositories the token can see:<div class="chips">${left.map((r) => `<button type="button" data-r="${esc(r)}">${esc(r)}</button>`).join('')}</div>`
+      : 'The token sees no other private repositories. To add one, give the token access to it on GitHub first.';
+    pick.onclick = (e) => { const b = e.target.closest('button[data-r]'); if (b) { $('#repo-in').value = b.dataset.r; $('#repo-in').focus(); } };
+  } catch (err) {
+    if ($('#repo-pick')) $('#repo-pick').textContent = `Could not list repositories: ${err.message}`;
+  }
+}
+
+function openLogs(name) {
+  let timer = null;
+  openModal(`<div class="panel-header"><div class="panel-title">Logs // ${esc(name)}</div><span class="badge ok blink"><span class="dot"></span><span>Live</span></span></div>
+    <div class="panel-body"><pre class="out" id="log-out">loading...</pre></div>`, { wide: true, onClose: () => clearInterval(timer) });
+  const load = async () => {
+    const out = $('#log-out');
+    if (!out) return;
+    try {
+      const { logs } = await api('GET', `/api/runners/${name}/logs`);
+      const atBottom = out.parentElement.scrollTop + out.parentElement.clientHeight >= out.parentElement.scrollHeight - 30;
+      out.textContent = logs.trim() || '(no output yet)';
+      if (atBottom) out.parentElement.scrollTop = out.parentElement.scrollHeight;
+    } catch (err) { out.textContent = `${err.message}\n\nThe runner may have finished; see Recent jobs.`; clearInterval(timer); }
+  };
+  load();
+  timer = setInterval(load, 3000);
+}
+
+function openHelp() {
+  openModal(`<div class="panel-header"><div class="panel-title">How this works</div></div>
+    <div class="panel-body small">
+      <p>Every ${Math.round(S.pollMs / 1000)} seconds the app asks GitHub whether a served repository has a queued job for <span class="code">[self-hosted, umbrel]</span>. For each one, up to the parallel-jobs cap, it registers a one-job runner on that repository and starts it in a fresh container in this app's private Docker daemon. The runner takes the job, reports the result and exits; the container and its work folder are deleted. The next job gets a new one.</p>
+      <p>Runners only connect out to GitHub. Nothing on your Umbrel is exposed. GitHub does not bill minutes used on self-hosted runners.</p>
+      <label>Safety</label>
+      <ul class="steps">
+        <li>Private repositories only. Public ones are refused when added and dropped if they go public later.</li>
+        <li>The token stays in the manager. A runner only gets a single-use registration for itself.</li>
+        <li>Jobs never get the Umbrel's own Docker. Docker for jobs (off by default) means this app's private daemon, which is privileged: treat it as root on the Umbrel.</li>
+        <li>Each job runs as <span class="code">runner</span> with sudo inside its own container, under the CPU, memory and time limits shown under Runners.</li>
+        <li>Nothing survives a job: no workspace, no tool cache, no credentials.</li>
+      </ul>
+      <label>Coming from ubuntu-latest</label>
+      <p>The runner image is GitHub's own minimal one (Ubuntu 24.04, git, curl, jq, unzip, the Docker CLI, sudo). It does not have the hosted image's preinstalled toolchains: use <span class="code">actions/setup-node</span>, <span class="code">setup-python</span>, <span class="code">setup-go</span> and friends, or <span class="code">sudo apt-get install</span> what a job needs (for example <span class="code">build-essential</span>). The README has the full list.</p>
+      <label>Removing it</label>
+      <p>Settings &rarr; Remove runners from GitHub, then uninstall the app, then revoke the token on GitHub.</p>
+    </div>`);
+}
+
+function showOverlay(kind, title, msg, busy) {
+  const ov = $('#overlay');
+  ov.className = `overlay ${kind}`;
+  delete ov.dataset.dismissable;
+  $('#overlay-box').innerHTML = `<div class="ov-title">${kind === 'red' ? '<span class="ov-icon">&#9888;&#xFE0E;</span>' : ''}${esc(title)}</div>
+    ${msg ? `<div class="ov-msg">${esc(msg)}</div>` : ''}
+    ${busy ? '<div class="progress amber indeterminate"><i></i></div>' : ''}`;
+}
+function hideOverlay() { $('#overlay').className = 'overlay hidden'; }
+function showError(title, msg) {
+  showOverlay('red', title, msg, false);
+  const ov = $('#overlay');
+  ov.dataset.dismissable = '1';
+  $('#overlay-box').insertAdjacentHTML('beforeend', '<p class="small muted" style="margin:0">Click anywhere to dismiss.</p>');
+  const box = $('#overlay-box');
+  box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+}
+$('#overlay').addEventListener('mousedown', () => { if ($('#overlay').dataset.dismissable) hideOverlay(); });
+
+$('#add-repo').onclick = openAddRepo;
+$('#help').onclick = () => { if (S) openHelp(); };
+$('#copy-snippet').onclick = (e) => copy('runs-on: [self-hosted, umbrel]', e.target);
+
+// ---------------------------------------------------------------- polling
+
+async function refresh() {
+  try {
+    S = await api('GET', '/api/state');
+    render();
+  } catch (err) {
+    badge($('#link'), 'bad', 'Manager offline');
+  }
+}
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 4000);
+</script>
+</body>
+</html>

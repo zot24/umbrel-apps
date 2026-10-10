@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#0f1a17"/>
+      <stop offset="1" stop-color="#060a0d"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="1" fill="#000" opacity=".35"/>
+    </pattern>
+  </defs>
+  <rect width="256" height="256" fill="url(#bg)"/>
+  <!-- a workflow: one job fans out to two, each a square node -->
+  <g fill="none" stroke-width="7" stroke-linejoin="miter" filter="url(#glow)" transform="translate(6 0)">
+    <path d="M100 128 H136 M136 128 V80 H156 M136 128 V176 H156" stroke="#28b870"/>
+    <rect x="156" y="58" width="44" height="44" stroke="#50ffa8"/>
+    <rect x="156" y="154" width="44" height="44" stroke="#50ffa8"/>
+    <rect x="44" y="96" width="64" height="64" stroke="#50ffa8"/>
+  </g>
+  <!-- the job running now: a play mark in the first node, and the next one queued -->
+  <g filter="url(#glow)" transform="translate(6 0)">
+    <path d="M66 112 L90 128 L66 144 Z" fill="#50ffa8"/>
+    <path d="M168 176 H188" stroke="#ffc04d" stroke-width="8" stroke-linecap="square"/>
+  </g>
+  <rect width="256" height="256" fill="url(#scan)"/>
+</svg>

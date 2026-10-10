@@ -1,0 +1,130 @@
+name: "Build: GitHub Runner"
+
+# Builds + pushes the manager image for linux/amd64 and linux/arm64:
+#   ghcr.io/zot24/github-runner-manager   (the tile + scheduler)
+# then pins image+digest into docker-compose.yml.
+#
+# The runner image itself is GitHub's official ghcr.io/actions/actions-runner,
+# pinned in docker-compose.yml (RUNNER_IMAGE) and bumped by
+# update-github-runner.yml. Nothing to build for it here.
+#
+# The package must be public: the Umbrel pulls it unauthenticated. New GHCR
+# packages are private. The visibility step tries to flip it; if the token
+# cannot, the log says so and the install will 401 until you set the
+# package public by hand.
+#
+# Mirrors build-cursor-sandboxes.yml.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'zot24-github-runner/manager/**'
+      - '.github/workflows/build-github-runner.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to build (e.g. 0.1.0). Leave empty to read umbrel-app.yml.'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit tests
+        run: node --test zot24-github-runner/manager/lib.test.mjs
+
+      - name: Determine version
+        id: version
+        run: |
+          INPUT_VERSION="${{ inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION=$(grep -E '^version: ' zot24-github-runner/umbrel-app.yml | sed -E 's/^version: *"([^"]+)".*/\1/')
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not determine version"
+            exit 1
+          fi
+
+          echo "Version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push manager
+        uses: docker/build-push-action@v6
+        with:
+          context: zot24-github-runner/manager
+          file: zot24-github-runner/manager/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/zot24/github-runner-manager:${{ steps.version.outputs.version }}
+            ghcr.io/zot24/github-runner-manager:latest
+          cache-from: type=gha,scope=github-runner-manager
+          cache-to: type=gha,mode=max,scope=github-runner-manager
+
+      - name: Make GHCR package public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          name=github-runner-manager
+          if gh api --method PATCH -H "Accept: application/vnd.github+json" \
+            "/user/packages/container/${name}" -f visibility=public >/dev/null; then
+            echo "public: $name"
+          else
+            echo "::warning::Could not set $name public. Umbrel pulls are unauthenticated and will 401 until the package is public (GitHub > Packages > Package settings > Change visibility)."
+          fi
+
+      - name: Pin image digest in docker-compose.yml
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          name=github-runner-manager
+          # Ask the registry for the manifest-list digest; build-push-action's
+          # digest output can be a single platform's (see build-herdr.yml).
+          digest=$(docker buildx imagetools inspect "ghcr.io/zot24/${name}:${VERSION}" --format '{{ .Manifest.Digest }}')
+          if [ -z "$digest" ]; then
+            echo "::error::Could not determine manifest digest for ${name}"
+            exit 1
+          fi
+          echo "${name}: $digest"
+          sed -i "s|image: ghcr.io/zot24/${name}:.*|image: ghcr.io/zot24/${name}:${VERSION}@${digest}|" zot24-github-runner/docker-compose.yml
+          grep -nE 'image:|RUNNER_IMAGE:' zot24-github-runner/docker-compose.yml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-github-runner/docker-compose.yml
+          git diff --cached --quiet || git commit -m "chore: pin github-runner manager image to ${{ steps.version.outputs.version }}"
+          ok=0
+          for i in 1 2 3; do
+            if git pull --rebase origin main && git push; then
+              ok=1
+              break
+            fi
+            echo "Push attempt $i failed, retrying..."
+            sleep 2
+          done
+          if [ "$ok" != 1 ]; then
+            echo "::error::Failed to push the image digest pin"
+            exit 1
+          fi

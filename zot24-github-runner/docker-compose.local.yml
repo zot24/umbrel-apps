@@ -1,0 +1,101 @@
+# Local dev stack: the same two pieces as docker-compose.yml, minus Umbrel.
+#
+#   docker compose -f docker-compose.local.yml up -d
+#   open http://localhost:3500
+#
+# Without real credentials, run it against the fake GitHub API in
+# manager/test/fake-github.mjs. It queues one `runs-on: [self-hosted,
+# umbrel]` job on fake/private-repo and hands out JIT configs that point
+# back at itself, so a runner container starts and fails to connect. No
+# runner is ever registered on github.com:
+#
+#   GITHUB_API_URL=http://fake-github:8080 \
+#     docker compose -f docker-compose.local.yml --profile fake up -d
+#   # token: github_pat_FAKE_0000000000000000000000, repo: fake/private-repo
+services:
+  dind:
+    image: docker:28.3.0-dind@sha256:d33eb93fe02683e984e6f8a93c0b3d85bb74f56ec83922bc39fb34ba23ab42bc
+    privileged: true
+    command: >
+      dockerd
+        --host=unix:///sock/docker.sock
+        --host=unix:///var/run/docker.sock
+        --data-root=/data/data
+        --exec-root=/data/exec
+        --pidfile=/data/docker.pid
+        --mtu=1450
+        --default-network-opt=bridge=com.docker.network.driver.mtu=1450
+    # Named volumes, not bind mounts: macOS Docker Desktop bind mounts cannot
+    # host the daemon's unix socket. On Umbrel (Linux) bind mounts are fine.
+    volumes:
+      - dind-data:/data
+      - dind-sock:/sock
+      - work:/ghr
+      - externals:/home/runner/externals
+    networks:
+      - ghr_private
+    healthcheck:
+      test: ["CMD", "docker", "-H", "unix:///sock/docker.sock", "info"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  manager:
+    image: node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+    init: true
+    stop_grace_period: 30s
+    depends_on:
+      dind:
+        condition: service_healthy
+    command: ["node", "--watch", "/app/server.mjs"]
+    ports:
+      - "127.0.0.1:3500:3500"
+    environment:
+      PORT: "3500"
+      DOCKER_SOCK: /sock/docker.sock
+      DIND_SOCK_PATH: /sock/docker.sock
+      STATE_DIR: /state
+      WORK_DIR: /ghr
+      EXTERNALS_DIR: /externals
+      RUNNER_IMAGE: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+      GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
+      IDLE_TIMEOUT_MS: ${IDLE_TIMEOUT_MS:-600000}
+      REPO_RECHECK_MS: ${REPO_RECHECK_MS:-300000}
+    volumes:
+      - dind-sock:/sock
+      - manager-state:/state
+      - work:/ghr
+      - externals:/externals
+      - ./manager:/app:ro
+
+  fake-github:
+    profiles: [fake]
+    image: node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+    command: ["node", "/app/test/fake-github.mjs"]
+    environment:
+      PORT: "8080"
+      FAKE_QUEUED: ${FAKE_QUEUED:-1}
+      # Where runners inside dind reach this server. Nested containers
+      # cannot resolve compose service names, so this is a fixed address
+      # on dind's network.
+      FAKE_PUBLIC_URL: http://172.31.250.10:8080
+    volumes:
+      - ./manager:/app:ro
+    networks:
+      default:
+      ghr_private:
+        ipv4_address: 172.31.250.10
+
+networks:
+  ghr_private:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+
+volumes:
+  dind-data:
+  dind-sock:
+  work:
+  externals:
+  manager-state:
