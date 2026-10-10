@@ -54,6 +54,13 @@ Self-hosted machines for Cursor Cloud Agents: each sandbox is a Cursor "My Machi
 - **App ID**: `zot24-cursor-sandboxes`
 - **Port**: 7690 (manager UI behind Umbrel login). Workers are outbound-only.
 
+### GitHub Runner
+
+Self-hosted GitHub Actions runners for your private repositories: jobs with `runs-on: [self-hosted, umbrel]` run on the Umbrel, one fresh container per job, inside a Docker daemon private to the app. GitHub does not bill self-hosted minutes.
+
+- **App ID**: `zot24-github-runner`
+- **Port**: 3500 (setup page behind Umbrel login). Runners are outbound-only.
+
 ## Retired Apps
 
 - **zot24-hermes** (Hermes Agent) — removed 2026-07-20; superseded by the official

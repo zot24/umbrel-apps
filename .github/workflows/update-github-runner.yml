@@ -1,0 +1,49 @@
+name: "Update: GitHub Actions runner"
+
+# Weekly check of the actions/runner release behind the pinned
+# ghcr.io/actions/actions-runner image. Opens a PR when docker-compose.yml is
+# behind. After that PR merges, updating the app on the Umbrel makes the
+# next job pull the new image. No image of ours to rebuild.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check and bump the runner pin
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash zot24-github-runner/ci/update-runner.sh
+
+      - name: Open PR if the pin moved
+        if: steps.bump.outputs.changed == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/github-runner-${{ steps.bump.outputs.runner_latest }}"
+          git checkout -b "$BRANCH"
+          git add zot24-github-runner/docker-compose.yml zot24-github-runner/docker-compose.local.yml zot24-github-runner/VERSION zot24-github-runner/umbrel-app.yml
+          git commit -m "chore(github-runner): runner ${{ steps.bump.outputs.runner_latest }} (app ${{ steps.bump.outputs.app_version }})"
+          git push -u origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore(github-runner): GitHub Actions runner ${{ steps.bump.outputs.runner_latest }}" \
+            --body "$(cat <<EOF
+          ## Summary
+          - ghcr.io/actions/actions-runner \`${{ steps.bump.outputs.runner_current }}\` → \`${{ steps.bump.outputs.runner_latest }}\` (pinned by digest)
+          - App version → \`${{ steps.bump.outputs.app_version }}\`
+
+          After merge, update the app on the Umbrel. The manager pulls the new image and the next job runs on it. Runners older than the latest release update themselves at the start of every job until then.
+          EOF
+          )"

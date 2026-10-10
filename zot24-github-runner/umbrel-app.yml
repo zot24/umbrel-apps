@@ -1,0 +1,80 @@
+manifestVersion: 1.1
+id: zot24-github-runner
+name: GitHub Runner
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
+category: developer
+version: "0.1.0"
+tagline: Run your private repos' GitHub Actions jobs on your Umbrel
+description: >-
+  GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
+  Actions. Jobs that ask for `runs-on: [self-hosted, umbrel]` in the private
+  repositories you choose run here instead of on GitHub's machines. GitHub
+  does not bill minutes used on self-hosted runners, so those jobs stop
+  counting toward your Actions minutes.
+
+
+  Every job gets a fresh runner: the app registers a one-job runner on the
+  repository, starts it in a new container inside a Docker daemon private to
+  this app, and deletes the container and its work folder when the job ends.
+  Nothing carries over from one job to the next. Runners only connect out to
+  GitHub; nothing on your Umbrel is exposed.
+
+
+  Safety:
+
+
+  - Private repositories only. A self-hosted runner on a public repository
+  can run code from anyone's pull request, so public repositories are
+  refused, and dropped if they are made public later.
+
+
+  - A hard cap on parallel jobs (1 to 4, default 2). Each job gets half of
+  this Umbrel's CPUs and memory divided by the cap, so a full set stays
+  within half, and a job is stopped after 6 hours.
+
+
+  - Jobs never get your Umbrel's own Docker. "Docker for jobs" (off by
+  default) gives them this app's private daemon, which runs privileged:
+  turn it on only if every workflow in those repositories is yours.
+
+
+  - Your GitHub token stays in the app. A runner only gets a single-use
+  registration for itself.
+
+
+  Setup:
+
+
+  1. Create a fine-grained GitHub token limited to the private repositories
+  this runner should serve, with Administration: Read and write and
+  Actions: Read-only. Paste it on the app's page; it is checked with GitHub
+  before it is saved.
+
+
+  2. Add those repositories on the app's page.
+
+
+  3. In their workflows, change `runs-on: ubuntu-latest` to
+  `runs-on: [self-hosted, umbrel]`. The runner image is GitHub's minimal
+  one, not the full ubuntu-latest image: use setup-node, setup-python and
+  the like, or install packages with sudo apt-get.
+
+
+  Before uninstalling, use "Remove runners from GitHub" on the app's page,
+  then revoke the token on GitHub.
+releaseNotes: >-
+  First release.
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 3500
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
