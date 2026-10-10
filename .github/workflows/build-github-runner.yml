@@ -38,8 +38,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Unit tests
-        run: node --test zot24-github-runner/manager/lib.test.mjs
+      - name: Unit and scheduler tests
+        run: node --test zot24-github-runner/manager/lib.test.mjs zot24-github-runner/manager/test/scheduler.test.mjs
 
       - name: Determine version
         id: version

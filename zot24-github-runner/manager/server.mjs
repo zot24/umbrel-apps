@@ -63,7 +63,10 @@ const MAX_JOB_MS = Number(process.env.MAX_JOB_MS || 6 * 3600_000 + 10 * 60_000);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const STATE_FILE = path.join(STATE_DIR, 'state.json');
 const NETWORK = 'ghr-net';
-const RUNNER_UID = 1001; // `runner` in ghcr.io/actions/actions-runner
+// `runner` in ghcr.io/actions/actions-runner. Overridable only so
+// test/scheduler.test.mjs can run the manager as an ordinary user.
+const RUNNER_UID = Number(process.env.RUNNER_UID || 1001);
+const RUNNER_GID = Number(process.env.RUNNER_GID || RUNNER_UID);
 const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
 const LABELS = runnerLabels(ARCH);
 const HISTORY_MAX = 50;
@@ -483,7 +486,7 @@ async function spawn(repo) {
   const name = `umbrel-${randomBytes(4).toString('hex')}`;
   const workDir = workDirOf(name);
   await mkdir(workDir, { recursive: true });
-  await chown(workDir, RUNNER_UID, RUNNER_UID);
+  await chown(workDir, RUNNER_UID, RUNNER_GID);
   const jit = await gh('POST', `/repos/${repo}/actions/runners/generate-jitconfig`, {
     name,
     runner_group_id: 1,

@@ -204,10 +204,14 @@ the runner → Remove.
 ## Local development
 
 ```
-node --test manager/lib.test.mjs
+node --test manager/lib.test.mjs manager/test/scheduler.test.mjs
 docker compose -f docker-compose.local.yml up -d
 open http://localhost:3500
 ```
+
+`manager/test/scheduler.test.mjs` runs the real `server.mjs` against a fake GitHub API
+(`manager/test/fake-github.mjs`) and a fake Docker daemon on a unix socket
+(`manager/test/fake-docker.mjs`): no Docker, no token, nothing registered.
 
 Without real credentials, run against the fake GitHub API in `manager/test/fake-github.mjs`. It
 queues one `[self-hosted, umbrel]` job on `fake/private-repo` and hands out JIT configs that
