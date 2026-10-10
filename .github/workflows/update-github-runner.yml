@@ -1,9 +1,12 @@
 name: "Update: GitHub Actions runner"
 
-# Weekly check of the actions/runner release behind the pinned
-# ghcr.io/actions/actions-runner image. Opens a PR when docker-compose.yml is
-# behind. After that PR merges, updating the app on the Umbrel makes the
-# next job pull the new image. No image of ours to rebuild.
+# Weekly check of the actions/runner release behind the
+# ghcr.io/actions/actions-runner base pinned in runner/Dockerfile. Opens a PR
+# when it is behind. Merging that PR makes build-github-runner.yml rebuild
+# ghcr.io/zot24/github-runner-image on the new base and pin it as
+# RUNNER_IMAGE; once that pin lands, updating the app on the Umbrel makes the
+# next job pull the new image. A PR opened with GITHUB_TOKEN does not trigger
+# the pull_request build, so the image is first built after the merge.
 
 on:
   schedule:
@@ -19,13 +22,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check and bump the runner pin
+      - name: Check and bump the runner base
         id: bump
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash zot24-github-runner/ci/update-runner.sh
 
-      - name: Open PR if the pin moved
+      - name: Open PR if the base moved
         if: steps.bump.outputs.changed == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -34,16 +37,16 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           BRANCH="chore/github-runner-${{ steps.bump.outputs.runner_latest }}"
           git checkout -b "$BRANCH"
-          git add zot24-github-runner/docker-compose.yml zot24-github-runner/docker-compose.local.yml zot24-github-runner/VERSION zot24-github-runner/umbrel-app.yml
+          git add zot24-github-runner/runner/Dockerfile zot24-github-runner/VERSION zot24-github-runner/umbrel-app.yml
           git commit -m "chore(github-runner): runner ${{ steps.bump.outputs.runner_latest }} (app ${{ steps.bump.outputs.app_version }})"
           git push -u origin "$BRANCH"
           gh pr create --base main --head "$BRANCH" \
             --title "chore(github-runner): GitHub Actions runner ${{ steps.bump.outputs.runner_latest }}" \
             --body "$(cat <<EOF
           ## Summary
-          - ghcr.io/actions/actions-runner \`${{ steps.bump.outputs.runner_current }}\` → \`${{ steps.bump.outputs.runner_latest }}\` (pinned by digest)
+          - runner/Dockerfile base ghcr.io/actions/actions-runner \`${{ steps.bump.outputs.runner_current }}\` → \`${{ steps.bump.outputs.runner_latest }}\` (pinned by digest)
           - App version → \`${{ steps.bump.outputs.app_version }}\`
 
-          After merge, update the app on the Umbrel. The manager pulls the new image and the next job runs on it. Runners older than the latest release update themselves at the start of every job until then.
+          After merge, the build workflow rebuilds ghcr.io/zot24/github-runner-image on the new base and commits its digest as RUNNER_IMAGE. Wait for that pin commit, then update the app on the Umbrel: the manager pulls the new image and the next job runs on it. Runners older than the latest release update themselves at the start of every job until then.
           EOF
           )"

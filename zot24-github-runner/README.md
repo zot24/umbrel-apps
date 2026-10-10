@@ -29,7 +29,8 @@ Umbrel
     │              state: data/manager/state.json (token, repos, job history), mode 0600
     └── dind      private Docker daemon, own network namespace, not on the Umbrel network
          └── ghr-umbrel-xxxxxxxx   one container per job, image = RUNNER_IMAGE
-              (ghcr.io/actions/actions-runner, GitHub's official image, pinned by digest)
+              (ghcr.io/zot24/github-runner-image: GitHub's official runner image
+               plus zstd and build-essential, pinned by digest)
 ```
 
 1. Every 15 seconds the manager asks GitHub for queued jobs in the served repositories
@@ -156,14 +157,21 @@ and no app to maintain; it expires on the date you pick, and the page shows that
 
 The runner image is GitHub's own minimal one: Ubuntu 24.04 with git, curl, jq, unzip, tar, gzip,
 python3 (no pip), ssh, sudo, the Docker CLI and buildx, and the Node.js builds the runner uses
-for JavaScript actions. A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
+for JavaScript actions. This app adds two packages on top (`runner/Dockerfile`):
+
+- `zstd`, so `actions/cache` compresses the way GitHub-hosted runners do: caches saved there
+  restore here and the reverse.
+- `build-essential`: gcc, g++, make, libc headers, and with them binutils, patch, bzip2 and xz.
+  Native npm modules, `cargo test` with C dependencies and the like build without an apt step.
+
+A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
 
 | Missing here | What to do |
 |---|---|
 | Node.js, Python packages/pip, Java, Go, Ruby, .NET SDK, Rust on `PATH` | `actions/setup-node`, `setup-python`, `setup-java`, `setup-go`, `ruby/setup-ruby`, `setup-dotnet`, `dtolnay/rust-toolchain` |
 | A warm tool cache (`/opt/hostedtoolcache`) | The setup actions download on every job, because the work folder (where the cache lives) is wiped. |
-| `build-essential` (gcc, g++, make), cmake, pkg-config | `sudo apt-get update && sudo apt-get install -y build-essential` (native npm modules need this) |
-| `zstd`, `xz`, `zip`, `wget`, `rsync` | `sudo apt-get install -y …`. Without `zstd`, `actions/cache` falls back to gzip, so caches saved by hosted runners are not restored here and the reverse. |
+| cmake, pkg-config, `-dev` libraries (libssl-dev and the like) | `sudo apt-get update && sudo apt-get install -y …` |
+| `zip`, `wget`, `rsync` | `sudo apt-get update && sudo apt-get install -y …` |
 | `gh`, cloud CLIs (aws, az, gcloud), kubectl, helm, terraform | Install them in the job, or use their setup actions. |
 | `docker compose` | Install the compose plugin in the job; Docker itself needs Docker for jobs. |
 | Docker daemon: `container:`, `services:`, Docker actions | Turn on Docker for jobs (see Safety). With it on, runners share the private daemon's network, so `services:` ports are on `localhost` as on GitHub; two parallel jobs that both publish the same fixed port collide. |
@@ -199,22 +207,34 @@ the runner → Remove.
 
 ## Images and updates
 
-- `manager/` builds `ghcr.io/zot24/github-runner-manager` (linux/amd64 + linux/arm64) via
-  `.github/workflows/build-github-runner.yml`, which runs the unit tests and pins the digest into
-  `docker-compose.yml`. The GHCR package must be **public**: the Umbrel pulls it without
-  credentials. The app will not install until that pin is on `main`.
-- The runner image is GitHub's `ghcr.io/actions/actions-runner`, pinned by digest in
-  `docker-compose.yml` (`RUNNER_IMAGE`). `ci/update-runner.sh` +
-  `.github/workflows/update-github-runner.yml` check the latest `actions/runner` release weekly
-  and open a PR that bumps the pin and the app's patch version. Keep up: a runner older than the
-  latest release updates itself at the start of every job, a download of about 150 MB each time.
-- Why GitHub's image and not a community one such as `myoung34/github-runner`: GitHub's is built
-  with each runner release for amd64 and arm64, is what Actions Runner Controller runs, and starts
-  from a JIT config the manager hands it, so no long-lived credential is ever inside a runner.
-  `myoung34/github-runner` is well maintained, multi-arch and has more tools preinstalled, but it
-  registers itself from a PAT or GitHub App key passed in its own environment (left there for jobs
-  to read unless `UNSET_CONFIG_VARS` is set), runs jobs as root by default, and in its usual
-  setup re-registers by restarting the same container, which keeps the previous job's files.
+- `.github/workflows/build-github-runner.yml` builds two images for linux/amd64 + linux/arm64,
+  runs the unit tests, and pins both digests into `docker-compose.yml` in one commit:
+  - `manager/` → `ghcr.io/zot24/github-runner-manager` (the manager's `image:`).
+  - `runner/` → `ghcr.io/zot24/github-runner-image`, what every job runs in (`RUNNER_IMAGE`,
+    also pinned in `docker-compose.local.yml`). It is GitHub's `ghcr.io/actions/actions-runner`,
+    pinned by digest in `runner/Dockerfile`, plus `zstd` and `build-essential`.
+
+  Both GHCR packages must be **public**: the Umbrel pulls them without credentials. The workflow
+  tries to make them public; when it cannot, it logs a warning. After the first push of
+  `github-runner-image` on `main`, check GitHub → Packages → `github-runner-image` → Package
+  settings → Change visibility, and set it public by hand if needed. The app will not install
+  until the manager's pin is on `main`; until the runner image's first pin lands, `RUNNER_IMAGE`
+  still names GitHub's plain image. Pull requests that touch the app run the tests and build
+  both images without pushing or pinning.
+- `ci/update-runner.sh` + `.github/workflows/update-github-runner.yml` check the latest
+  `actions/runner` release weekly and open a PR that bumps the `FROM` line in `runner/Dockerfile`
+  and the app's patch version. Merging it rebuilds `github-runner-image` and re-pins it; update
+  the app on the Umbrel after that pin commit lands. Keep up: a runner older than the latest
+  release updates itself at the start of every job, a download of about 150 MB each time.
+- Why build on GitHub's image and not use a community one such as `myoung34/github-runner`:
+  GitHub's is built with each runner release for amd64 and arm64, is what Actions Runner
+  Controller runs, and starts from a JIT config the manager hands it, so no long-lived credential
+  is ever inside a runner. This app adds two apt packages on top and changes nothing else (same
+  `runner` user, workdir and entrypoint). `myoung34/github-runner` is well maintained,
+  multi-arch and has more tools preinstalled, but it registers itself from a PAT or GitHub App key
+  passed in its own environment (left there for jobs to read unless `UNSET_CONFIG_VARS` is set),
+  runs jobs as root by default, and in its usual setup re-registers by restarting the same
+  container, which keeps the previous job's files.
 - Why polling and not GitHub's runner scale set API (`actions/scaleset`): that client is in public
   preview, is a Go library, and documents multi-label scale sets for GitHub Enterprise Server but
   not how `runs-on: [self-hosted, umbrel]` maps onto them on github.com. Revisit when it is GA; it
