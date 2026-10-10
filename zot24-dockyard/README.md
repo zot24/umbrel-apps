@@ -30,6 +30,14 @@ Drive the daemon however you like:
 - **Directly** — the daemon's socket lives at
   `<app-data>/data/dind/docker.sock`. Use it from the Docker CLI over SSH
   (`docker -H unix://…`), or mount it into another tool.
+- **From another app** — the daemon is also on
+  `tcp://zot24-dockyard_api_1:2376`. Set `DOCKER_TLS_VERIFY=1` and point
+  `DOCKER_CERT_PATH` at the client bundle. That bundle is created on first
+  start at `<app-data>/data/tls-client/` (`ca.pem`, `cert.pem`, `key.pem`)
+  and is not rewritten when the certificates already exist. The nested
+  daemon is privileged, so this client key is root-equivalent on the
+  Umbrel and must be treated that way. Anyone who holds it can start a
+  privileged container inside Dockyard and reach the host.
 
 ## Reaching what you deploy
 

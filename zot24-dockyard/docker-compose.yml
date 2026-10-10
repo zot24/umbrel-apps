@@ -82,3 +82,104 @@ services:
     volumes:
       - ${APP_DATA_DIR}/data/dind:/data
       - ${APP_DATA_DIR}/data/periphery:/etc/komodo
+
+  # One-shot. A fresh install has no certs, and api crash-loops without them.
+  # The script is inline because an Umbrel update only copies this compose
+  # file (not a new sidecar script). It writes nothing when
+  # data/tls/{ca.pem,server-cert.pem,server-key.pem} are already there, so an
+  # update of a box that already has them leaves those files untouched. It
+  # never overwrites a cert, and it does not mount dind.
+  tls-init:
+    image: docker:28.3.0-dind@sha256:d33eb93fe02683e984e6f8a93c0b3d85bb74f56ec83922bc39fb34ba23ab42bc
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        tls=/tls
+        ca_dir=/tls-ca
+        client=/tls-client
+        if [ -s "$$tls/ca.pem" ] && [ -s "$$tls/server-cert.pem" ] && [ -s "$$tls/server-key.pem" ]; then
+          exit 0
+        fi
+        for f in \
+          "$$tls/ca.pem" \
+          "$$tls/server-cert.pem" \
+          "$$tls/server-key.pem" \
+          "$$ca_dir/ca-key.pem" \
+          "$$ca_dir/ca.srl" \
+          "$$client/ca.pem" \
+          "$$client/cert.pem" \
+          "$$client/key.pem"
+        do
+          if [ -e "$$f" ]; then
+            echo "tls-init: $$f already exists; refusing to overwrite" >&2
+            exit 1
+          fi
+        done
+        mkdir -p "$$tls" "$$ca_dir" "$$client"
+        work=$$(mktemp -d)
+        trap 'rm -rf "$$work"' EXIT
+        openssl genrsa -out "$$work/ca-key.pem" 4096
+        openssl req -new -x509 -days 3650 -key "$$work/ca-key.pem" -sha256 \
+          -out "$$work/ca.pem" -subj "/CN=zot24-dockyard-ca"
+        openssl genrsa -out "$$work/server-key.pem" 4096
+        openssl req -new -key "$$work/server-key.pem" -sha256 \
+          -out "$$work/server.csr" -subj "/CN=zot24-dockyard_api_1"
+        printf '%s\n' \
+          'subjectAltName=DNS:zot24-dockyard_api_1' \
+          'extendedKeyUsage=serverAuth' > "$$work/server.ext"
+        openssl x509 -req -in "$$work/server.csr" -CA "$$work/ca.pem" -CAkey "$$work/ca-key.pem" \
+          -CAserial "$$work/ca.srl" -CAcreateserial -out "$$work/server-cert.pem" \
+          -days 3650 -sha256 -extfile "$$work/server.ext"
+        openssl genrsa -out "$$work/client-key.pem" 4096
+        openssl req -new -key "$$work/client-key.pem" -sha256 \
+          -out "$$work/client.csr" -subj "/CN=client"
+        printf '%s\n' 'extendedKeyUsage=clientAuth' > "$$work/client.ext"
+        openssl x509 -req -in "$$work/client.csr" -CA "$$work/ca.pem" -CAkey "$$work/ca-key.pem" \
+          -CAserial "$$work/ca.srl" -out "$$work/client-cert.pem" \
+          -days 3650 -sha256 -extfile "$$work/client.ext"
+        openssl x509 -in "$$work/server-cert.pem" -noout -ext subjectAltName | grep -F 'DNS:zot24-dockyard_api_1' >/dev/null
+        openssl x509 -in "$$work/client-cert.pem" -noout -ext extendedKeyUsage | grep -F 'TLS Web Client Authentication' >/dev/null
+        install_file() {
+          src=$$1
+          dest=$$2
+          mode=$$3
+          if [ -e "$$dest" ]; then
+            echo "tls-init: $$dest already exists; refusing to overwrite" >&2
+            exit 1
+          fi
+          cp "$$src" "$$dest"
+          chmod "$$mode" "$$dest"
+        }
+        install_file "$$work/ca.pem" "$$tls/ca.pem" 0644
+        install_file "$$work/server-cert.pem" "$$tls/server-cert.pem" 0644
+        install_file "$$work/server-key.pem" "$$tls/server-key.pem" 0600
+        install_file "$$work/ca-key.pem" "$$ca_dir/ca-key.pem" 0600
+        install_file "$$work/ca.srl" "$$ca_dir/ca.srl" 0644
+        install_file "$$work/ca.pem" "$$client/ca.pem" 0644
+        install_file "$$work/client-cert.pem" "$$client/cert.pem" 0644
+        install_file "$$work/client-key.pem" "$$client/key.pem" 0600
+    volumes:
+      - ${APP_DATA_DIR}/data/tls:/tls
+      - ${APP_DATA_DIR}/data/tls-ca:/tls-ca
+      - ${APP_DATA_DIR}/data/tls-client:/tls-client
+
+  # mTLS door to the nested daemon for sibling apps on umbrel_main_network.
+  # umbreld names this container zot24-dockyard_api_1; the server cert SAN
+  # is that name. Port 2376 is not published on the host. verify=1 requires
+  # a client certificate. The unix socket is connected per request, so this
+  # service does not restart dind.
+  api:
+    image: alpine/socat:1.8.0.3@sha256:beb4a68d9e4fe6b0f21ea774a0fde6c31f580dde6368939ed70100c5385b015e
+    restart: on-failure
+    depends_on:
+      tls-init:
+        condition: service_completed_successfully
+    command:
+      - "OPENSSL-LISTEN:2376,fork,reuseaddr,cert=/tls/server-cert.pem,key=/tls/server-key.pem,cafile=/tls/ca.pem,verify=1"
+      - "UNIX-CONNECT:/data/docker.sock"
+    volumes:
+      - ${APP_DATA_DIR}/data/dind:/data
+      - ${APP_DATA_DIR}/data/tls:/tls:ro
