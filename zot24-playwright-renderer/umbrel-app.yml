@@ -3,7 +3,7 @@ id: zot24-playwright-renderer
 name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
 category: developer
-version: "0.3.1"
+version: "0.3.2"
 tagline: Self-hosted headless-browser renderer with residential-IP egress
 description: >-
   Playwright Renderer is a project-agnostic self-hosted headless-browser
@@ -80,6 +80,13 @@ description: >-
   5. Test with: curl -X POST https://playwright.<your-domain>/render
      -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
 releaseNotes: >-
+  0.3.2: The 0.3.0 image copied server.js and left out autologin.js.
+  server.js requires that module, so the container exited on boot with
+  "Cannot find module './autologin.js'" and never stayed up. The image
+  now copies autologin.js next to server.js, and a change to autologin.js
+  rebuilds the image. 0.3.1 was docs only and kept the broken image.
+
+
   0.3.1: Docs only. Explains where the generated bearer token lives and how
   to read it, including from Herdr 0.9.9, which picks it up as
   $PLAYWRIGHT_RENDERER_TOKEN. No image change.
