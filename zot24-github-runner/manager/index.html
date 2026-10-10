@@ -887,7 +887,7 @@ function openHelp() {
         <li>Nothing survives a job: no workspace, no tool cache, no credentials.</li>
       </ul>
       <label>Coming from ubuntu-latest</label>
-      <p>The runner image is GitHub's own minimal one (Ubuntu 24.04, git, curl, jq, unzip, the Docker CLI, sudo) plus <span class="code">zstd</span> and <span class="code">build-essential</span> (gcc, g++, make). It does not have the hosted image's preinstalled toolchains: use <span class="code">actions/setup-node</span>, <span class="code">setup-python</span>, <span class="code">setup-go</span> and friends, or <span class="code">sudo apt-get install</span> what a job needs (for example <span class="code">cmake</span>). The README has the full list.</p>
+      <p>The runner image is GitHub's own minimal one (Ubuntu 24.04, git, curl, jq, unzip, the Docker CLI, sudo) plus <span class="code">zstd</span>, <span class="code">build-essential</span> (gcc, g++, make) and the GitHub CLI <span class="code">gh</span>. It does not have the hosted image's preinstalled toolchains: use <span class="code">actions/setup-node</span>, <span class="code">setup-python</span>, <span class="code">setup-go</span> and friends, or <span class="code">sudo apt-get install</span> what a job needs (for example <span class="code">cmake</span>). The README has the full list.</p>
       <label>Removing it</label>
       <p>Settings &rarr; Remove runners from GitHub, then uninstall the app, then revoke the token on GitHub.</p>
     </div>`);

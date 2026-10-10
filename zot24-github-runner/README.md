@@ -30,7 +30,7 @@ Umbrel
     └── dind      private Docker daemon, own network namespace, not on the Umbrel network
          └── ghr-umbrel-xxxxxxxx   one container per job, image = RUNNER_IMAGE
               (ghcr.io/zot24/github-runner-image: GitHub's official runner image
-               plus zstd and build-essential, pinned by digest)
+               plus zstd, build-essential and gh, pinned by digest)
 ```
 
 1. Every 15 seconds the manager asks GitHub for queued jobs in the served repositories
@@ -157,12 +157,14 @@ and no app to maintain; it expires on the date you pick, and the page shows that
 
 The runner image is GitHub's own minimal one: Ubuntu 24.04 with git, curl, jq, unzip, tar, gzip,
 python3 (no pip), ssh, sudo, the Docker CLI and buildx, and the Node.js builds the runner uses
-for JavaScript actions. This app adds two packages on top (`runner/Dockerfile`):
+for JavaScript actions. This app adds three packages on top (`runner/Dockerfile`):
 
 - `zstd`, so `actions/cache` compresses the way GitHub-hosted runners do: caches saved there
   restore here and the reverse.
 - `build-essential`: gcc, g++, make, libc headers, and with them binutils, patch, bzip2 and xz.
   Native npm modules, `cargo test` with C dependencies and the like build without an apt step.
+- `gh`, the GitHub CLI, from GitHub's apt repository as on `ubuntu-latest`. Set `GH_TOKEN`
+  (for example `${{ github.token }}`) in the step, as on GitHub-hosted runners.
 
 A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
 
@@ -172,7 +174,7 @@ A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
 | A warm tool cache (`/opt/hostedtoolcache`) | The setup actions download on every job, because the work folder (where the cache lives) is wiped. |
 | cmake, pkg-config, `-dev` libraries (libssl-dev and the like) | `sudo apt-get update && sudo apt-get install -y …` |
 | `zip`, `wget`, `rsync` | `sudo apt-get update && sudo apt-get install -y …` |
-| `gh`, cloud CLIs (aws, az, gcloud), kubectl, helm, terraform | Install them in the job, or use their setup actions. |
+| Cloud CLIs (aws, az, gcloud), kubectl, helm, terraform | Install them in the job, or use their setup actions. |
 | `docker compose` | Install the compose plugin in the job; Docker itself needs Docker for jobs. |
 | Docker daemon: `container:`, `services:`, Docker actions | Turn on Docker for jobs (see Safety). With it on, runners share the private daemon's network, so `services:` ports are on `localhost` as on GitHub; two parallel jobs that both publish the same fixed port collide. |
 | Browsers (Chrome, Firefox) for Playwright, Puppeteer, Cypress | `npx playwright install --with-deps` and the like. |
@@ -212,7 +214,7 @@ the runner → Remove.
   - `manager/` → `ghcr.io/zot24/github-runner-manager` (the manager's `image:`).
   - `runner/` → `ghcr.io/zot24/github-runner-image`, what every job runs in (`RUNNER_IMAGE`,
     also pinned in `docker-compose.local.yml`). It is GitHub's `ghcr.io/actions/actions-runner`,
-    pinned by digest in `runner/Dockerfile`, plus `zstd` and `build-essential`.
+    pinned by digest in `runner/Dockerfile`, plus `zstd`, `build-essential` and `gh`.
 
   Both GHCR packages must be **public**: the Umbrel pulls them without credentials. The workflow
   tries to make them public; when it cannot, it logs a warning. After the first push of

@@ -76,7 +76,7 @@ services:
       # to talk to the manager. umbreld names it ${APP_ID}_app_proxy_1.
       APP_PROXY_HOST: zot24-github-runner_app_proxy_1
       # What every job runs in: ghcr.io/zot24/github-runner-image (runner/,
-      # GitHub's official runner image plus zstd and build-essential),
+      # GitHub's official runner image plus zstd, build-essential and gh),
       # pinned by build-github-runner.yml after each build on main.
       # ci/update-runner.sh bumps its base weekly. The manager pulls exactly
       # this digest into dind.
