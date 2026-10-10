@@ -100,10 +100,13 @@ and no app to maintain; it expires on the date you pick, and the page shows that
 
 - **Private repositories only.** A self-hosted runner on a public repository can run code from
   anyone's fork pull request. Public repositories are refused when added, and every served
-  repository's visibility is read again on every poll (every 15 seconds, before its queue), so
-  one made public is dropped at the next poll (idle runners removed). On a private repository only
-  people with access can push or open pull requests; GitHub's "Run workflows from fork pull
-  requests" setting for private repositories is off by default, keep it off.
+  repository's visibility is read again on every poll (every 15 seconds, before its queue). If one
+  is made public, the next poll stops all its runners at once, a job in progress included (GitHub
+  fails that job), and deletes their registrations. The app then serves it no new runner, even
+  after it is private again, until you press **re-enable** on its row; that checks with GitHub
+  that it is private before serving it. On a private repository only people with access can push
+  or open pull requests; GitHub's "Run workflows from fork pull requests" setting for private
+  repositories is off by default, keep it off.
 - **A fixed concurrency cap.** No more than 1 to 4 runners (default 2) exist at once, whatever is
   queued. Extra jobs wait in GitHub's queue.
 - **Resource limits sized for an Umbrel.** Each runner gets half of the Umbrel's CPUs and half its

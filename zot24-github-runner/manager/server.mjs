@@ -71,6 +71,8 @@ const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
 const LABELS = runnerLabels(ARCH);
 const HISTORY_MAX = 50;
 const ORPHAN_SWEEP_MS = 60 * 60_000;
+// How often a registration GitHub would not delete yet is asked for again.
+const DEREG_RETRY_MS = 4 * POLL_MS;
 const IMAGE_PRUNE_MS = 24 * 3600_000;
 
 class UserError extends Error {
@@ -554,7 +556,7 @@ async function finish(c, parsed, reason = '', deregistered = false) {
     // offline runner; remove it now rather than wait a day for GitHub to.
     await deleteRegistration(r.repo, r.runnerId).catch((e) => console.error('[finish]', r.name, e.message));
   }
-  const forced = { timeout: 'TimedOut', stopped: 'Stopped' }[reason];
+  const forced = { timeout: 'TimedOut', stopped: 'Stopped', public: 'RepoPublic' }[reason];
   const result = forced || r.result || (ranJob ? 'Lost' : reason === 'idle' ? 'Unused' : 'NoJob');
   const b = repoBackoff.get(r.repo) || { failures: 0, until: 0 };
   if (result === 'NoJob') {
@@ -601,10 +603,33 @@ async function collect() {
   alive = next;
 }
 
+// Registrations whose container is gone but GitHub did not let us delete:
+// it refuses (422) while it still counts the runner as busy, which lasts
+// until it notices the job's runner is gone, and it cannot be asked at all
+// in an outage. Asked again every DEREG_RETRY_MS until deleted or gone.
+// Not persisted: after a restart GitHub's own expiry (about a day) applies.
+const leftovers = new Map(); // `${repo}#${runnerId}` -> { repo, runnerId, name, triedAt }
+
+async function retryLeftovers() {
+  for (const [key, x] of leftovers) {
+    if (Date.now() - x.triedAt < DEREG_RETRY_MS) continue;
+    x.triedAt = Date.now();
+    try {
+      const res = await deleteRegistration(x.repo, x.runnerId);
+      if (res === 'busy') continue;
+      leftovers.delete(key);
+      console.log(`[deregister] ${x.name} ${x.repo}: ${res === 'deleted' ? 'removed from GitHub' : 'already gone'}`);
+    } catch (e) {
+      noteTokenFailure(e);
+      console.error('[deregister]', x.name, e.message);
+    }
+  }
+}
+
 // Deregister first: if GitHub says the runner is busy, it just took a job,
-// so an idle stop leaves it alone. If GitHub cannot be asked (no token,
-// outage), the container goes anyway and its ephemeral registration expires
-// on GitHub's side within a day.
+// so an idle stop leaves it alone. Any other stop kills the container
+// anyway, and a registration GitHub would not delete yet is retried
+// (leftovers above).
 async function stopRunner(r, reason) {
   let reg = '';
   try {
@@ -615,16 +640,38 @@ async function stopRunner(r, reason) {
   }
   if (reg === 'busy' && reason === 'idle') return false;
   await docker('POST', `/containers/${r.id}/kill`).catch(() => {});
-  await finish(r.c, r.parsed, reason, reg === 'deleted' || reg === 'gone');
+  const deregistered = reg === 'deleted' || reg === 'gone';
+  if (!deregistered) leftovers.set(`${r.repo}#${r.runnerId}`, { repo: r.repo, runnerId: r.runnerId, name: r.name, triedAt: Date.now() });
+  await finish(r.c, r.parsed, reason, deregistered);
   alive = alive.filter((x) => x.id !== r.id);
   return true;
 }
 
-// The repos the scheduler may serve right now: selected, verified private.
+const servedRepo = (name) => state.repos.find((r) => r.name === name);
+
+// The repos the scheduler may serve right now: selected, not stopped for
+// going public, and private as of the latest poll.
 function servable(repo) {
-  const st = repoStatus.get(repo);
-  return state.repos.some((r) => r.name === repo) && st?.private === true;
+  return !!servedRepo(repo) && !servedRepo(repo).publicAt && repoStatus.get(repo)?.private === true;
 }
+
+// A served repository that is no longer private: its runners are stopped
+// and deregistered now, one in the middle of a job included (GitHub fails
+// that job), and it gets no runner again until the owner re-enables it on
+// the page, which checks that it is private again. Kept in state.json, so
+// a restart does not serve it either.
+async function wentPublic(name) {
+  const entry = servedRepo(name);
+  if (!entry || entry.publicAt) return;
+  entry.publicAt = new Date().toISOString();
+  await saveState();
+  const mine = alive.filter((x) => x.repo === name);
+  console.log(`[public] ${name} is no longer private: stopping its ${mine.length} runner(s); not served until re-enabled`);
+  for (const r of mine) await stopRunner(r, 'public');
+}
+
+const PUBLIC_ERROR =
+  'Made public: its runners were stopped and removed from GitHub. It is not served again until it is private and you re-enable it here.';
 
 // One poll of a served repository: its visibility, then (with `queue`) its
 // queued jobs. A poll that fails starts nothing (queued 0).
@@ -638,7 +685,8 @@ async function pollRepo(repo, { queue = true } = {}) {
     const info = await gh('GET', `/repos/${repo}`);
     st.private = info.private === true;
     if (!st.private) {
-      Object.assign(st, { queued: 0, oldestQueuedAt: '', error: 'Public repository: not served. Self-hosted runners must never run public repos.' });
+      Object.assign(st, { queued: 0, oldestQueuedAt: '', error: PUBLIC_ERROR });
+      await wentPublic(repo);
       return;
     }
     if (!queue) {
@@ -743,17 +791,22 @@ async function tick() {
 
     // Every pass re-reads each served repo's visibility. While paused, only
     // repos that still have a runner up are read, and their queues are not.
+    // A repo that went public is not read at all until it is re-enabled.
     if (state.settings.token && !tokenError) {
       for (const r of state.repos) {
+        if (r.publicAt) continue;
         if (active() || alive.some((x) => x.repo === r.name)) await pollRepo(r.name, { queue: active() });
       }
+      await retryLeftovers();
     }
     for (const name of [...repoStatus.keys()]) if (!state.repos.some((r) => r.name === name)) repoStatus.delete(name);
 
-    // Idle runners go when the app is paused, the token is gone, their repo
-    // was removed or went public, or nobody gave them a job in time.
+    // Every runner of a repo that went public goes, busy or not. Idle
+    // runners go when the app is paused, the token is gone, their repo was
+    // removed, or nobody gave them a job in time.
     for (const r of [...alive]) {
       let reason = reapReason(r, { idleMs: IDLE_MS, maxJobMs: MAX_JOB_MS });
+      if (!reason && servedRepo(r.repo)?.publicAt) reason = 'public';
       if (!reason && !r.busy && (!active() || !servable(r.repo))) reason = 'idle';
       if (reason) await stopRunner(r, reason);
     }
@@ -856,9 +909,10 @@ function publicState() {
       return {
         name: r.name,
         addedAt: r.addedAt,
+        publicAt: r.publicAt || '',
         private: st.private,
         queued: st.queued || 0,
-        error: st.error || '',
+        error: r.publicAt ? PUBLIC_ERROR : st.error || '',
         polledAt: st.polledAt || 0,
         backoffUntil: b?.until > Date.now() ? b.until : 0,
         running: alive.filter((x) => x.repo === r.name).length,
@@ -1053,6 +1107,29 @@ const routes = [
         if (!state.repos.some((r) => r.name === name)) throw new UserError(`${name} is not served.`, 404);
         state.repos = state.repos.filter((r) => r.name !== name);
         repoStatus.delete(name);
+        return { ok: true };
+      });
+      serial(tick);
+      return result;
+    },
+  ],
+
+  // Serve a repository again after it went public. verifyRepo checks it is
+  // private again, and that the token can still register runners there.
+  [
+    'POST',
+    /^\/api\/repos\/([^/]+)\/([^/]+)\/enable$/,
+    async (_req, [, owner, repo]) => {
+      const name = `${decodeURIComponent(owner)}/${decodeURIComponent(repo)}`;
+      if (!servedRepo(name)) throw new UserError(`${name} is not served.`, 404);
+      if (!state.settings.token) throw new UserError('Add a token first.');
+      await verifyRepo(name, state.settings.token);
+      const result = await mutate(() => {
+        const entry = servedRepo(name);
+        if (!entry) throw new UserError(`${name} is not served.`, 404);
+        delete entry.publicAt;
+        repoStatus.set(name, { private: true, queued: 0 });
+        console.log(`[public] ${name} is private again and re-enabled by the owner`);
         return { ok: true };
       });
       serial(tick);

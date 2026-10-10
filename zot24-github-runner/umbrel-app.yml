@@ -25,7 +25,9 @@ description: >-
 
   - Private repositories only. A self-hosted runner on a public repository
   can run code from anyone's pull request, so public repositories are
-  refused, and dropped if they are made public later.
+  refused. If a served one is made public, its runners are stopped at
+  once, a running job included, and it is not served again until it is
+  private and you re-enable it.
 
 
   - A hard cap on parallel jobs (1 to 4, default 2). Each job gets half of

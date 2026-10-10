@@ -566,17 +566,19 @@ function renderRepos() {
   }
   $('#repos').innerHTML = S.repos.map((r) => {
     let st;
-    if (r.error) st = pill('bad', r.private === false ? 'Public: refused' : 'Error');
+    if (r.publicAt) st = pill('bad', 'Public: stopped');
+    else if (r.error) st = pill('bad', r.private === false ? 'Public: refused' : 'Error');
     else if (r.running) st = pill('ok', `${r.running} running`, true);
     else if (r.queued) st = pill('warn', `${r.queued} queued`, true);
     else if (r.polledAt) st = pill('ok', 'Private, idle');
     else st = pill('idle', s.paused ? 'Paused' : 'Checking');
     const meta = [];
+    if (r.publicAt) meta.push(`stopped ${ago(r.publicAt)}`);
     if (r.queued && r.running) meta.push(`${r.queued} queued`);
     if (r.backoffUntil) meta.push(`retrying in ${dur(r.backoffUntil - Date.now())}`);
     if (r.polledAt) meta.push(`checked ${ago(r.polledAt)}`);
     return `<div class="item" data-repo="${esc(r.name)}">
-      <div class="item-head"><div class="item-name">${esc(r.name)}</div><div class="row">${st}<button class="bare" data-act="remove">remove</button></div></div>
+      <div class="item-head"><div class="item-name">${esc(r.name)}</div><div class="row">${st}${r.publicAt ? '<button class="bare" data-act="enable">re-enable</button>' : ''}<button class="bare" data-act="remove">remove</button></div></div>
       ${r.error ? `<div class="sb-err">${esc(r.error)}</div>` : ''}
       ${meta.length ? `<div class="item-meta">${esc(meta.join(' / '))}</div>` : ''}
     </div>`;
@@ -584,9 +586,25 @@ function renderRepos() {
 }
 
 $('#repos').addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-act=remove]');
+  const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   const name = btn.closest('[data-repo]').dataset.repo;
+  const repoPath = name.split('/').map(encodeURIComponent).join('/');
+  if (btn.dataset.act === 'enable') {
+    openModal(`<div class="panel-header"><div class="panel-title">Serve again // ${esc(name)}</div></div>
+      <div class="panel-body"><p><b>${esc(name)}</b> was made public, so its runners were stopped and removed from GitHub. Make it private on GitHub first. Before serving it again, the app checks with GitHub that it is private and that the token can still register runners on it.</p>
+      <div class="alert bad form-err" id="en-err"></div>
+      <div class="row" style="margin-top:16px"><button class="primary" id="en-go">Re-enable</button></div></div>`);
+    $('#en-go').onclick = async () => {
+      $('#en-go').disabled = true;
+      try {
+        await withMinDuration(api('POST', `/api/repos/${repoPath}/enable`));
+        closeModal();
+        await refresh();
+      } catch (err) { $('#en-go').disabled = false; showFormError($('#en-err'), err.message); }
+    };
+    return;
+  }
   openModal(`<div class="panel-header"><div class="panel-title">Stop serving // ${esc(name)}</div></div>
     <div class="panel-body"><p>Jobs from <b>${esc(name)}</b> stop running here. A job already running finishes. Its workflows that ask for <span class="code">[self-hosted, umbrel]</span> will wait in GitHub's queue until another runner takes them.</p>
     <div class="alert bad form-err" id="rm-err"></div>
@@ -594,7 +612,7 @@ $('#repos').addEventListener('click', (e) => {
   $('#rm-go').onclick = async () => {
     $('#rm-go').disabled = true;
     try {
-      await withMinDuration(api('DELETE', `/api/repos/${name.split('/').map(encodeURIComponent).join('/')}`));
+      await withMinDuration(api('DELETE', `/api/repos/${repoPath}`));
       closeModal();
       await refresh();
     } catch (err) { $('#rm-go').disabled = false; showFormError($('#rm-err'), err.message); }
@@ -654,8 +672,8 @@ $('#runners').addEventListener('click', (e) => {
   };
 });
 
-const RESULT_CLASS = { Succeeded: 'ok', Failed: 'bad', Canceled: 'idle', Cancelled: 'idle', TimedOut: 'bad', Stopped: 'warn', Lost: 'bad', NoJob: 'bad' };
-const RESULT_TEXT = { NoJob: 'Runner failed', Lost: 'Runner lost', TimedOut: 'Timed out' };
+const RESULT_CLASS = { Succeeded: 'ok', Failed: 'bad', Canceled: 'idle', Cancelled: 'idle', TimedOut: 'bad', Stopped: 'warn', Lost: 'bad', NoJob: 'bad', RepoPublic: 'bad' };
+const RESULT_TEXT = { NoJob: 'Runner failed', Lost: 'Runner lost', TimedOut: 'Timed out', RepoPublic: 'Stopped: repo public' };
 
 function renderHistory() {
   if (!S.history.length) {
@@ -860,7 +878,7 @@ function openHelp() {
       <p>Runners only connect out to GitHub. Nothing on your Umbrel is exposed. GitHub does not bill minutes used on self-hosted runners.</p>
       <label>Safety</label>
       <ul class="steps">
-        <li>Private repositories only. Public ones are refused when added and dropped if they go public later.</li>
+        <li>Private repositories only. Public ones are refused when added. Visibility is checked again on every poll: if a served one goes public, its runners are stopped at once, a running job included, and it is not served again until it is private and you re-enable it.</li>
         <li>The token stays in the manager. A runner only gets a single-use registration for itself.</li>
         <li>Jobs never get the Umbrel's own Docker. Docker for jobs (off by default) means this app's private daemon, which is privileged: treat it as root on the Umbrel.</li>
         <li>Each job runs as <span class="code">runner</span> with sudo inside its own container, under the CPU, memory and time limits shown under Runners.</li>

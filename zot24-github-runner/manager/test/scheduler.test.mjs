@@ -182,3 +182,49 @@ test('while paused, a repo with a runner still up keeps having its visibility re
   await s.ticks(3);
   assert.match(polls(s.gh, from), /^V{3,}$/, 'visibility read on every pass, queue not read');
 });
+
+test('a repo made public mid-run: its runners are stopped and deregistered, busy or not, until re-enabled', async (t) => {
+  const s = await stack(t, { queued: 2 });
+  await s.serve();
+  await waitFor('two runners', () => s.docker.runners().length === 2);
+  const [busy, idle] = s.docker.runners();
+  const busyId = Number(busy.Labels['ghr.runner-id']);
+  const idleId = Number(idle.Labels['ghr.runner-id']);
+  s.docker.takeJob(busy, 'build 1');
+  s.gh.assign(busyId);
+  await waitFor('one runner busy', async () => (await s.state()).runners.some((r) => r.busy));
+
+  s.gh.repos[REPO].private = false;
+  await waitFor('both runners stopped', () => s.docker.runners().length === 0);
+  assert.ok(!s.gh.runners.has(idleId), 'the idle runner is deregistered');
+  assert.ok(s.gh.requests.includes(`DELETE /repos/${REPO}/actions/runners/${busyId} 422`), 'the busy one was asked for too');
+  // Once GitHub lets go of the killed runner's job, its registration goes.
+  s.gh.runners.get(busyId).busy = false;
+  await waitFor('busy runner deregistered', () => !s.gh.runners.has(busyId));
+
+  const st = await s.state();
+  const repo = st.repos.find((r) => r.name === REPO);
+  assert.ok(repo.publicAt, 'the repo is marked as gone public');
+  const stopped = st.history.find((h) => h.job === 'build 1');
+  assert.equal(stopped?.result, 'RepoPublic');
+  const saved = JSON.parse(await readFile(path.join(s.dir, 'state', 'state.json'), 'utf8'));
+  assert.ok(saved.repos.find((r) => r.name === REPO).publicAt, 'and that survives a restart');
+
+  // Private again with a job still queued: still nothing, until re-enabled.
+  s.gh.repos[REPO].private = true;
+  const jit = () => s.gh.requests.filter((r) => r.includes('/generate-jitconfig')).length;
+  const before = jit();
+  await s.ticks(4);
+  assert.equal(s.docker.runners().length, 0);
+  assert.equal(jit(), before, 'no runner registered');
+
+  s.gh.repos[REPO].private = false;
+  const refused = await s.api('POST', `/api/repos/${REPO}/enable`);
+  assert.equal(refused.status, 400, 're-enabling a public repo is refused');
+  assert.match(refused.body.error, /public/);
+  s.gh.repos[REPO].private = true;
+  const ok = await s.api('POST', `/api/repos/${REPO}/enable`);
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  await waitFor('served again', () => s.docker.runners().length === 1);
+  assert.equal((await s.repo()).publicAt, '');
+});
