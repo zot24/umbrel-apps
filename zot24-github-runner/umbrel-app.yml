@@ -3,7 +3,7 @@ id: zot24-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
 category: developer
-version: "0.1.2"
+version: "0.1.3"
 tagline: Run your private repos' GitHub Actions jobs on your Umbrel
 description: >-
   GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
@@ -69,17 +69,18 @@ description: >-
   Before uninstalling, use "Remove runners from GitHub" on the app's page,
   then revoke the token on GitHub.
 releaseNotes: >-
-  Jobs now run in an image with zstd, build-essential (gcc, g++, make)
-  and the GitHub CLI (gh) preinstalled, so workflows no longer need to
-  install them. With zstd, actions/cache uses the same compression as
-  GitHub-hosted runners, so caches saved there restore here and the
-  reverse. The next job after the update downloads the new image once.
+  Runners and Recent jobs now link each job to its log on GitHub, and to
+  its pull request (or, for a push or a schedule, to its run). Jobs that
+  ran before the update have no links.
 
 
-  Coming from 0.1.0, this also has 0.1.1's safety fixes: a served
-  repository's visibility is checked on every poll, a repository made
-  public has all its runners stopped at once and stays off until you
-  re-enable it, and jobs from forks are never run here.
+  Coming from 0.1.1 or earlier, this also has 0.1.2's runner image with
+  zstd, build-essential (gcc, g++, make) and the GitHub CLI (gh); the next
+  job after the update downloads it once. Coming from 0.1.0, it also has
+  0.1.1's safety fixes: a served repository's visibility is checked on
+  every poll, a repository made public has all its runners stopped at once
+  and stays off until you re-enable it, and jobs from forks are never run
+  here.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []

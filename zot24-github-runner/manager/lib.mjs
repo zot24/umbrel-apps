@@ -58,6 +58,23 @@ export function forkHead(run) {
   return '';
 }
 
+// Where a runner's job is on GitHub, for links on the page: the job's log,
+// its run, and the pull request the run belongs to (none for a run not tied
+// to one, such as a schedule). Only https URLs are kept.
+export function jobLink(repo, run, job) {
+  const url = (u) => (typeof u === 'string' && u.startsWith('https://') ? u : '');
+  const pr = Number(run?.pull_requests?.[0]?.number) || 0;
+  return {
+    workflow: String(run?.name || ''),
+    event: String(run?.event || ''),
+    branch: String(run?.head_branch || ''),
+    pr,
+    prUrl: pr ? `https://github.com/${repo}/pull/${pr}` : '',
+    runUrl: url(run?.html_url),
+    jobUrl: url(job?.html_url),
+  };
+}
+
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const GiB = 1024 ** 3;
 

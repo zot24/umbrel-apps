@@ -31,6 +31,7 @@ import {
   demuxDockerLogs,
   forkHead,
   jobLimits,
+  jobLink,
   jobWantsUs,
   normalizeRepo,
   parseRunnerLog,
@@ -457,6 +458,7 @@ function socketGid() {
 const repoStatus = new Map();
 const repoBackoff = new Map(); // repo -> { failures, until }
 let alive = []; // runners with a running container, refreshed every tick
+const jobLinks = new Map(); // runner name -> jobLink() of the job it took, seen while polling
 let tickError = '';
 let tickAt = 0;
 let orphansSweptAt = 0;
@@ -552,6 +554,8 @@ async function finish(c, parsed, reason = '', deregistered = false) {
     logs = await containerLogs(c.Id, 40);
   } catch {}
   const ranJob = !!r.job;
+  const link = jobLinks.get(r.name) || (ranJob ? await findJobLink(r) : null);
+  jobLinks.delete(r.name);
   if (!ranJob && !deregistered) {
     // An ephemeral registration that never took a job can linger as an
     // offline runner; remove it now rather than wait a day for GitHub to.
@@ -574,6 +578,7 @@ async function finish(c, parsed, reason = '', deregistered = false) {
       runner: r.name,
       repo: r.repo,
       job: r.job,
+      link,
       result,
       createdAt: new Date(r.createdAt).toISOString(),
       jobStartedAt: r.jobStartedAt,
@@ -587,6 +592,25 @@ async function finish(c, parsed, reason = '', deregistered = false) {
   await removeContainer(c.Id);
   await rm(workDirOf(r.name), { recursive: true, force: true });
   console.log(`[done] ${r.name} ${r.repo}: ${result}${r.job ? ` (${r.job})` : ''}`);
+}
+
+// A job that started and ended between two polls was never seen with its
+// runner: look for it in the repository's latest runs. Null if not found.
+async function findJobLink(r) {
+  try {
+    const since = new Date(r.createdAt).toISOString();
+    const runs = await gh('GET', `/repos/${r.repo}/actions/runs?per_page=10`);
+    for (const run of runs?.workflow_runs || []) {
+      if ((run.updated_at || '') < since) continue;
+      const jobs = await gh('GET', `/repos/${r.repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
+      const j = (jobs?.jobs || []).find((x) => x.runner_name === r.name);
+      if (j) return jobLink(r.repo, run, j);
+    }
+  } catch (e) {
+    noteTokenFailure(e);
+    console.error('[link]', r.name, e.message);
+  }
+  return null;
 }
 
 // Reads every runner container. Exited ones are finished; the rest are the
@@ -710,6 +734,7 @@ async function pollRepo(repo, { queue = true } = {}) {
     let queued = 0;
     let forks = 0;
     let oldest = '';
+    const ours = new Set(alive.map((x) => x.name));
     // A run is `queued` until its first job starts and `in_progress` after,
     // while later jobs in it can still be waiting for a runner.
     for (const status of ['queued', 'in_progress']) {
@@ -718,6 +743,8 @@ async function pollRepo(repo, { queue = true } = {}) {
         const fork = forkHead(run);
         const jobs = await gh('GET', `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
         for (const j of jobs?.jobs || []) {
+          // Which job each of our runners took, for links on the page.
+          if (j.runner_name && ours.has(j.runner_name)) jobLinks.set(j.runner_name, jobLink(repo, run, j));
           if (j.status !== 'queued') continue;
           // Never a fork's code, whatever the job's labels.
           if (fork) {
@@ -942,7 +969,7 @@ function publicState() {
         running: alive.filter((x) => x.repo === r.name).length,
       };
     }),
-    runners: alive.map(({ c, parsed, id, ...r }) => r),
+    runners: alive.map(({ c, parsed, id, ...r }) => ({ ...r, link: jobLinks.get(r.name) || null })),
     history: state.history.map(({ tail, ...h }, i) => ({ ...h, index: i, hasTail: !!tail })),
   };
 }
