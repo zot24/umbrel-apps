@@ -5,6 +5,7 @@ import {
   RUNNER_NAME_RE,
   backoffMs,
   demuxDockerLogs,
+  forkHead,
   jobLimits,
   jobWantsUs,
   normalizeRepo,
@@ -162,4 +163,18 @@ test('runner names', () => {
   assert.ok(RUNNER_NAME_RE.test('umbrel-0a1b2c3d'));
   assert.ok(!RUNNER_NAME_RE.test('umbrel-runner'));
   assert.ok(!RUNNER_NAME_RE.test('my-laptop'));
+});
+
+test('forkHead: only a run of the repository itself is served', () => {
+  const base = { id: 1, full_name: 'me/app', fork: false };
+  const fork = { id: 2, full_name: 'them/app', fork: true };
+  assert.equal(forkHead({ event: 'push', repository: base, head_repository: base }), '');
+  assert.equal(forkHead({ event: 'pull_request', repository: base, head_repository: base }), '', 'a branch of the repo itself');
+  assert.match(forkHead({ event: 'pull_request', repository: base, head_repository: fork }), /them\/app is a fork/);
+  assert.match(forkHead({ event: 'pull_request_target', repository: base, head_repository: fork }), /them\/app is a fork/);
+  assert.match(forkHead({ event: 'pull_request', repository: base, head_repository: null }), /no head repository/);
+  assert.match(forkHead({ event: 'pull_request', repository: base, head_repository: { id: 3, full_name: 'x/app', fork: false } }), /is not me\/app/);
+  // A served repository that is itself a fork: its own runs are headed by a fork.
+  const mine = { id: 4, full_name: 'me/fork-of-app', fork: true };
+  assert.match(forkHead({ event: 'push', repository: mine, head_repository: mine }), /is a fork/);
 });

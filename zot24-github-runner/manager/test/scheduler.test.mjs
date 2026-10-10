@@ -228,3 +228,41 @@ test('a repo made public mid-run: its runners are stopped and deregistered, busy
   await waitFor('served again', () => s.docker.runners().length === 1);
   assert.equal((await s.repo()).publicAt, '');
 });
+
+test('a queued job from a fork gets no runner, whatever its labels, and is logged once', async (t) => {
+  const s = await stack(t, { queued: 0 });
+  await s.serve();
+  const fork = 'someone/private-repo';
+  const runs = [
+    s.gh.queueRun({ head: fork, fork: true, event: 'pull_request' }),
+    // pull_request_target runs the base branch's workflow for the fork's
+    // pull request; GitHub still reports the fork as the head repository.
+    s.gh.queueRun({ head: fork, fork: true, event: 'pull_request_target', labels: ['self-hosted', 'umbrel', 'Linux'] }),
+    // The fork was deleted: no head repository at all.
+    s.gh.queueRun({ head: null, event: 'pull_request' }),
+    // Not ours by its labels either; skipped and logged all the same.
+    s.gh.queueRun({ head: fork, fork: true, event: 'pull_request', labels: ['ubuntu-latest'] }),
+  ];
+  await s.ticks(5);
+  assert.equal(s.docker.runners().length, 0, 'no runner');
+  assert.equal(s.gh.requests.filter((r) => r.includes('/generate-jitconfig')).length, 0, 'nothing registered');
+  const lines = s.log().split('\n').filter((l) => l.startsWith('[fork] '));
+  for (const run of runs) {
+    const id = run.jobs[0].id;
+    assert.equal(lines.filter((l) => l.includes(` job ${id} `)).length, 1, `job ${id} logged once over 5 passes`);
+  }
+  assert.ok(lines.some((l) => l.includes(`${fork} is a fork`) && l.includes('pull_request_target')));
+  assert.ok(!s.log().includes(TOKEN), 'no token in the log');
+  assert.equal((await s.repo()).forks, 3, 'the page counts the three that asked for this runner');
+
+  // A job from the repository itself still gets its runner.
+  s.gh.queueRun();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  await s.ticks(2);
+  assert.equal(s.docker.runners().length, 1);
+
+  // Made public: the fork count goes with the rest of its queue.
+  s.gh.repos[REPO].private = false;
+  await waitFor('marked public', async () => (await s.repo()).publicAt);
+  assert.equal((await s.repo()).forks, 0);
+});

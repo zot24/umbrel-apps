@@ -27,7 +27,8 @@ description: >-
   can run code from anyone's pull request, so public repositories are
   refused. If a served one is made public, its runners are stopped at
   once, a running job included, and it is not served again until it is
-  private and you re-enable it.
+  private and you re-enable it. Jobs from forks are never run here,
+  whatever their labels.
 
 
   - A hard cap on parallel jobs (1 to 4, default 2). Each job gets half of

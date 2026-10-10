@@ -575,6 +575,7 @@ function renderRepos() {
     const meta = [];
     if (r.publicAt) meta.push(`stopped ${ago(r.publicAt)}`);
     if (r.queued && r.running) meta.push(`${r.queued} queued`);
+    if (r.forks) meta.push(`${r.forks} fork job${r.forks > 1 ? 's' : ''} not run`);
     if (r.backoffUntil) meta.push(`retrying in ${dur(r.backoffUntil - Date.now())}`);
     if (r.polledAt) meta.push(`checked ${ago(r.polledAt)}`);
     return `<div class="item" data-repo="${esc(r.name)}">
@@ -879,6 +880,7 @@ function openHelp() {
       <label>Safety</label>
       <ul class="steps">
         <li>Private repositories only. Public ones are refused when added. Visibility is checked again on every poll: if a served one goes public, its runners are stopped at once, a running job included, and it is not served again until it is private and you re-enable it.</li>
+        <li>Never a fork's code. A queued job from a fork (a fork's pull request, <span class="code">pull_request_target</span> included) is skipped whatever its labels, and logged. In a served repository that is itself a fork, no job runs here.</li>
         <li>The token stays in the manager. A runner only gets a single-use registration for itself.</li>
         <li>Jobs never get the Umbrel's own Docker. Docker for jobs (off by default) means this app's private daemon, which is privileged: treat it as root on the Umbrel.</li>
         <li>Each job runs as <span class="code">runner</span> with sudo inside its own container, under the CPU, memory and time limits shown under Runners.</li>

@@ -44,6 +44,20 @@ export function jobWantsUs(jobLabels, labels) {
   return want.includes('umbrel') && want.every((l) => have.has(l));
 }
 
+// Why a workflow run's code is not the served repository's own, or '' when
+// it is. For a pull request from a fork, pull_request_target included,
+// GitHub reports the fork as the run's head_repository (fork: true). A run
+// in a served repository that is itself a fork has fork: true as well, so
+// none of that repository's jobs are served. A run with no head repository
+// (its fork was deleted) counts as a fork.
+export function forkHead(run) {
+  const head = run?.head_repository;
+  if (!head) return 'it has no head repository';
+  if (head.fork === true) return `its head repository ${head.full_name} is a fork`;
+  if (run.repository && head.id !== run.repository.id) return `its head repository ${head.full_name} is not ${run.repository.full_name}`;
+  return '';
+}
+
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const GiB = 1024 ** 3;
 

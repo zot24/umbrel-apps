@@ -38,7 +38,8 @@ Umbrel
    next to nothing.
 2. A queued job is ours when its labels include `umbrel` and every label it asks for is one our
    runners carry: `self-hosted`, `umbrel`, `Linux`, and `X64` or `ARM64`. A job that asks only
-   for `self-hosted` is left for whatever other runner it was meant for.
+   for `self-hosted` is left for whatever other runner it was meant for. A job whose run comes
+   from a fork is never ours, whatever its labels (see Safety).
 3. For each such job, up to the parallel-jobs cap, the manager asks GitHub for a just-in-time
    runner config for that repository (`POST .../actions/runners/generate-jitconfig`) and starts a
    new container from the runner image with it. JIT runners are ephemeral: one job, then they
@@ -107,6 +108,13 @@ and no app to maintain; it expires on the date you pick, and the page shows that
   that it is private before serving it. On a private repository only people with access can push
   or open pull requests; GitHub's "Run workflows from fork pull requests" setting for private
   repositories is off by default, keep it off.
+- **Never a fork's code.** A queued job whose run's head repository is a fork is skipped whatever
+  its labels: a pull request from a fork, and `pull_request_target`, which runs your workflow file
+  for a fork's pull request and needs no setting at all (GitHub reports the fork as the head
+  repository for both). So is a run whose head repository is gone (a deleted fork). Each one is
+  logged once (job id, name, labels, run, event, the fork's name) and waits in GitHub's queue for
+  another runner; the repository's row counts those that asked for this one. A served repository
+  that is itself a fork has every run headed by a fork, so none of its jobs run here.
 - **A fixed concurrency cap.** No more than 1 to 4 runners (default 2) exist at once, whatever is
   queued. Extra jobs wait in GitHub's queue.
 - **Resource limits sized for an Umbrel.** Each runner gets half of the Umbrel's CPUs and half its

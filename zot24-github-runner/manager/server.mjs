@@ -29,6 +29,7 @@ import {
   RUNNER_NAME_RE,
   backoffMs,
   demuxDockerLogs,
+  forkHead,
   jobLimits,
   jobWantsUs,
   normalizeRepo,
@@ -673,6 +674,19 @@ async function wentPublic(name) {
 const PUBLIC_ERROR =
   'Made public: its runners were stopped and removed from GitHub. It is not served again until it is private and you re-enable it here.';
 
+// A skipped fork job waits in GitHub's queue and is seen on every poll; log
+// it once. Only ids, names, labels and repository names: nothing secret.
+const forkJobsLogged = new Set();
+function logForkJob(repo, run, job, why) {
+  if (forkJobsLogged.has(job.id)) return;
+  if (forkJobsLogged.size > 10_000) forkJobsLogged.clear();
+  forkJobsLogged.add(job.id);
+  console.log(
+    `[fork] ${repo}: skipped queued job ${job.id} ${JSON.stringify(job.name || '')} ` +
+      `(run ${run.id}, ${run.event || 'unknown'} event, labels ${JSON.stringify(job.labels || [])}): ${why}`,
+  );
+}
+
 // One poll of a served repository: its visibility, then (with `queue`) its
 // queued jobs. A poll that fails starts nothing (queued 0).
 async function pollRepo(repo, { queue = true } = {}) {
@@ -685,30 +699,39 @@ async function pollRepo(repo, { queue = true } = {}) {
     const info = await gh('GET', `/repos/${repo}`);
     st.private = info.private === true;
     if (!st.private) {
-      Object.assign(st, { queued: 0, oldestQueuedAt: '', error: PUBLIC_ERROR });
+      Object.assign(st, { queued: 0, forks: 0, oldestQueuedAt: '', error: PUBLIC_ERROR });
       await wentPublic(repo);
       return;
     }
     if (!queue) {
-      Object.assign(st, { queued: 0, oldestQueuedAt: '', error: '' });
+      Object.assign(st, { queued: 0, forks: 0, oldestQueuedAt: '', error: '' });
       return;
     }
     let queued = 0;
+    let forks = 0;
     let oldest = '';
     // A run is `queued` until its first job starts and `in_progress` after,
     // while later jobs in it can still be waiting for a runner.
     for (const status of ['queued', 'in_progress']) {
       const runs = await gh('GET', `/repos/${repo}/actions/runs?status=${status}&per_page=30`);
       for (const run of runs?.workflow_runs || []) {
+        const fork = forkHead(run);
         const jobs = await gh('GET', `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
         for (const j of jobs?.jobs || []) {
-          if (j.status !== 'queued' || !jobWantsUs(j.labels, LABELS)) continue;
+          if (j.status !== 'queued') continue;
+          // Never a fork's code, whatever the job's labels.
+          if (fork) {
+            logForkJob(repo, run, j, fork);
+            if (jobWantsUs(j.labels, LABELS)) forks += 1;
+            continue;
+          }
+          if (!jobWantsUs(j.labels, LABELS)) continue;
           queued += 1;
           if (!oldest || (j.created_at || '') < oldest) oldest = j.created_at || '';
         }
       }
     }
-    Object.assign(st, { queued, oldestQueuedAt: oldest, error: '', polledAt: Date.now() });
+    Object.assign(st, { queued, forks, oldestQueuedAt: oldest, error: '', polledAt: Date.now() });
   } catch (e) {
     noteTokenFailure(e);
     Object.assign(st, { queued: 0, error: e.message });
@@ -912,6 +935,7 @@ function publicState() {
         publicAt: r.publicAt || '',
         private: st.private,
         queued: st.queued || 0,
+        forks: st.forks || 0,
         error: r.publicAt ? PUBLIC_ERROR : st.error || '',
         polledAt: st.polledAt || 0,
         backoffUntil: b?.until > Date.now() ? b.until : 0,
