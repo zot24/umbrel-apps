@@ -57,7 +57,7 @@ services:
   # files into the data dir. It stays on the default network
   # (umbrel_main_network) so the Umbrel gateway can resolve APP_HOST.
   manager:
-    image: ghcr.io/zot24/github-runner-manager:0.1.0
+    image: ghcr.io/zot24/github-runner-manager:0.1.0@sha256:a4fa2508bc3bb92b62fd14973aa2b840515991e46a98c113cf7e3def8cd5f400
     restart: on-failure
     init: true
     # Long enough to deregister idle runners from GitHub on stop.
