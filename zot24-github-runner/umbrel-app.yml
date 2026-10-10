@@ -3,7 +3,7 @@ id: zot24-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
 category: developer
-version: "0.1.1"
+version: "0.1.2"
 tagline: Run your private repos' GitHub Actions jobs on your Umbrel
 description: >-
   GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
@@ -61,21 +61,25 @@ description: >-
 
   3. In their workflows, change `runs-on: ubuntu-latest` to
   `runs-on: [self-hosted, umbrel]`. The runner image is GitHub's minimal
-  one, not the full ubuntu-latest image: use setup-node, setup-python and
-  the like, or install packages with sudo apt-get.
+  one plus zstd and build-essential (gcc, g++, make), not the full
+  ubuntu-latest image: use setup-node, setup-python and the like, or
+  install other packages with sudo apt-get.
 
 
   Before uninstalling, use "Remove runners from GitHub" on the app's page,
   then revoke the token on GitHub.
 releaseNotes: >-
-  Safety fixes. A served repository's visibility is now checked on every
-  poll (every 15 seconds) instead of every five minutes. If it is made
-  public, all of its runners are stopped at once, a running job included,
-  and it is not served again until it is private and you press re-enable
-  on its row. Jobs from forks, including pull_request_target runs, are
-  never run here, whatever their labels; the repository's row counts the
-  skipped ones that asked for this runner. The description now states when
-  four runners can use all of a small box's memory or CPUs.
+  Jobs now run in an image with zstd and build-essential (gcc, g++, make)
+  preinstalled, so workflows no longer need to apt-get them. With zstd,
+  actions/cache uses the same compression as GitHub-hosted runners, so
+  caches saved there restore here and the reverse. The next job after the
+  update downloads the new image once.
+
+
+  Coming from 0.1.0, this also has 0.1.1's safety fixes: a served
+  repository's visibility is checked on every poll, a repository made
+  public has all its runners stopped at once and stays off until you
+  re-enable it, and jobs from forks are never run here.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []
