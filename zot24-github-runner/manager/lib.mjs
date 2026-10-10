@@ -62,9 +62,11 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const GiB = 1024 ** 3;
 
 // Per-job limits, sized for an Umbrel: half its CPUs and half its memory,
-// divided by the concurrency cap, so a full set of runners stays within half.
-// Floors keep a job usable on a small box; ceilings keep a big box from
-// handing one job everything.
+// divided by the concurrency cap. Floors keep a job usable on a small box;
+// ceilings keep a big box from handing one job everything. A full set of
+// runners stays within half the box only while the floors do not bind: with
+// fewer CPUs than the cap, or less than 2 GB of memory per runner, a full
+// set takes cap x 0.5 CPU and cap x 1 GB, up to the whole box.
 export function jobLimits({ ncpu, memBytes, maxRunners }) {
   const cap = clamp(Math.floor(maxRunners) || 1, 1, MAX_RUNNERS_LIMIT);
   const cpus = Math.round(clamp((ncpu || 2) / 2 / cap, 0.5, 4) * 100) / 100;

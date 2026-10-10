@@ -32,8 +32,10 @@ description: >-
 
 
   - A hard cap on parallel jobs (1 to 4, default 2). Each job gets half of
-  this Umbrel's CPUs and memory divided by the cap, so a full set stays
-  within half, and a job is stopped after 6 hours.
+  this Umbrel's CPUs and memory divided by the cap, but at least 0.5 CPU
+  and 1 GB. A full set stays within half the box unless the cap is above
+  the CPU count or above half the memory in GB: four runners on a 4 GB
+  box can use all of its memory. A job is stopped after 6 hours.
 
 
   - Jobs never get your Umbrel's own Docker. "Docker for jobs" (off by

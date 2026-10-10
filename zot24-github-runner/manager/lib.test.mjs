@@ -73,6 +73,21 @@ test('jobLimits: half the box, split across the cap', () => {
   assert.deepEqual(jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 99 }), jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 4 }));
 });
 
+test('jobLimits: when the floor binds, a full set can take the whole box', () => {
+  // The README's numbers. 4-core, 4 GB Pi at cap 4: memory is all used.
+  const pi = jobLimits({ ncpu: 4, memBytes: 4 * GiB, maxRunners: 4 });
+  assert.equal(4 * pi.memory, 4 * GiB);
+  assert.equal(4 * pi.cpus, 2);
+  // 2-core box at cap 4: every core.
+  assert.equal(4 * jobLimits({ ncpu: 2, memBytes: 16 * GiB, maxRunners: 4 }).cpus, 2);
+  // Cap at most the CPU count and half the memory in GB: within half.
+  const half = jobLimits({ ncpu: 4, memBytes: 4 * GiB, maxRunners: 2 });
+  assert.deepEqual([2 * half.cpus, 2 * half.memory], [2, 2 * GiB]);
+  // 4-core, 16 GB at the default cap: 2 CPUs and 8 GB for the set.
+  const home = jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 2 });
+  assert.deepEqual([2 * home.cpus, 2 * home.memory], [2, 8 * GiB]);
+});
+
 test('demuxDockerLogs strips stream frames and passes raw text through', () => {
   const frame = (type, s) => {
     const body = Buffer.from(s);

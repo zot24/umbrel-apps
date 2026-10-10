@@ -118,11 +118,18 @@ and no app to maintain; it expires on the date you pick, and the page shows that
 - **A fixed concurrency cap.** No more than 1 to 4 runners (default 2) exist at once, whatever is
   queued. Extra jobs wait in GitHub's queue.
 - **Resource limits sized for an Umbrel.** Each runner gets half of the Umbrel's CPUs and half its
-  memory divided by the cap, with no swap, so a full set of runners stays within half: at least
-  0.5 CPU and 1 GB, at most 4 CPUs and 8 GB per job. Also 4096 processes and 6 h 10 min of run
-  time. On a 4-core, 16 GB box with the default cap: 1 CPU and 4 GB per job. Limits are set when a
-  runner starts, so after raising the cap the runners already up keep their larger share until
-  they finish. The page shows the actual values.
+  memory divided by the cap, with no swap, but never less than 0.5 CPU and 1 GB and never more
+  than 4 CPUs and 8 GB per job. Also 4096 processes and 6 h 10 min of run time.
+  - Above the floor a full set of runners stays within half the box. On a 4-core, 16 GB box at
+    the default cap of 2: 1 CPU and 4 GB per job, 2 CPUs and 8 GB for the set.
+  - The floor wins when the cap is above the number of CPUs, or above half the memory in GB. A
+    full set can then use cap × 0.5 CPU and cap × 1 GB, up to the whole box. On a 4-core, 4 GB
+    Raspberry Pi at cap 4, four runners can use 4 × 1 GB = all 4 GB of memory (and 2 of the 4
+    CPUs). On a 2-core box at cap 4, they can use 4 × 0.5 = both CPUs.
+  - To keep a full set within half, keep the cap at most the CPU count and at most half the
+    memory in GB: cap 2 on a 4 GB Pi gives 1 CPU and 1 GB per job, 2 CPUs and 2 GB for the set.
+  - Limits are set when a runner starts, so after raising the cap the runners already up keep
+    their larger share until they finish. The page shows the actual values.
 - **No access to the Umbrel's Docker.** No container of this app mounts the Umbrel's Docker
   socket, and there is no setting for it. Runners run inside a Docker daemon private to the app,
   on a bridge with inter-container traffic disabled; they reach the internet, not each other,
