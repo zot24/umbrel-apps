@@ -57,7 +57,7 @@ services:
   # files into the data dir. It stays on the default network
   # (umbrel_main_network) so the Umbrel gateway can resolve APP_HOST.
   manager:
-    image: ghcr.io/zot24/github-runner-manager:0.1.0@sha256:a4fa2508bc3bb92b62fd14973aa2b840515991e46a98c113cf7e3def8cd5f400
+    image: ghcr.io/zot24/github-runner-manager:0.1.2@sha256:e212b07fc08802d2f3aee2048c2dc7736617acab830003f44c97f6b0e7732b59
     restart: on-failure
     init: true
     # Long enough to deregister idle runners from GitHub on stop.
@@ -80,7 +80,7 @@ services:
       # pinned by build-github-runner.yml after each build on main.
       # ci/update-runner.sh bumps its base weekly. The manager pulls exactly
       # this digest into dind.
-      RUNNER_IMAGE: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+      RUNNER_IMAGE: ghcr.io/zot24/github-runner-image:0.1.2@sha256:d9a0cb742d49c66a97fb755291700b29c85cce9341926dee758f19ee4adbe39d
     volumes:
       - ${APP_DATA_DIR}/data/sock:/sock
       - ${APP_DATA_DIR}/data/manager:/state
