@@ -75,8 +75,11 @@ services:
       # The tile's proxy: the one container on umbrel_main_network allowed
       # to talk to the manager. umbreld names it ${APP_ID}_app_proxy_1.
       APP_PROXY_HOST: zot24-github-runner_app_proxy_1
-      # GitHub's official runner image, pinned. ci/update-runner.sh bumps it
-      # weekly. The manager pulls exactly this digest into dind.
+      # What every job runs in: ghcr.io/zot24/github-runner-image (runner/,
+      # GitHub's official runner image plus zstd, build-essential and gh),
+      # pinned by build-github-runner.yml after each build on main.
+      # ci/update-runner.sh bumps its base weekly. The manager pulls exactly
+      # this digest into dind.
       RUNNER_IMAGE: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
     volumes:
       - ${APP_DATA_DIR}/data/sock:/sock

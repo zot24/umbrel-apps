@@ -44,13 +44,29 @@ export function jobWantsUs(jobLabels, labels) {
   return want.includes('umbrel') && want.every((l) => have.has(l));
 }
 
+// Why a workflow run's code is not the served repository's own, or '' when
+// it is. For a pull request from a fork, pull_request_target included,
+// GitHub reports the fork as the run's head_repository (fork: true). A run
+// in a served repository that is itself a fork has fork: true as well, so
+// none of that repository's jobs are served. A run with no head repository
+// (its fork was deleted) counts as a fork.
+export function forkHead(run) {
+  const head = run?.head_repository;
+  if (!head) return 'it has no head repository';
+  if (head.fork === true) return `its head repository ${head.full_name} is a fork`;
+  if (run.repository && head.id !== run.repository.id) return `its head repository ${head.full_name} is not ${run.repository.full_name}`;
+  return '';
+}
+
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const GiB = 1024 ** 3;
 
 // Per-job limits, sized for an Umbrel: half its CPUs and half its memory,
-// divided by the concurrency cap, so a full set of runners stays within half.
-// Floors keep a job usable on a small box; ceilings keep a big box from
-// handing one job everything.
+// divided by the concurrency cap. Floors keep a job usable on a small box;
+// ceilings keep a big box from handing one job everything. A full set of
+// runners stays within half the box only while the floors do not bind: with
+// fewer CPUs than the cap, or less than 2 GB of memory per runner, a full
+// set takes cap x 0.5 CPU and cap x 1 GB, up to the whole box.
 export function jobLimits({ ncpu, memBytes, maxRunners }) {
   const cap = clamp(Math.floor(maxRunners) || 1, 1, MAX_RUNNERS_LIMIT);
   const cpus = Math.round(clamp((ncpu || 2) / 2 / cap, 0.5, 4) * 100) / 100;

@@ -60,7 +60,6 @@ services:
       RUNNER_IMAGE: ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
       GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
       IDLE_TIMEOUT_MS: ${IDLE_TIMEOUT_MS:-600000}
-      REPO_RECHECK_MS: ${REPO_RECHECK_MS:-300000}
     volumes:
       - dind-sock:/sock
       - manager-state:/state

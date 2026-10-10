@@ -3,7 +3,7 @@ id: zot24-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
 category: developer
-version: "0.1.0"
+version: "0.1.2"
 tagline: Run your private repos' GitHub Actions jobs on your Umbrel
 description: >-
   GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
@@ -25,12 +25,17 @@ description: >-
 
   - Private repositories only. A self-hosted runner on a public repository
   can run code from anyone's pull request, so public repositories are
-  refused, and dropped if they are made public later.
+  refused. If a served one is made public, its runners are stopped at
+  once, a running job included, and it is not served again until it is
+  private and you re-enable it. Jobs from forks are never run here,
+  whatever their labels.
 
 
   - A hard cap on parallel jobs (1 to 4, default 2). Each job gets half of
-  this Umbrel's CPUs and memory divided by the cap, so a full set stays
-  within half, and a job is stopped after 6 hours.
+  this Umbrel's CPUs and memory divided by the cap, but at least 0.5 CPU
+  and 1 GB. A full set stays within half the box unless the cap is above
+  the CPU count or above half the memory in GB: four runners on a 4 GB
+  box can use all of its memory. A job is stopped after 6 hours.
 
 
   - Jobs never get your Umbrel's own Docker. "Docker for jobs" (off by
@@ -56,14 +61,25 @@ description: >-
 
   3. In their workflows, change `runs-on: ubuntu-latest` to
   `runs-on: [self-hosted, umbrel]`. The runner image is GitHub's minimal
-  one, not the full ubuntu-latest image: use setup-node, setup-python and
-  the like, or install packages with sudo apt-get.
+  one plus zstd, build-essential (gcc, g++, make) and the GitHub CLI
+  (gh), not the full ubuntu-latest image: use setup-node, setup-python
+  and the like, or install other packages with sudo apt-get.
 
 
   Before uninstalling, use "Remove runners from GitHub" on the app's page,
   then revoke the token on GitHub.
 releaseNotes: >-
-  First release.
+  Jobs now run in an image with zstd, build-essential (gcc, g++, make)
+  and the GitHub CLI (gh) preinstalled, so workflows no longer need to
+  install them. With zstd, actions/cache uses the same compression as
+  GitHub-hosted runners, so caches saved there restore here and the
+  reverse. The next job after the update downloads the new image once.
+
+
+  Coming from 0.1.0, this also has 0.1.1's safety fixes: a served
+  repository's visibility is checked on every poll, a repository made
+  public has all its runners stopped at once and stays off until you
+  re-enable it, and jobs from forks are never run here.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []
