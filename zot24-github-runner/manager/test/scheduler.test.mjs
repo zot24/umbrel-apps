@@ -266,3 +266,39 @@ test('a queued job from a fork gets no runner, whatever its labels, and is logge
   await waitFor('marked public', async () => (await s.repo()).publicAt);
   assert.equal((await s.repo()).forks, 0);
 });
+
+test('a job links to its log and its pull request, also when it was never seen running', async (t) => {
+  const s = await stack(t, { queued: 0 });
+  await s.serve();
+  const run = s.gh.queueRun({ event: 'pull_request', pr: 42, branch: 'feat/x' });
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  const [c] = s.docker.runners();
+  s.docker.takeJob(c, 'build 1');
+  s.gh.assign(c.Labels['ghr.runner-id']);
+  const link = await waitFor('the running runner has its link', async () => (await s.state()).runners[0]?.link);
+  assert.deepEqual(link, {
+    workflow: 'CI',
+    event: 'pull_request',
+    branch: 'feat/x',
+    pr: 42,
+    prUrl: `https://github.com/${REPO}/pull/42`,
+    runUrl: `https://github.com/${REPO}/actions/runs/${run.id}`,
+    jobUrl: `https://github.com/${REPO}/actions/runs/${run.id}/job/${run.jobs[0].id}`,
+  });
+  s.docker.finishJob(c, 'build 1');
+  const done = await waitFor('in the history', async () => (await s.state()).history.find((h) => h.runner === c.Labels['ghr.name']));
+  assert.equal(done.result, 'Succeeded');
+  assert.deepEqual(done.link, link, 'the history keeps the link');
+
+  // Over before any poll saw it with its runner: found among the latest runs.
+  const quick = s.gh.queueRun({ event: 'schedule' });
+  await waitFor('a new runner', () => s.docker.runners().some((x) => x.Id !== c.Id));
+  const c2 = s.docker.runners().find((x) => x.Id !== c.Id);
+  s.docker.takeJob(c2, 'build 1');
+  s.gh.assign(c2.Labels['ghr.runner-id'], { done: true });
+  s.docker.finishJob(c2, 'build 1', 'Failed');
+  const quickDone = await waitFor('in the history', async () => (await s.state()).history.find((h) => h.runner === c2.Labels['ghr.name']));
+  assert.equal(quickDone.link?.jobUrl, `https://github.com/${REPO}/actions/runs/${quick.id}/job/${quick.jobs[0].id}`);
+  assert.equal(quickDone.link.event, 'schedule');
+  assert.equal(quickDone.link.prUrl, '', 'a scheduled run has no pull request');
+});

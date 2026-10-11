@@ -101,5 +101,10 @@ export function createFakeDocker({ ncpu = 4, memBytes = 16 * GiB } = {}) {
     takeJob(c, job) {
       c.logs += `${stamp()}: Running job: ${job}\n`;
     },
+    // The job ends and the ephemeral runner exits.
+    finishJob(c, job, result = 'Succeeded') {
+      c.logs += `${stamp()}: Job ${job} completed with result: ${result}\n`;
+      c.State = 'exited';
+    },
   };
 }

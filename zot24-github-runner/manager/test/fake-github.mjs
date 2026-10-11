@@ -41,19 +41,36 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
 
   // A run and its queued jobs. `head` is the repository the run's code
   // comes from: the served repo itself, or a fork of it.
-  function queueRun({ jobs: n = 1, labels = ['self-hosted', 'umbrel'], head = REPO, fork = false, event = 'push' } = {}) {
+  function queueRun({ jobs: n = 1, labels = ['self-hosted', 'umbrel'], head = REPO, fork = false, event = 'push', pr = 0, branch = 'main' } = {}) {
     const id = nextRunId++;
     const base = repos[REPO];
     const headRepo = head === null ? null : head === REPO ? base : { id: 900 + id, full_name: head, private: true, fork };
-    runs.push({ id, status: 'queued', event, repository: { id: base.id, full_name: base.full_name }, head_repository: headRepo });
-    jobs[id] = Array.from({ length: n }, (_, i) => ({
-      id: nextJobId++,
-      run_id: id,
+    const html = `https://github.com/${REPO}/actions/runs/${id}`;
+    runs.push({
+      id,
+      name: 'CI',
       status: 'queued',
-      labels,
-      created_at: new Date().toISOString(),
-      name: `build ${i + 1}`,
-    }));
+      event,
+      head_branch: branch,
+      html_url: html,
+      pull_requests: pr ? [{ number: pr }] : [],
+      updated_at: new Date().toISOString(),
+      repository: { id: base.id, full_name: base.full_name },
+      head_repository: headRepo,
+    });
+    jobs[id] = Array.from({ length: n }, (_, i) => {
+      const jobId = nextJobId++;
+      return {
+        id: jobId,
+        run_id: id,
+        status: 'queued',
+        labels,
+        created_at: new Date().toISOString(),
+        name: `build ${i + 1}`,
+        html_url: `${html}/job/${jobId}`,
+        runner_name: null,
+      };
+    });
     return { id, jobs: jobs[id] };
   }
   if (queued > 0) queueRun({ jobs: queued });
@@ -159,11 +176,15 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
     requests,
     queueRun,
     // A runner picks up one of the queued jobs: GitHub counts it busy and
-    // the job leaves the queue.
-    assign(runnerId) {
+    // the job leaves the queue, with the runner's name on it. `done`: the
+    // job and its run are already over by the next poll.
+    assign(runnerId, { done = false } = {}) {
       const job = Object.values(jobs).flat().find((j) => j.status === 'queued' && runs.find((r) => r.id === j.run_id)?.head_repository?.full_name === REPO);
-      if (job) job.status = 'in_progress';
       const r = runners.get(Number(runnerId));
+      if (job) {
+        Object.assign(job, { status: done ? 'completed' : 'in_progress', runner_name: r?.name || null });
+        Object.assign(runs.find((x) => x.id === job.run_id), { status: done ? 'completed' : 'in_progress', updated_at: new Date().toISOString() });
+      }
       if (r) Object.assign(r, { busy: true, status: 'online' });
       return job;
     },

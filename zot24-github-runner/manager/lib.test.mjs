@@ -7,6 +7,7 @@ import {
   demuxDockerLogs,
   forkHead,
   jobLimits,
+  jobLink,
   jobWantsUs,
   normalizeRepo,
   parseRunnerLog,
@@ -178,6 +179,29 @@ test('runner names', () => {
   assert.ok(RUNNER_NAME_RE.test('umbrel-0a1b2c3d'));
   assert.ok(!RUNNER_NAME_RE.test('umbrel-runner'));
   assert.ok(!RUNNER_NAME_RE.test('my-laptop'));
+});
+
+test('jobLink: the job, its run, and its pull request when it has one', () => {
+  const run = { name: 'CI', event: 'pull_request', head_branch: 'feat/x', html_url: 'https://github.com/me/app/actions/runs/7', pull_requests: [{ number: 12 }] };
+  const job = { html_url: 'https://github.com/me/app/actions/runs/7/job/70' };
+  assert.deepEqual(jobLink('me/app', run, job), {
+    workflow: 'CI',
+    event: 'pull_request',
+    branch: 'feat/x',
+    pr: 12,
+    prUrl: 'https://github.com/me/app/pull/12',
+    runUrl: 'https://github.com/me/app/actions/runs/7',
+    jobUrl: 'https://github.com/me/app/actions/runs/7/job/70',
+  });
+  const nightly = jobLink('me/app', { ...run, event: 'schedule', pull_requests: [] }, job);
+  assert.equal(nightly.pr, 0);
+  assert.equal(nightly.prUrl, '', 'no pull request, no PR link');
+  assert.equal(nightly.runUrl, run.html_url);
+  // Only https links reach the page.
+  const odd = jobLink('me/app', { html_url: 'javascript:alert(1)' }, { html_url: 'http://x' });
+  assert.equal(odd.runUrl, '');
+  assert.equal(odd.jobUrl, '');
+  assert.deepEqual(jobLink('me/app', undefined, undefined), { workflow: '', event: '', branch: '', pr: 0, prUrl: '', runUrl: '', jobUrl: '' });
 });
 
 test('forkHead: only a run of the repository itself is served', () => {

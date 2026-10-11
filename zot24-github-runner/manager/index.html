@@ -645,7 +645,8 @@ function renderRunners() {
     if (r.docker) meta.push('docker');
     return `<div class="item" data-runner="${esc(r.name)}">
       <div class="item-head"><div class="item-name">${esc(r.name)}</div>${pill(cls, text, blink)}</div>
-      ${r.job ? `<div>&gt; ${esc(r.job)} <span class="muted small">for ${esc(dur(Date.now() - new Date(r.jobStartedAt).getTime()))}</span></div>` : ''}
+      ${r.job ? `<div>&gt; ${jobName(r.job, r.link)} <span class="muted small">for ${esc(dur(Date.now() - new Date(r.jobStartedAt).getTime()))}</span></div>` : ''}
+      ${r.link ? `<div class="item-meta">${jobRef(r.link)}</div>` : ''}
       <div class="item-meta">${esc(meta.join(' / '))}</div>
       <div class="row"><button data-act="logs">Logs</button><button class="danger" data-act="stop">Stop</button></div>
     </div>`;
@@ -673,6 +674,19 @@ $('#runners').addEventListener('click', (e) => {
   };
 });
 
+// The job's name, linked to its log on GitHub when the manager saw which job
+// the runner took, and the pull request (or, for other events, the run) it
+// belongs to.
+const ext = (url, text) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+const jobName = (name, link) => (link?.jobUrl ? ext(link.jobUrl, esc(name)) : esc(name));
+function jobRef(link) {
+  if (!link) return '';
+  const where = link.prUrl
+    ? ext(link.prUrl, `PR #${esc(link.pr)}`)
+    : link.runUrl ? ext(link.runUrl, esc([link.event, link.branch && `on ${link.branch}`].filter(Boolean).join(' ') || 'run')) : '';
+  return [esc(link.workflow), where].filter(Boolean).join(' / ');
+}
+
 const RESULT_CLASS = { Succeeded: 'ok', Failed: 'bad', Canceled: 'idle', Cancelled: 'idle', TimedOut: 'bad', Stopped: 'warn', Lost: 'bad', NoJob: 'bad', RepoPublic: 'bad' };
 const RESULT_TEXT = { NoJob: 'Runner failed', Lost: 'Runner lost', TimedOut: 'Timed out', RepoPublic: 'Stopped: repo public' };
 
@@ -685,12 +699,13 @@ function renderHistory() {
     ${S.history.slice(0, 20).map((h) => {
       const took = h.jobStartedAt ? dur(new Date(h.finishedAt) - new Date(h.jobStartedAt)) : '';
       return `<tr ${h.hasTail ? `data-tail="${h.index}" title="Show the runner's last lines"` : ''}>
-        <td class="muted">${esc(ago(h.finishedAt))}</td><td>${esc(h.repo)}</td><td>${esc(h.job || '-')}</td>
+        <td class="muted">${esc(ago(h.finishedAt))}</td><td>${esc(h.repo)}</td><td>${h.job ? jobName(h.job, h.link) : '-'}${h.link ? `<div class="small muted">${jobRef(h.link)}</div>` : ''}</td>
         <td>${pill(RESULT_CLASS[h.result] || 'warn', RESULT_TEXT[h.result] || h.result)}</td><td class="muted">${esc(took)}</td></tr>`;
     }).join('')}</tbody></table>`;
 }
 
 $('#history').addEventListener('click', async (e) => {
+  if (e.target.closest('a')) return; // a GitHub link, not the row
   const tr = e.target.closest('tr[data-tail]');
   if (!tr) return;
   const h = S.history[Number(tr.dataset.tail)];
