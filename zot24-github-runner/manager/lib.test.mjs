@@ -18,6 +18,7 @@ import {
 } from './lib.mjs';
 
 const GiB = 1024 ** 3;
+const repos_ = (plan) => plan.map((p) => p.repo);
 
 test('normalizeRepo accepts the usual spellings', () => {
   for (const s of [
@@ -42,6 +43,7 @@ test('normalizeRepo refuses everything else', () => {
 test('runner labels follow the host architecture', () => {
   assert.deepEqual(runnerLabels('x64'), ['self-hosted', 'umbrel', 'Linux', 'X64']);
   assert.deepEqual(runnerLabels('arm64'), ['self-hosted', 'umbrel', 'Linux', 'ARM64']);
+  assert.deepEqual(runnerLabels('x64', { docker: true }), ['self-hosted', 'umbrel-docker', 'Linux', 'X64']);
 });
 
 test('jobWantsUs: needs umbrel, and only labels we have', () => {
@@ -55,6 +57,11 @@ test('jobWantsUs: needs umbrel, and only labels we have', () => {
   assert.equal(jobWantsUs(['self-hosted', 'umbrel', 'ARM64'], ours), false);
   assert.equal(jobWantsUs([], ours), false);
   assert.equal(jobWantsUs(undefined, ours), false);
+  assert.equal(jobWantsUs(['self-hosted', 'umbrel-docker'], ours), false, 'a Docker job is not for a light runner');
+  const docker = runnerLabels('x64', { docker: true });
+  assert.equal(jobWantsUs(['self-hosted', 'umbrel-docker'], docker), true);
+  assert.equal(jobWantsUs(['self-hosted', 'umbrel'], docker), false, 'a light job never lands on a Docker runner');
+  assert.equal(jobWantsUs(['self-hosted', 'umbrel', 'umbrel-docker'], docker), false);
 });
 
 test('jobLimits: half the box, split across the cap', () => {
@@ -120,16 +127,16 @@ test('parseRunnerLog follows a runner through one job', () => {
 
 test('planSpawns: nothing when full or nothing queued', () => {
   const repos = [{ name: 'a/x', queued: 3 }];
-  assert.deepEqual(planSpawns({ repos, runners: [{ repo: 'a/x', busy: true }, { repo: 'a/y', busy: true }], maxRunners: 2 }), []);
-  assert.deepEqual(planSpawns({ repos: [{ name: 'a/x', queued: 0 }], runners: [], maxRunners: 2 }), []);
+  assert.deepEqual(repos_(planSpawns({ repos, runners: [{ repo: 'a/x', busy: true }, { repo: 'a/y', busy: true }], maxRunners: 2 })), []);
+  assert.deepEqual(repos_(planSpawns({ repos: [{ name: 'a/x', queued: 0 }], runners: [], maxRunners: 2 })), []);
 });
 
 test('planSpawns: idle runners already cover their repo', () => {
   const repos = [{ name: 'a/x', queued: 2 }];
-  assert.deepEqual(planSpawns({ repos, runners: [{ repo: 'a/x', busy: false }], maxRunners: 4 }), ['a/x']);
-  assert.deepEqual(planSpawns({ repos, runners: [{ repo: 'a/x', busy: false }, { repo: 'a/x', busy: false }], maxRunners: 4 }), []);
+  assert.deepEqual(repos_(planSpawns({ repos, runners: [{ repo: 'a/x', busy: false }], maxRunners: 4 })), ['a/x']);
+  assert.deepEqual(repos_(planSpawns({ repos, runners: [{ repo: 'a/x', busy: false }, { repo: 'a/x', busy: false }], maxRunners: 4 })), []);
   // A busy runner is on another job; it does not cover the queue.
-  assert.deepEqual(planSpawns({ repos, runners: [{ repo: 'a/x', busy: true }], maxRunners: 4 }), ['a/x', 'a/x']);
+  assert.deepEqual(repos_(planSpawns({ repos, runners: [{ repo: 'a/x', busy: true }], maxRunners: 4 })), ['a/x', 'a/x']);
 });
 
 test('planSpawns: oldest queue first, slots shared across repos', () => {
@@ -137,8 +144,8 @@ test('planSpawns: oldest queue first, slots shared across repos', () => {
     { name: 'a/new', queued: 5, oldestQueuedAt: '2026-10-09T12:05:00Z' },
     { name: 'a/old', queued: 5, oldestQueuedAt: '2026-10-09T12:00:00Z' },
   ];
-  assert.deepEqual(planSpawns({ repos, runners: [], maxRunners: 3 }), ['a/old', 'a/new', 'a/old']);
-  assert.deepEqual(planSpawns({ repos, runners: [], maxRunners: 1 }), ['a/old']);
+  assert.deepEqual(repos_(planSpawns({ repos, runners: [], maxRunners: 3 })), ['a/old', 'a/new', 'a/old']);
+  assert.deepEqual(repos_(planSpawns({ repos, runners: [], maxRunners: 1 })), ['a/old']);
 });
 
 test('planSpawns: a repo in back-off waits', () => {
@@ -147,7 +154,24 @@ test('planSpawns: a repo in back-off waits', () => {
     { name: 'a/x', queued: 1, blockedUntil: now + 1000 },
     { name: 'a/y', queued: 1, blockedUntil: now - 1000 },
   ];
-  assert.deepEqual(planSpawns({ repos, runners: [], maxRunners: 4, now }), ['a/y']);
+  assert.deepEqual(repos_(planSpawns({ repos, runners: [], maxRunners: 4, now })), ['a/y']);
+});
+
+test('planSpawns: Docker jobs get Docker runners, at most maxDocker at once', () => {
+  const repos = [{ name: 'a/x', queued: 1, queuedDocker: 3, oldestQueuedAt: '2026-10-09T12:05:00Z', oldestDockerQueuedAt: '2026-10-09T12:00:00Z' }];
+  assert.deepEqual(planSpawns({ repos, runners: [], maxRunners: 4 }), [
+    { repo: 'a/x', docker: true },
+    { repo: 'a/x', docker: false },
+  ]);
+  // A Docker runner already up, busy: no second one, the light job still starts.
+  assert.deepEqual(planSpawns({ repos, runners: [{ repo: 'a/x', busy: true, docker: true }], maxRunners: 4 }), [{ repo: 'a/x', docker: false }]);
+  // An idle light runner does not cover a Docker job, nor the reverse.
+  assert.deepEqual(planSpawns({ repos: [{ name: 'a/x', queuedDocker: 1 }], runners: [{ repo: 'a/x', busy: false, docker: false }], maxRunners: 4 }), [{ repo: 'a/x', docker: true }]);
+  assert.deepEqual(planSpawns({ repos: [{ name: 'a/x', queued: 1 }], runners: [{ repo: 'a/x', busy: false, docker: true }], maxRunners: 4 }), [{ repo: 'a/x', docker: false }]);
+  assert.deepEqual(planSpawns({ repos: [{ name: 'a/x', queuedDocker: 1 }], runners: [{ repo: 'a/x', busy: false, docker: true }], maxRunners: 4 }), []);
+  // The parallel-jobs cap still counts Docker runners.
+  assert.deepEqual(planSpawns({ repos, runners: [{ repo: 'a/y', busy: true }], maxRunners: 2 }), [{ repo: 'a/x', docker: true }]);
+  assert.deepEqual(repos_(planSpawns({ repos, runners: [], maxRunners: 4, maxDocker: 2 })).length, 3);
 });
 
 test('reapReason', () => {

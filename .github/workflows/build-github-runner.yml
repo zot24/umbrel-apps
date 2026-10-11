@@ -4,7 +4,8 @@ name: "Build: GitHub Runner"
 #   ghcr.io/zot24/github-runner-manager   (the tile + scheduler)
 #   ghcr.io/zot24/github-runner-image     (what every job runs in: GitHub's
 #                                          ghcr.io/actions/actions-runner plus
-#                                          zstd, build-essential and gh)
+#                                          zstd, build-essential, gh and the
+#                                          Docker Compose plugin)
 # then pins both digests into docker-compose.yml (manager `image:`, and
 # RUNNER_IMAGE in both compose files) in one commit.
 #
