@@ -320,6 +320,7 @@ table.hist tr[data-tail]:hover td { background: rgba(80, 255, 168, 0.04); }
   <span class="k">build:</span>
     runs-on: [self-hosted, umbrel]</pre>
       <p class="small muted" style="margin:10px 0 0">Jobs with these labels, in the private repositories below, run here: one fresh container per job, wiped when it ends. GitHub does not bill self-hosted runner minutes.</p>
+      <p class="small muted" style="margin:6px 0 0" id="docker-snippet"></p>
     </div>
   </section>
 
@@ -435,10 +436,19 @@ function copy(text, btn) {
 
 // ---------------------------------------------------------------- render
 
+// Jobs that need Docker ask for their own label; see Docker for jobs.
+function renderDockerSnippet() {
+  const on = S.settings.dockerForJobs;
+  $('#docker-snippet').innerHTML = on
+    ? `Jobs that need Docker (<span class="code">container:</span>, <span class="code">services:</span>, <span class="code">docker compose</span>): <span class="code">runs-on: [self-hosted, umbrel-docker]</span>. ${S.maxDocker === 1 ? 'One runs at a time' : `At most ${S.maxDocker} run at a time`}, and <span class="code">[self-hosted, umbrel]</span> jobs never get Docker.`
+    : `Jobs that need Docker ask for <span class="code">[self-hosted, umbrel-docker]</span>. They wait on GitHub until Docker for jobs is on (Settings).`;
+}
+
 function render() {
   if (!S) return;
   renderAlerts();
   renderCreds();
+  renderDockerSnippet();
   renderRepos();
   renderRunners();
   renderHistory();
@@ -569,12 +579,13 @@ function renderRepos() {
     if (r.publicAt) st = pill('bad', 'Public: stopped');
     else if (r.error) st = pill('bad', r.private === false ? 'Public: refused' : 'Error');
     else if (r.running) st = pill('ok', `${r.running} running`, true);
-    else if (r.queued) st = pill('warn', `${r.queued} queued`, true);
+    else if (r.queued || r.queuedDocker) st = pill('warn', `${r.queued + r.queuedDocker} queued`, true);
     else if (r.polledAt) st = pill('ok', 'Private, idle');
     else st = pill('idle', s.paused ? 'Paused' : 'Checking');
     const meta = [];
     if (r.publicAt) meta.push(`stopped ${ago(r.publicAt)}`);
-    if (r.queued && r.running) meta.push(`${r.queued} queued`);
+    if ((r.queued || r.queuedDocker) && r.running) meta.push(`${r.queued + r.queuedDocker} queued`);
+    if (r.dockerOff) meta.push(`${r.dockerOff} Docker job${r.dockerOff > 1 ? 's' : ''} waiting: Docker for jobs is off`);
     if (r.forks) meta.push(`${r.forks} fork job${r.forks > 1 ? 's' : ''} not run`);
     if (r.backoffUntil) meta.push(`retrying in ${dur(r.backoffUntil - Date.now())}`);
     if (r.polledAt) meta.push(`checked ${ago(r.polledAt)}`);
@@ -633,7 +644,7 @@ function renderRunners() {
   badge($('#run-count'), busy ? 'ok' : 'idle', `${S.runners.length} / ${s.maxRunners}`, busy > 0);
   const L = S.limits;
   $('#limits').textContent = S.host.ncpu
-    ? `At most ${s.maxRunners} at once. Each job: ${L.cpus} CPU, ${gb(L.memory)} memory, ${L.pids} processes, ${L.maxJobHours} h. A runner that gets no job in ${L.idleMinutes} min is removed. Labels: ${S.labels.join(', ')}.`
+    ? `At most ${s.maxRunners} at once. Each job: ${L.cpus} CPU, ${gb(L.memory)} memory, ${L.pids} processes, ${L.maxJobHours} h. A runner that gets no job in ${L.idleMinutes} min is removed. Labels: ${S.labels.join(', ')}.${s.dockerForJobs ? ` Docker runners: ${S.dockerLabels.join(', ')}, at most ${S.maxDocker} at once.` : ''}`
     : '';
   if (!S.runners.length) {
     $('#runners').innerHTML = `<div class="empty"><b>IDLE</b><br><br>No runner is up. One starts within about ${Math.round(S.pollMs / 1000)} s of a matching job being queued in a served repository, and is gone when the job ends.</div>`;
@@ -727,7 +738,7 @@ function renderSettings() {
     <div class="seg" id="seg">${Array.from({ length: s.maxRunnersLimit }, (_, i) => i + 1).map((n) => `<button type="button" data-n="${n}" class="${draft.maxRunners === n ? 'on' : ''}">${n}</button>`).join('')}</div>
     <p class="small muted" style="margin-top:6px">A hard cap: no more than this many runners exist at once. Each gets half of this Umbrel's CPUs and memory divided by this number, but at least 0.5 CPU and 1 GB. A full set stays within half the box only while this number is at most the CPU count and at most half the memory in GB; above that it can use more, up to all of it. A change applies to runners started after it.</p>
     <label class="check"><input type="checkbox" id="s-docker" ${draft.dockerForJobs ? 'checked' : ''}><span>Docker for jobs
-      <small>Off: <span class="code">container:</span> jobs, <span class="code">services:</span> and Docker actions fail. On: jobs get this app's private Docker daemon (never the Umbrel's own). That daemon runs privileged, so a job with it can take over the Umbrel host. Only turn this on if every workflow in the served repos is yours.</small></span></label>
+      <small>On: jobs that ask for <span class="code">[self-hosted, umbrel-docker]</span> get this app's private Docker daemon (never the Umbrel's own), one at a time. <span class="code">[self-hosted, umbrel]</span> jobs never get it. Off: those Docker jobs wait on GitHub. The daemon runs privileged, so a job with it can take over the Umbrel host. Only turn this on if every workflow in the served repos is yours.</small></span></label>
     <label class="check"><input type="checkbox" id="s-paused" ${draft.paused ? 'checked' : ''}><span>Pause
       <small>Start no new runners. Idle ones are deregistered; a running job finishes.</small></span></label>
     <div class="alert bad form-err" id="set-err"></div>
@@ -754,7 +765,7 @@ async function saveSettings() {
   const turningDockerOn = draft.dockerForJobs && !S.settings.dockerForJobs;
   if (turningDockerOn) {
     openModal(`<div class="panel-header"><div class="panel-title warn">Docker for jobs</div></div>
-      <div class="panel-body"><p>Jobs will be able to run any container in this app's private Docker daemon. That daemon is a <b>privileged</b> container, so a job can start a privileged container of its own and reach the Umbrel's disks and processes.</p>
+      <div class="panel-body"><p>Jobs that ask for <span class="code">[self-hosted, umbrel-docker]</span> will be able to run any container in this app's private Docker daemon. That daemon is a <b>privileged</b> container, so a job can start a privileged container of its own and reach the Umbrel's disks and processes.</p>
       <p>This is fine when every workflow and every action those workflows use is something you trust. It is not a sandbox.</p>
       <label for="dk-confirm">Type <span class="code">docker</span> to confirm</label>
       <input id="dk-confirm" type="text" autocomplete="off" spellcheck="false">
@@ -890,19 +901,19 @@ function openLogs(name) {
 function openHelp() {
   openModal(`<div class="panel-header"><div class="panel-title">How this works</div></div>
     <div class="panel-body small">
-      <p>Every ${Math.round(S.pollMs / 1000)} seconds the app asks GitHub whether a served repository has a queued job for <span class="code">[self-hosted, umbrel]</span>. For each one, up to the parallel-jobs cap, it registers a one-job runner on that repository and starts it in a fresh container in this app's private Docker daemon. The runner takes the job, reports the result and exits; the container and its work folder are deleted. The next job gets a new one.</p>
+      <p>Every ${Math.round(S.pollMs / 1000)} seconds the app asks GitHub whether a served repository has a queued job for <span class="code">[self-hosted, umbrel]</span> (or, with Docker for jobs on, <span class="code">[self-hosted, umbrel-docker]</span>). For each one, up to the parallel-jobs cap, it registers a one-job runner on that repository and starts it in a fresh container in this app's private Docker daemon. The runner takes the job, reports the result and exits; the container and its work folder are deleted. The next job gets a new one.</p>
       <p>Runners only connect out to GitHub. Nothing on your Umbrel is exposed. GitHub does not bill minutes used on self-hosted runners.</p>
       <label>Safety</label>
       <ul class="steps">
         <li>Private repositories only. Public ones are refused when added. Visibility is checked again on every poll: if a served one goes public, its runners are stopped at once, a running job included, and it is not served again until it is private and you re-enable it.</li>
         <li>Never a fork's code. A queued job from a fork (a fork's pull request, <span class="code">pull_request_target</span> included) is skipped whatever its labels, and logged. In a served repository that is itself a fork, no job runs here.</li>
         <li>The token stays in the manager. A runner only gets a single-use registration for itself.</li>
-        <li>Jobs never get the Umbrel's own Docker. Docker for jobs (off by default) means this app's private daemon, which is privileged: treat it as root on the Umbrel.</li>
+        <li>Jobs never get the Umbrel's own Docker. Docker for jobs (off by default) gives <span class="code">[self-hosted, umbrel-docker]</span> jobs this app's private daemon, which is privileged: treat it as root on the Umbrel. <span class="code">[self-hosted, umbrel]</span> jobs never get it.</li>
         <li>Each job runs as <span class="code">runner</span> with sudo inside its own container, under the CPU, memory and time limits shown under Runners.</li>
         <li>Nothing survives a job: no workspace, no tool cache, no credentials.</li>
       </ul>
       <label>Coming from ubuntu-latest</label>
-      <p>The runner image is GitHub's own minimal one (Ubuntu 24.04, git, curl, jq, unzip, the Docker CLI, sudo) plus <span class="code">zstd</span>, <span class="code">build-essential</span> (gcc, g++, make) and the GitHub CLI <span class="code">gh</span>. It does not have the hosted image's preinstalled toolchains: use <span class="code">actions/setup-node</span>, <span class="code">setup-python</span>, <span class="code">setup-go</span> and friends, or <span class="code">sudo apt-get install</span> what a job needs (for example <span class="code">cmake</span>). The README has the full list.</p>
+      <p>The runner image is GitHub's own minimal one (Ubuntu 24.04, git, curl, jq, unzip, the Docker CLI, sudo) plus <span class="code">zstd</span>, <span class="code">build-essential</span> (gcc, g++, make), the GitHub CLI <span class="code">gh</span> and <span class="code">docker compose</span> (for Docker jobs). It does not have the hosted image's preinstalled toolchains: use <span class="code">actions/setup-node</span>, <span class="code">setup-python</span>, <span class="code">setup-go</span> and friends, or <span class="code">sudo apt-get install</span> what a job needs (for example <span class="code">cmake</span>). The README has the full list.</p>
       <label>Removing it</label>
       <p>Settings &rarr; Remove runners from GitHub, then uninstall the app, then revoke the token on GitHub.</p>
     </div>`);

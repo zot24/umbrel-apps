@@ -302,3 +302,41 @@ test('a job links to its log and its pull request, also when it was never seen r
   assert.equal(quickDone.link.event, 'schedule');
   assert.equal(quickDone.link.prUrl, '', 'a scheduled run has no pull request');
 });
+
+test('Docker for jobs: umbrel-docker jobs get a Docker runner, one at a time; umbrel jobs never get the socket', async (t) => {
+  const s = await stack(t, { queued: 0 });
+  await s.serve();
+  s.gh.queueRun({ jobs: 2, labels: ['self-hosted', 'umbrel-docker'] });
+  await s.ticks(3);
+  assert.equal(s.docker.runners().length, 0, 'off: a Docker job gets no runner');
+  assert.equal((await s.repo()).dockerOff, 2, 'and the page says why');
+
+  // Four parallel jobs, so only the one-Docker-runner limit holds the second Docker job back.
+  assert.equal((await s.api('POST', '/api/settings', { dockerForJobs: true, maxRunners: 4 })).status, 200);
+  s.gh.queueRun({ labels: ['self-hosted', 'umbrel'] });
+  await waitFor('a Docker runner and a light runner', () => s.docker.runners().length === 2);
+  await s.ticks(3);
+  assert.equal(s.docker.runners().length, 2, 'two Docker jobs queued, still one Docker runner');
+  const d = s.docker.runners().find((c) => c.Labels['ghr.docker'] === '1');
+  const l = s.docker.runners().find((c) => c.Labels['ghr.docker'] === '0');
+  assert.ok(d && l, 'one of each');
+  assert.equal(d.spec.HostConfig.NetworkMode, 'host');
+  assert.ok(d.spec.HostConfig.Binds.some((b) => b.endsWith(':/var/run/docker.sock')));
+  assert.notEqual(l.spec.HostConfig.NetworkMode, 'host');
+  assert.ok(!l.spec.HostConfig.Binds.some((b) => b.includes('docker.sock')), 'the light runner has no socket');
+  const registered = (c) => s.gh.runners.get(Number(c.Labels['ghr.runner-id'])).labels.map((x) => x.name);
+  assert.deepEqual(registered(d).slice(0, 3), ['self-hosted', 'umbrel-docker', 'Linux']);
+  assert.deepEqual(registered(l).slice(0, 3), ['self-hosted', 'umbrel', 'Linux']);
+
+  // The Docker runner takes the first Docker job and ends: the second one
+  // gets the next Docker runner.
+  s.docker.takeJob(d, 'build 1');
+  s.gh.assign(d.Labels['ghr.runner-id']);
+  s.docker.finishJob(d, 'build 1');
+  await waitFor('the next Docker runner', () => s.docker.runners().some((c) => c.Labels['ghr.docker'] === '1' && c.Id !== d.Id));
+
+  // Off again: the idle Docker runner goes, and the job waits on GitHub.
+  assert.equal((await s.api('POST', '/api/settings', { dockerForJobs: false })).status, 200);
+  await waitFor('no Docker runner', () => !s.docker.runners().some((c) => c.Labels['ghr.docker'] === '1'));
+  await waitFor('counted as waiting', async () => (await s.repo()).dockerOff === 1);
+});

@@ -3,7 +3,7 @@ id: zot24-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
 category: developer
-version: "0.1.3"
+version: "0.1.4"
 tagline: Run your private repos' GitHub Actions jobs on your Umbrel
 description: >-
   GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
@@ -60,7 +60,8 @@ description: >-
 
 
   3. In their workflows, change `runs-on: ubuntu-latest` to
-  `runs-on: [self-hosted, umbrel]`. The runner image is GitHub's minimal
+  `runs-on: [self-hosted, umbrel]`, or `[self-hosted, umbrel-docker]` for
+  jobs that need Docker (with Docker for jobs on). The runner image is GitHub's minimal
   one plus zstd, build-essential (gcc, g++, make) and the GitHub CLI
   (gh), not the full ubuntu-latest image: use setup-node, setup-python
   and the like, or install other packages with sudo apt-get.
@@ -69,18 +70,19 @@ description: >-
   Before uninstalling, use "Remove runners from GitHub" on the app's page,
   then revoke the token on GitHub.
 releaseNotes: >-
-  Runners and Recent jobs now link each job to its log on GitHub, and to
-  its pull request (or, for a push or a schedule, to its run). Jobs that
-  ran before the update have no links.
+  Jobs that need Docker now ask for their own label,
+  `runs-on: [self-hosted, umbrel-docker]`, and run one at a time, so
+  compose stacks with fixed ports and container names do not clash. With
+  Docker for jobs on, only those jobs get the private Docker daemon;
+  `[self-hosted, umbrel]` jobs never do. If you used Docker for jobs with
+  `[self-hosted, umbrel]`, change those jobs to `umbrel-docker`. The
+  runner image adds the Docker Compose plugin (`docker compose`).
 
 
-  Coming from 0.1.1 or earlier, this also has 0.1.2's runner image with
-  zstd, build-essential (gcc, g++, make) and the GitHub CLI (gh); the next
-  job after the update downloads it once. Coming from 0.1.0, it also has
-  0.1.1's safety fixes: a served repository's visibility is checked on
-  every poll, a repository made public has all its runners stopped at once
-  and stays off until you re-enable it, and jobs from forks are never run
-  here.
+  Coming from 0.1.2 or earlier, this also has 0.1.3's links from each job
+  on the page to its log and pull request on GitHub, 0.1.2's runner image
+  with zstd, build-essential and the GitHub CLI, and 0.1.1's safety fixes
+  (visibility checked on every poll, fork jobs never run here).
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []

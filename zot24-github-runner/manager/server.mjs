@@ -71,6 +71,10 @@ const RUNNER_UID = Number(process.env.RUNNER_UID || 1001);
 const RUNNER_GID = Number(process.env.RUNNER_GID || RUNNER_UID);
 const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64';
 const LABELS = runnerLabels(ARCH);
+const DOCKER_LABELS = runnerLabels(ARCH, { docker: true });
+// Docker runners alive at once. Jobs on one daemon share its host network
+// and container names, so two compose stacks with fixed ports would clash.
+const MAX_DOCKER = 1;
 const HISTORY_MAX = 50;
 const ORPHAN_SWEEP_MS = 60 * 60_000;
 // How often a registration GitHub would not delete yet is asked for again.
@@ -486,7 +490,8 @@ function workDirOf(name) {
   return path.join(WORK_DIR, name);
 }
 
-async function spawn(repo) {
+async function spawn(repo, { dockerJob = false } = {}) {
+  const withDocker = dockerJob && !!state.settings.dockerForJobs;
   const name = `umbrel-${randomBytes(4).toString('hex')}`;
   const workDir = workDirOf(name);
   await mkdir(workDir, { recursive: true });
@@ -494,11 +499,10 @@ async function spawn(repo) {
   const jit = await gh('POST', `/repos/${repo}/actions/runners/generate-jitconfig`, {
     name,
     runner_group_id: 1,
-    labels: LABELS,
+    labels: withDocker ? DOCKER_LABELS : LABELS,
     work_folder: workDir,
   });
   const lim = limits();
-  const withDocker = !!state.settings.dockerForJobs;
   const spec = {
     Image: IMAGE,
     User: 'runner',
@@ -537,7 +541,7 @@ async function spawn(repo) {
   try {
     const created = await docker('POST', `/containers/create?name=ghr-${name}`, spec);
     await docker('POST', `/containers/${created.Id}/start`);
-    console.log(`[spawn] ${name} for ${repo} (runner ${jit.runner.id})`);
+    console.log(`[spawn] ${name} for ${repo} (runner ${jit.runner.id}${withDocker ? ', docker' : ''})`);
   } catch (e) {
     await deleteRegistration(repo, jit.runner.id).catch(() => {});
     await rm(workDir, { recursive: true, force: true });
@@ -723,17 +727,21 @@ async function pollRepo(repo, { queue = true } = {}) {
     const info = await gh('GET', `/repos/${repo}`);
     st.private = info.private === true;
     if (!st.private) {
-      Object.assign(st, { queued: 0, forks: 0, oldestQueuedAt: '', error: PUBLIC_ERROR });
+      Object.assign(st, { queued: 0, queuedDocker: 0, dockerOff: 0, forks: 0, oldestQueuedAt: '', oldestDockerQueuedAt: '', error: PUBLIC_ERROR });
       await wentPublic(repo);
       return;
     }
     if (!queue) {
-      Object.assign(st, { queued: 0, forks: 0, oldestQueuedAt: '', error: '' });
+      Object.assign(st, { queued: 0, queuedDocker: 0, dockerOff: 0, forks: 0, oldestQueuedAt: '', oldestDockerQueuedAt: '', error: '' });
       return;
     }
+    const dockerOn = !!state.settings.dockerForJobs;
     let queued = 0;
+    let queuedDocker = 0;
+    let dockerOff = 0;
     let forks = 0;
     let oldest = '';
+    let oldestDocker = '';
     const ours = new Set(alive.map((x) => x.name));
     // A run is `queued` until its first job starts and `in_progress` after,
     // while later jobs in it can still be waiting for a runner.
@@ -749,19 +757,28 @@ async function pollRepo(repo, { queue = true } = {}) {
           // Never a fork's code, whatever the job's labels.
           if (fork) {
             logForkJob(repo, run, j, fork);
-            if (jobWantsUs(j.labels, LABELS)) forks += 1;
+            if (jobWantsUs(j.labels, LABELS) || jobWantsUs(j.labels, DOCKER_LABELS)) forks += 1;
             continue;
           }
-          if (!jobWantsUs(j.labels, LABELS)) continue;
-          queued += 1;
-          if (!oldest || (j.created_at || '') < oldest) oldest = j.created_at || '';
+          if (jobWantsUs(j.labels, LABELS)) {
+            queued += 1;
+            if (!oldest || (j.created_at || '') < oldest) oldest = j.created_at || '';
+          } else if (jobWantsUs(j.labels, DOCKER_LABELS)) {
+            // Waits on GitHub while Docker for jobs is off; the page says so.
+            if (!dockerOn) {
+              dockerOff += 1;
+              continue;
+            }
+            queuedDocker += 1;
+            if (!oldestDocker || (j.created_at || '') < oldestDocker) oldestDocker = j.created_at || '';
+          }
         }
       }
     }
-    Object.assign(st, { queued, forks, oldestQueuedAt: oldest, error: '', polledAt: Date.now() });
+    Object.assign(st, { queued, queuedDocker, dockerOff, forks, oldestQueuedAt: oldest, oldestDockerQueuedAt: oldestDocker, error: '', polledAt: Date.now() });
   } catch (e) {
     noteTokenFailure(e);
-    Object.assign(st, { queued: 0, error: e.message });
+    Object.assign(st, { queued: 0, queuedDocker: 0, error: e.message });
   }
 }
 
@@ -786,7 +803,7 @@ async function sweepOrphans() {
   }
 }
 
-// When no job is running, clear what jobs with Docker access left in the
+// When no Docker job is running, clear what jobs with Docker access left in the
 // private daemon (stray containers, networks, volumes), orphaned work dirs,
 // and once a day every image except the runner's own.
 async function housekeeping() {
@@ -794,7 +811,8 @@ async function housekeeping() {
   for (const dir of await readdir(WORK_DIR).catch(() => [])) {
     if (!live.has(dir)) await rm(path.join(WORK_DIR, dir), { recursive: true, force: true });
   }
-  if (alive.length) return;
+  // Light runners never touch the daemon, so only a Docker job holds this back.
+  if (alive.some((r) => r.docker)) return;
   for (const c of await docker('GET', '/containers/json?all=1')) {
     if (!c.Labels?.['ghr.managed']) await removeContainer(c.Id);
   }
@@ -858,6 +876,7 @@ async function tick() {
       let reason = reapReason(r, { idleMs: IDLE_MS, maxJobMs: MAX_JOB_MS });
       if (!reason && servedRepo(r.repo)?.publicAt) reason = 'public';
       if (!reason && !r.busy && (!active() || !servable(r.repo))) reason = 'idle';
+      if (!reason && !r.busy && r.docker && !state.settings.dockerForJobs) reason = 'idle';
       if (reason) await stopRunner(r, reason);
     }
 
@@ -867,20 +886,29 @@ async function tick() {
           .filter((r) => servable(r.name))
           .map((r) => {
             const st = repoStatus.get(r.name);
-            return { name: r.name, queued: st.queued || 0, oldestQueuedAt: st.oldestQueuedAt, blockedUntil: repoBackoff.get(r.name)?.until || 0 };
+            return {
+              name: r.name,
+              queued: st.queued || 0,
+              queuedDocker: st.queuedDocker || 0,
+              oldestQueuedAt: st.oldestQueuedAt,
+              oldestDockerQueuedAt: st.oldestDockerQueuedAt,
+              blockedUntil: repoBackoff.get(r.name)?.until || 0,
+            };
           }),
         // GitHub's job list can still say `queued` for a few seconds after
         // a runner took the job. A job that started that recently still
         // covers one queued entry, so it does not get a second runner.
         runners: alive.map((r) => ({
           repo: r.repo,
+          docker: r.docker,
           busy: r.busy && Date.now() - Date.parse(r.jobStartedAt) > 2 * POLL_MS,
         })),
         maxRunners: state.settings.maxRunners,
+        maxDocker: MAX_DOCKER,
       });
-      for (const repo of plan) {
+      for (const { repo, docker: dockerJob } of plan) {
         try {
-          await spawn(repo);
+          await spawn(repo, { dockerJob });
         } catch (e) {
           noteTokenFailure(e);
           const st = repoStatus.get(repo);
@@ -939,6 +967,8 @@ function publicState() {
     image: { ...image },
     arch: ARCH,
     labels: LABELS,
+    dockerLabels: DOCKER_LABELS,
+    maxDocker: MAX_DOCKER,
     host: { ...host },
     limits: { ...lim, maxJobHours: Math.round((MAX_JOB_MS / 3600_000) * 10) / 10, idleMinutes: Math.round(IDLE_MS / 60_000) },
     rate: { ...rate },
@@ -962,6 +992,8 @@ function publicState() {
         publicAt: r.publicAt || '',
         private: st.private,
         queued: st.queued || 0,
+        queuedDocker: st.queuedDocker || 0,
+        dockerOff: st.dockerOff || 0,
         forks: st.forks || 0,
         error: r.publicAt ? PUBLIC_ERROR : st.error || '',
         polledAt: st.polledAt || 0,
