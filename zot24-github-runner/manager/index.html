@@ -586,6 +586,9 @@ function renderRepos() {
     if (r.publicAt) meta.push(`stopped ${ago(r.publicAt)}`);
     if ((r.queued || r.queuedDocker) && r.running) meta.push(`${r.queued + r.queuedDocker} queued`);
     if (r.dockerOff) meta.push(`${r.dockerOff} Docker job${r.dockerOff > 1 ? 's' : ''} waiting: Docker for jobs is off`);
+    const oldestAt = [r.oldestQueuedAt, r.oldestDockerQueuedAt].filter(Boolean).sort()[0];
+    if (oldestAt) meta.push(`oldest waiting ${dur(Date.now() - Date.parse(oldestAt))}`);
+    if (r.stale) meta.push(`queue unknown: last read ${r.polledAt ? ago(r.polledAt) : 'never'}`);
     if (r.forks) meta.push(`${r.forks} fork job${r.forks > 1 ? 's' : ''} not run`);
     if (r.backoffUntil) meta.push(`retrying in ${dur(r.backoffUntil - Date.now())}`);
     if (r.polledAt) meta.push(`checked ${ago(r.polledAt)}`);
@@ -593,8 +596,31 @@ function renderRepos() {
       <div class="item-head"><div class="item-name">${esc(r.name)}</div><div class="row">${st}${r.publicAt ? '<button class="bare" data-act="enable">re-enable</button>' : ''}<button class="bare" data-act="remove">remove</button></div></div>
       ${r.error ? `<div class="sb-err">${esc(r.error)}</div>` : ''}
       ${meta.length ? `<div class="item-meta">${esc(meta.join(' / '))}</div>` : ''}
+      ${waitingList(r)}
     </div>`;
   }).join('');
+}
+
+// Up to five queued jobs this repository is waiting on, oldest first, each
+// with the reason it is still waiting here.
+function waitingList(r) {
+  if (!r.waiting?.length) return '';
+  const have = new Set([...S.labels, ...S.dockerLabels].map((l) => l.toLowerCase()));
+  const reason = (w) => {
+    if (w.kind === 'docker-off') return 'needs Docker for jobs (Settings)';
+    if (w.kind === 'mismatch') {
+      const missing = w.labels.filter((l) => !have.has(l.toLowerCase()));
+      return `asks for ${missing.join(', ') || 'labels'} that this Umbrel's runners lack`;
+    }
+    return S.runners.length >= S.settings.maxRunners ? 'waiting for a free runner' : 'starting a runner';
+  };
+  const rows = r.waiting.slice(0, 5).map((w) => {
+    const name = w.url ? ext(w.url, esc(w.name)) : esc(w.name);
+    const since = w.queuedAt ? ` for ${esc(dur(Date.now() - Date.parse(w.queuedAt)))}` : '';
+    return `<div class="item-meta">&gt; ${name} <span class="muted">${esc(w.workflow)}${w.pr ? ` / PR #${esc(w.pr)}` : ''}: ${esc(reason(w))}${since}</span></div>`;
+  }).join('');
+  const more = r.waitingTotal > 5 ? `<div class="item-meta muted">and ${r.waitingTotal - 5} more</div>` : '';
+  return rows + more;
 }
 
 $('#repos').addEventListener('click', (e) => {
@@ -701,12 +727,21 @@ function jobRef(link) {
 const RESULT_CLASS = { Succeeded: 'ok', Failed: 'bad', Canceled: 'idle', Cancelled: 'idle', TimedOut: 'bad', Stopped: 'warn', Lost: 'bad', NoJob: 'bad', RepoPublic: 'bad' };
 const RESULT_TEXT = { NoJob: 'Runner failed', Lost: 'Runner lost', TimedOut: 'Timed out', RepoPublic: 'Stopped: repo public' };
 
+// One line per window: jobs, results, runner minutes and GitHub queue wait,
+// with the number of samples behind the wait figures.
+function statsLine(label, st) {
+  if (!st || !st.jobs) return `${label}: no jobs`;
+  const res = Object.entries(st.results).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n} ${(RESULT_TEXT[k] || k).toLowerCase()}`).join(', ');
+  const w = st.wait.samples ? `, wait p50 ${dur(st.wait.p50 * 1000)} / p95 ${dur(st.wait.p95 * 1000)} (${st.wait.samples} jobs)` : '';
+  return `${label}: ${st.jobs} jobs (${res}), ${st.runnerMinutes} runner-min${w}`;
+}
+
 function renderHistory() {
   if (!S.history.length) {
     $('#history').innerHTML = '<div class="empty"><b>NO JOBS YET</b></div>';
     return;
   }
-  $('#history').innerHTML = `<table class="hist"><thead><tr><th>When</th><th>Repository</th><th>Job</th><th>Result</th><th>Took</th></tr></thead><tbody>
+  $('#history').innerHTML = `<p class="small muted" style="margin:0 0 10px">${esc(statsLine('Last 24 h', S.stats?.day))}<br>${esc(statsLine('Last 7 days', S.stats?.week))}</p><table class="hist"><thead><tr><th>When</th><th>Repository</th><th>Job</th><th>Result</th><th>Took</th></tr></thead><tbody>
     ${S.history.slice(0, 20).map((h) => {
       const took = h.jobStartedAt ? dur(new Date(h.finishedAt) - new Date(h.jobStartedAt)) : '';
       return `<tr ${h.hasTail ? `data-tail="${h.index}" title="Show the runner's last lines"` : ''}>

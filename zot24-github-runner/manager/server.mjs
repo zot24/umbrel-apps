@@ -29,8 +29,10 @@ import {
   INSTALL_ID_RE,
   RUNNER_NAME_RE,
   backoffMs,
+  classifyQueued,
   demuxDockerLogs,
   forkHead,
+  historyStats,
   jobLimits,
   jobLink,
   jobWantsUs,
@@ -38,6 +40,7 @@ import {
   ownsRunner,
   parseRunnerLog,
   planSpawns,
+  pruneHistory,
   reapReason,
   runnerLabels,
   stripAnsi,
@@ -77,7 +80,10 @@ const DOCKER_LABELS = runnerLabels(ARCH, { docker: true });
 // Docker runners alive at once. Jobs on one daemon share its host network
 // and container names, so two compose stacks with fixed ports would clash.
 const MAX_DOCKER = 1;
-const HISTORY_MAX = 50;
+// Queue polling reads up to MAX_RUN_PAGES pages of runs per status, so a
+// backlog older than the newest page still shows (and still gets runners).
+const RUNS_PER_PAGE = Number(process.env.RUNS_PER_PAGE || 100);
+const MAX_RUN_PAGES = 3;
 const ORPHAN_SWEEP_MS = Number(process.env.ORPHAN_SWEEP_MS || 60 * 60_000);
 // How often a registration GitHub would not delete yet is asked for again.
 const DEREG_RETRY_MS = 4 * POLL_MS;
@@ -196,7 +202,7 @@ async function loadState() {
       ...parsed,
       settings: { ...DEFAULT_STATE.settings, ...parsed.settings },
       repos: Array.isArray(parsed.repos) ? parsed.repos : [],
-      history: Array.isArray(parsed.history) ? parsed.history : [],
+      history: pruneHistory(Array.isArray(parsed.history) ? parsed.history : []),
     };
   } catch (e) {
     if (e.code !== 'ENOENT') stateError = `Cannot read ${STATE_FILE}: ${e.message}`;
@@ -586,6 +592,7 @@ async function finish(c, parsed, reason = '', deregistered = false) {
       repo: r.repo,
       job: r.job,
       link,
+      pool: r.docker ? 'docker' : 'light',
       result,
       createdAt: new Date(r.createdAt).toISOString(),
       jobStartedAt: r.jobStartedAt,
@@ -593,7 +600,7 @@ async function finish(c, parsed, reason = '', deregistered = false) {
       docker: r.docker,
       tail: result === 'Succeeded' ? '' : logs.trim().split('\n').slice(-25).join('\n'),
     });
-    state.history.length = Math.min(state.history.length, HISTORY_MAX);
+    state.history = pruneHistory(state.history);
     await saveState();
   }
   await removeContainer(c.Id);
@@ -745,43 +752,69 @@ async function pollRepo(repo, { queue = true } = {}) {
     let forks = 0;
     let oldest = '';
     let oldestDocker = '';
+    const waiting = [];
+    const seen = new Set();
     const ours = new Set(alive.map((x) => x.name));
     // A run is `queued` until its first job starts and `in_progress` after,
-    // while later jobs in it can still be waiting for a runner.
+    // while later jobs in it can still be waiting for a runner. A run can move
+    // from one list to the other between two reads, so each is read once.
     for (const status of ['queued', 'in_progress']) {
-      const runs = await gh('GET', `/repos/${repo}/actions/runs?status=${status}&per_page=30`);
-      for (const run of runs?.workflow_runs || []) {
-        const fork = forkHead(run);
-        const jobs = await gh('GET', `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
-        for (const j of jobs?.jobs || []) {
-          // Which job each of our runners took, for links on the page.
-          if (j.runner_name && ours.has(j.runner_name)) jobLinks.set(j.runner_name, jobLink(repo, run, j));
-          if (j.status !== 'queued') continue;
-          // Never a fork's code, whatever the job's labels.
-          if (fork) {
-            logForkJob(repo, run, j, fork);
-            if (jobWantsUs(j.labels, LABELS) || jobWantsUs(j.labels, DOCKER_LABELS)) forks += 1;
-            continue;
-          }
-          if (jobWantsUs(j.labels, LABELS)) {
-            queued += 1;
-            if (!oldest || (j.created_at || '') < oldest) oldest = j.created_at || '';
-          } else if (jobWantsUs(j.labels, DOCKER_LABELS)) {
-            // Waits on GitHub while Docker for jobs is off; the page says so.
-            if (!dockerOn) {
-              dockerOff += 1;
+      for (let page = 1; page <= MAX_RUN_PAGES; page += 1) {
+        const runs = await gh('GET', `/repos/${repo}/actions/runs?status=${status}&per_page=${RUNS_PER_PAGE}&page=${page}`);
+        const list = runs?.workflow_runs || [];
+        for (const run of list) {
+          if (seen.has(run.id)) continue;
+          seen.add(run.id);
+          const fork = forkHead(run);
+          const jobs = await gh('GET', `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
+          for (const j of jobs?.jobs || []) {
+            // Which job each of our runners took, for links on the page.
+            if (j.runner_name && ours.has(j.runner_name)) jobLinks.set(j.runner_name, jobLink(repo, run, j));
+            if (j.status !== 'queued') continue;
+            // Never a fork's code, whatever the job's labels.
+            if (fork) {
+              logForkJob(repo, run, j, fork);
+              if (jobWantsUs(j.labels, LABELS) || jobWantsUs(j.labels, DOCKER_LABELS)) forks += 1;
               continue;
             }
-            queuedDocker += 1;
-            if (!oldestDocker || (j.created_at || '') < oldestDocker) oldestDocker = j.created_at || '';
+            const kind = classifyQueued(j.labels, { light: LABELS, docker: DOCKER_LABELS, dockerOn });
+            if (!kind) continue;
+            if (kind === 'light') {
+              queued += 1;
+              if (!oldest || (j.created_at || '') < oldest) oldest = j.created_at || '';
+            } else if (kind === 'docker') {
+              queuedDocker += 1;
+              if (!oldestDocker || (j.created_at || '') < oldestDocker) oldestDocker = j.created_at || '';
+            } else if (kind === 'docker-off') {
+              // Waits on GitHub while Docker for jobs is off; the page says so.
+              dockerOff += 1;
+            }
+            const link = jobLink(repo, run, j);
+            waiting.push({ kind, jobId: link.jobId, name: String(j.name || ''), workflow: link.workflow, url: link.jobUrl, pr: link.pr, labels: (j.labels || []).map(String), queuedAt: link.queuedAt });
           }
         }
+        if (list.length < RUNS_PER_PAGE) break;
       }
     }
-    Object.assign(st, { queued, queuedDocker, dockerOff, forks, oldestQueuedAt: oldest, oldestDockerQueuedAt: oldestDocker, error: '', polledAt: Date.now() });
+    waiting.sort((a, b) => a.queuedAt.localeCompare(b.queuedAt));
+    Object.assign(st, {
+      queued,
+      queuedDocker,
+      dockerOff,
+      forks,
+      oldestQueuedAt: oldest,
+      oldestDockerQueuedAt: oldestDocker,
+      waiting: waiting.slice(0, 20),
+      waitingTotal: waiting.length,
+      stale: false,
+      error: '',
+      polledAt: Date.now(),
+    });
   } catch (e) {
     noteTokenFailure(e);
-    Object.assign(st, { queued: 0, queuedDocker: 0, error: e.message });
+    // Keep the last numbers on the page, marked stale: an API error does not
+    // mean the queue is empty. The scheduler starts nothing on stale data.
+    Object.assign(st, { stale: true, error: e.message });
   }
 }
 
@@ -893,8 +926,8 @@ async function tick() {
             const st = repoStatus.get(r.name);
             return {
               name: r.name,
-              queued: st.queued || 0,
-              queuedDocker: st.queuedDocker || 0,
+              queued: st.stale ? 0 : st.queued || 0,
+              queuedDocker: st.stale ? 0 : st.queuedDocker || 0,
               oldestQueuedAt: st.oldestQueuedAt,
               oldestDockerQueuedAt: st.oldestDockerQueuedAt,
               blockedUntil: repoBackoff.get(r.name)?.until || 0,
@@ -1000,6 +1033,11 @@ function publicState() {
         queued: st.queued || 0,
         queuedDocker: st.queuedDocker || 0,
         dockerOff: st.dockerOff || 0,
+        oldestQueuedAt: st.oldestQueuedAt || '',
+        oldestDockerQueuedAt: st.oldestDockerQueuedAt || '',
+        waiting: st.waiting || [],
+        waitingTotal: st.waitingTotal || 0,
+        stale: !!st.stale,
         forks: st.forks || 0,
         error: r.publicAt ? PUBLIC_ERROR : st.error || '',
         polledAt: st.polledAt || 0,
@@ -1008,7 +1046,13 @@ function publicState() {
       };
     }),
     runners: alive.map(({ c, parsed, id, ...r }) => ({ ...r, link: jobLinks.get(r.name) || null })),
-    history: state.history.map(({ tail, ...h }, i) => ({ ...h, index: i, hasTail: !!tail })),
+    // The newest 50 for the table; the stats cover all kept history.
+    history: state.history.slice(0, 50).map(({ tail, ...h }, i) => ({ ...h, index: i, hasTail: !!tail })),
+    historyKept: state.history.length,
+    stats: {
+      day: historyStats(state.history, { windowMs: 24 * 3600_000 }),
+      week: historyStats(state.history, { windowMs: 7 * 24 * 3600_000 }),
+    },
   };
 }
 

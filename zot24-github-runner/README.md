@@ -194,6 +194,17 @@ A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
 
 Leave a job on `ubuntu-latest` when it needs macOS or Windows, lots of disk, or anything above.
 
+## What the page shows
+
+- **Repositories:** queued jobs per repository, the oldest wait, and up to five waiting jobs with the
+  reason they still wait here (a free runner, Docker for jobs off, or labels this Umbrel lacks).
+  The queue is read across up to three pages of 100 runs per status. When GitHub cannot be read,
+  the last numbers stay on the page marked stale, and no runner starts on them.
+- **Recent jobs:** the newest 50 of up to seven days (2000 entries) kept in `state.json`, each with
+  its run, attempt, job ID, commit, pool (light or Docker) and GitHub's queued/started times. The
+  runner's last lines are kept for the newest 50. Above the table: jobs, results, runner minutes and
+  queue wait p50/p95 for the last 24 hours and 7 days, with the number of jobs behind the wait.
+
 ## More than one Umbrel
 
 Two or more Umbrels can serve the same repository; each polls the queue and starts its own runners.
