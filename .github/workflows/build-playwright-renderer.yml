@@ -15,6 +15,7 @@ on:
       - 'zot24-playwright-renderer/playwright-server/Dockerfile'
       - 'zot24-playwright-renderer/playwright-server/entrypoint.sh'
       - 'zot24-playwright-renderer/playwright-server/server.js'
+      - 'zot24-playwright-renderer/playwright-server/autologin.js'
       - 'zot24-playwright-renderer/playwright-server/server.test.js'
       - 'zot24-playwright-renderer/playwright-server/package.json'
       - 'zot24-playwright-renderer/playwright-server/package-lock.json'

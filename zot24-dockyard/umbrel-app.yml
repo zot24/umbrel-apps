@@ -3,7 +3,7 @@ id: zot24-dockyard
 name: Dockyard
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-dockyard/icon.svg
 category: developer
-version: "2.3.6"
+version: "2.3.7"
 tagline: An isolated Docker sandbox to deploy and run your own containers
 description: >-
   Dockyard is a sandboxed Docker host that lives on your Umbrel: a full Docker
@@ -32,10 +32,13 @@ description: >-
   becomes available on Dockyard's own address on the Umbrel network — so a
   Cloudflare Tunnel, or another app, can point straight at it.
 releaseNotes: >-
-  Fix start after 2.3.5. exports.sh referenced APP_DATA_DIR before Umbrel
-  sets it, so `app start` died with an unbound variable and Dockyard never
-  came back. Read the saved passkey from EXPORTS_APP_DIR instead. If the
-  file is missing, compose still uses APP_SEED.
+  Sibling apps can drive Dockyard's daemon at
+  tcp://zot24-dockyard_api_1:2376 with DOCKER_TLS_VERIFY=1. Certificates
+  are written on first start and kept across updates. The client bundle
+  is data/tls-client (ca.pem, cert.pem, key.pem). The nested daemon is
+  privileged, so that client key is root-equivalent on the Umbrel.
+  Updating Dockyard restarts the daemon, so containers inside it stop
+  for about a minute.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []
