@@ -83,6 +83,67 @@ export function jobLink(repo, run, job) {
     prUrl: pr ? `https://github.com/${repo}/pull/${pr}` : '',
     runUrl: url(run?.html_url),
     jobUrl: url(job?.html_url),
+    // Stable identities and GitHub's own times, for history and stats.
+    runId: Number(run?.id) || 0,
+    attempt: Number(run?.run_attempt) || 1,
+    jobId: Number(job?.id) || 0,
+    sha: String(run?.head_sha || '').slice(0, 12),
+    queuedAt: String(job?.created_at || ''),
+    startedAt: String(job?.started_at || ''),
+  };
+}
+
+// What this Umbrel can do with a queued job of a served repository:
+//   light | docker   it will start a runner for it (up to the caps)
+//   docker-off       it asks for umbrel-docker, and Docker for jobs is off
+//   mismatch         it asks for umbrel or umbrel-docker plus a label this
+//                    Umbrel's runners lack (for example ARM64 on an X64 box)
+//   ''               not meant for an Umbrel (a Mac job, ubuntu-latest, ...)
+export function classifyQueued(jobLabels, { light, docker, dockerOn }) {
+  const want = (jobLabels || []).map((l) => String(l).toLowerCase());
+  if (jobWantsUs(jobLabels, light)) return 'light';
+  if (jobWantsUs(jobLabels, docker)) return dockerOn ? 'docker' : 'docker-off';
+  if (want.includes('umbrel') || want.includes('umbrel-docker')) return 'mismatch';
+  return '';
+}
+
+// History kept in state.json: seven days, at most `maxEntries`, and the
+// runner's last lines only on the newest `keepTails` entries.
+export function pruneHistory(history, { now = Date.now(), maxAgeMs = 7 * 24 * 3600_000, maxEntries = 2000, keepTails = 50 } = {}) {
+  return history
+    .filter((h) => !(now - Date.parse(h.finishedAt || 0) > maxAgeMs))
+    .slice(0, maxEntries)
+    .map((h, i) => (i < keepTails || !h.tail ? h : { ...h, tail: '' }));
+}
+
+function percentile(sorted, p) {
+  if (!sorted.length) return null;
+  return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
+}
+
+// Totals for the page, with the number of samples behind each figure.
+// Runner minutes count from the job's start (runner log) to its end; the
+// wait is GitHub's queued -> started time for jobs whose link was seen.
+export function historyStats(history, { now = Date.now(), windowMs }) {
+  const recent = history.filter((h) => now - Date.parse(h.finishedAt || 0) <= windowMs);
+  const by = {};
+  let runnerMs = 0;
+  const waits = [];
+  for (const h of recent) {
+    by[h.result] = (by[h.result] || 0) + 1;
+    const start = Date.parse(h.jobStartedAt || '');
+    const end = Date.parse(h.finishedAt || '');
+    if (start && end > start) runnerMs += end - start;
+    const q = Date.parse(h.link?.queuedAt || '');
+    const s = Date.parse(h.link?.startedAt || '');
+    if (q && s >= q) waits.push((s - q) / 1000);
+  }
+  waits.sort((a, b) => a - b);
+  return {
+    jobs: recent.length,
+    results: by,
+    runnerMinutes: Math.round(runnerMs / 60_000),
+    wait: { samples: waits.length, p50: percentile(waits, 50), p95: percentile(waits, 95) },
   };
 }
 

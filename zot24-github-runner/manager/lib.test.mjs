@@ -7,12 +7,15 @@ import {
   backoffMs,
   demuxDockerLogs,
   forkHead,
+  classifyQueued,
+  historyStats,
   jobLimits,
   jobLink,
   jobWantsUs,
   normalizeRepo,
   parseRunnerLog,
   planSpawns,
+  pruneHistory,
   reapReason,
   runnerLabels,
   tokenKind,
@@ -223,6 +226,12 @@ test('jobLink: the job, its run, and its pull request when it has one', () => {
     prUrl: 'https://github.com/me/app/pull/12',
     runUrl: 'https://github.com/me/app/actions/runs/7',
     jobUrl: 'https://github.com/me/app/actions/runs/7/job/70',
+    runId: 0,
+    attempt: 1,
+    jobId: 0,
+    sha: '',
+    queuedAt: '',
+    startedAt: '',
   });
   const nightly = jobLink('me/app', { ...run, event: 'schedule', pull_requests: [] }, job);
   assert.equal(nightly.pr, 0);
@@ -232,7 +241,12 @@ test('jobLink: the job, its run, and its pull request when it has one', () => {
   const odd = jobLink('me/app', { html_url: 'javascript:alert(1)' }, { html_url: 'http://x' });
   assert.equal(odd.runUrl, '');
   assert.equal(odd.jobUrl, '');
-  assert.deepEqual(jobLink('me/app', undefined, undefined), { workflow: '', event: '', branch: '', pr: 0, prUrl: '', runUrl: '', jobUrl: '' });
+  assert.deepEqual(jobLink('me/app', undefined, undefined), {
+    workflow: '', event: '', branch: '', pr: 0, prUrl: '', runUrl: '', jobUrl: '',
+    runId: 0, attempt: 1, jobId: 0, sha: '', queuedAt: '', startedAt: '',
+  });
+  const ids = jobLink('me/app', { ...run, id: 7, run_attempt: 2, head_sha: 'abcdef0123456789' }, { ...job, id: 70, created_at: '2026-10-11T10:00:00Z', started_at: '2026-10-11T10:00:30Z' });
+  assert.deepEqual([ids.runId, ids.attempt, ids.jobId, ids.sha, ids.queuedAt, ids.startedAt], [7, 2, 70, 'abcdef012345', '2026-10-11T10:00:00Z', '2026-10-11T10:00:30Z']);
 });
 
 test('forkHead: only a run of the repository itself is served', () => {
@@ -247,4 +261,57 @@ test('forkHead: only a run of the repository itself is served', () => {
   // A served repository that is itself a fork: its own runs are headed by a fork.
   const mine = { id: 4, full_name: 'me/fork-of-app', fork: true };
   assert.match(forkHead({ event: 'push', repository: mine, head_repository: mine }), /is a fork/);
+});
+
+test('classifyQueued: what this Umbrel can do with a queued job', () => {
+  const light = runnerLabels('x64');
+  const docker = runnerLabels('x64', { docker: true });
+  const c = (labels, dockerOn = true) => classifyQueued(labels, { light, docker, dockerOn });
+  assert.equal(c(['self-hosted', 'umbrel']), 'light');
+  assert.equal(c(['self-hosted', 'umbrel-docker']), 'docker');
+  assert.equal(c(['self-hosted', 'umbrel-docker'], false), 'docker-off');
+  assert.equal(c(['self-hosted', 'umbrel', 'ARM64']), 'mismatch', 'an arm64 job on an x64 box');
+  assert.equal(c(['self-hosted', 'umbrel', 'gpu']), 'mismatch');
+  assert.equal(c(['self-hosted', 'zot24-mac']), '', 'a Mac job is not for an Umbrel');
+  assert.equal(c(['ubuntu-latest']), '');
+});
+
+test('pruneHistory: seven days, a count cap, and runner lines only on the newest', () => {
+  const now = Date.parse('2026-10-11T12:00:00Z');
+  const at = (h) => new Date(now - h * 3600_000).toISOString();
+  const history = [
+    { finishedAt: at(1), tail: 'a' },
+    { finishedAt: at(2), tail: 'b' },
+    { finishedAt: at(24 * 8), tail: 'old' },
+  ];
+  const kept = pruneHistory(history, { now, keepTails: 1 });
+  assert.equal(kept.length, 2, 'older than seven days goes');
+  assert.equal(kept[0].tail, 'a');
+  assert.equal(kept[1].tail, '', 'only the newest keep their runner lines');
+  assert.equal(pruneHistory(history, { now, maxEntries: 1 }).length, 1);
+});
+
+test('historyStats: jobs, results, runner minutes and queue wait with sample counts', () => {
+  const now = Date.parse('2026-10-11T12:00:00Z');
+  const h = (minsAgo, result, runMin, waitS) => {
+    const end = now - minsAgo * 60_000;
+    const start = end - runMin * 60_000;
+    return {
+      result,
+      finishedAt: new Date(end).toISOString(),
+      jobStartedAt: new Date(start).toISOString(),
+      link: waitS === null ? null : { queuedAt: new Date(start - waitS * 1000).toISOString(), startedAt: new Date(start).toISOString() },
+    };
+  };
+  const history = [h(10, 'Succeeded', 5, 30), h(20, 'Failed', 10, 90), h(30, 'Succeeded', 15, null), h(60 * 30, 'Succeeded', 60, 600)];
+  const day = historyStats(history, { now, windowMs: 24 * 3600_000 });
+  assert.equal(day.jobs, 3);
+  assert.deepEqual(day.results, { Succeeded: 2, Failed: 1 });
+  assert.equal(day.runnerMinutes, 30);
+  assert.equal(day.wait.samples, 2, 'a job without a link has no wait sample');
+  assert.equal(day.wait.p50, 90);
+  const week = historyStats(history, { now, windowMs: 7 * 24 * 3600_000 });
+  assert.equal(week.jobs, 4);
+  assert.equal(week.runnerMinutes, 90);
+  assert.equal(historyStats([], { now, windowMs: 1000 }).wait.p50, null);
 });

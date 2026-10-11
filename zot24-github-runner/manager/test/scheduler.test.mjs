@@ -278,7 +278,7 @@ test('a job links to its log and its pull request, also when it was never seen r
   s.docker.takeJob(c, 'build 1');
   s.gh.assign(c.Labels['ghr.runner-id']);
   const link = await waitFor('the running runner has its link', async () => (await s.state()).runners[0]?.link);
-  assert.deepEqual(link, {
+  const expected = {
     workflow: 'CI',
     event: 'pull_request',
     branch: 'feat/x',
@@ -286,7 +286,11 @@ test('a job links to its log and its pull request, also when it was never seen r
     prUrl: `https://github.com/${REPO}/pull/42`,
     runUrl: `https://github.com/${REPO}/actions/runs/${run.id}`,
     jobUrl: `https://github.com/${REPO}/actions/runs/${run.id}/job/${run.jobs[0].id}`,
-  });
+    runId: run.id,
+    jobId: run.jobs[0].id,
+    queuedAt: run.jobs[0].created_at,
+  };
+  for (const [k, v] of Object.entries(expected)) assert.deepEqual(link[k], v, k);
   s.docker.finishJob(c, 'build 1');
   const done = await waitFor('in the history', async () => (await s.state()).history.find((h) => h.runner === c.Labels['ghr.name']));
   assert.equal(done.result, 'Succeeded');
@@ -376,4 +380,35 @@ test('two Umbrels on one repository: each sweeps and unregisters only its own ru
   assert.deepEqual(regs(idb).map((r) => r.id).sort(), bBefore, "B's runners are untouched");
   assert.ok(gh.runners.has(9999), 'the legacy registration is untouched');
   assert.ok(res.body.report.some((l) => /left alone/.test(l)), JSON.stringify(res.body.report));
+});
+
+test('the queue: every page is read, waiting jobs carry a reason, and an API error shows stale data', async (t) => {
+  // Two runs per page, so five queued runs take three pages.
+  const s = await stack(t, { queued: 0, env: { RUNS_PER_PAGE: '2' } });
+  await s.serve();
+  for (let i = 0; i < 5; i += 1) s.gh.queueRun();
+  s.gh.queueRun({ labels: ['self-hosted', 'umbrel', 'gpu'] });
+  const repo = await waitFor('all five counted', async () => {
+    const r = await s.repo();
+    return r.queued === 5 ? r : null;
+  });
+  assert.equal(repo.waitingTotal, 6, 'five for this Umbrel plus one it cannot take');
+  const mismatch = repo.waiting.find((w) => w.kind === 'mismatch');
+  assert.deepEqual(mismatch.labels, ['self-hosted', 'umbrel', 'gpu']);
+  assert.match(mismatch.url, /^https:\/\/github\.com\//);
+  assert.ok(repo.waiting.every((w, i, a) => i === 0 || a[i - 1].queuedAt <= w.queuedAt), 'oldest first');
+  assert.ok(repo.oldestQueuedAt, 'the oldest wait is on the page');
+
+  const before = s.docker.runners().length;
+  s.gh.failRuns = true;
+  const stale = await waitFor('marked stale', async () => {
+    const r = await s.repo();
+    return r.stale ? r : null;
+  });
+  assert.equal(stale.queued, 5, 'the last numbers stay on the page');
+  assert.match(stale.error, /Server Error|502/);
+  await s.ticks(3);
+  assert.equal(s.docker.runners().length, before, 'no new runner starts on stale data');
+  s.gh.failRuns = false;
+  await waitFor('fresh again', async () => !(await s.repo()).stale);
 });

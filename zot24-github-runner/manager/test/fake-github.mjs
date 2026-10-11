@@ -142,9 +142,14 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
       return send(201, { token: 'FAKEREGTOKEN', expires_at: new Date(Date.now() + 3600_000).toISOString() });
     }
     if (req.method === 'GET' && rest === '/actions/runs') {
+      // `fake.failRuns = true` makes the queue read fail, as an outage would.
+      if (fake.failRuns) return send(502, { message: 'Server Error' });
       const status = url.searchParams.get('status');
-      const list = repo === REPO ? runs.filter((r) => !status || r.status === status) : [];
-      return send(200, { total_count: list.length, workflow_runs: list });
+      const all = repo === REPO ? runs.filter((r) => !status || r.status === status) : [];
+      const perPage = Number(url.searchParams.get('per_page') || 30);
+      const page = Number(url.searchParams.get('page') || 1);
+      const list = all.slice((page - 1) * perPage, page * perPage);
+      return send(200, { total_count: all.length, workflow_runs: list });
     }
     const jm = rest.match(/^\/actions\/runs\/(\d+)\/jobs$/);
     if (req.method === 'GET' && jm) return send(200, { total_count: (jobs[jm[1]] || []).length, jobs: jobs[jm[1]] || [] });
@@ -167,7 +172,7 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
     send(404, { message: 'Not Found' });
   });
 
-  return {
+  const fake = {
     server,
     repos,
     runs,
@@ -189,6 +194,7 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
       return job;
     },
   };
+  return fake;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
