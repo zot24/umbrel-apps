@@ -3,7 +3,7 @@ id: zot24-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
 category: developer
-version: "0.1.4"
+version: "0.1.5"
 tagline: Run your private repos' GitHub Actions jobs on your Umbrel
 description: >-
   GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
@@ -70,19 +70,16 @@ description: >-
   Before uninstalling, use "Remove runners from GitHub" on the app's page,
   then revoke the token on GitHub.
 releaseNotes: >-
-  Jobs that need Docker now ask for their own label,
-  `runs-on: [self-hosted, umbrel-docker]`, and run one at a time, so
-  compose stacks with fixed ports and container names do not clash. With
-  Docker for jobs on, only those jobs get the private Docker daemon;
-  `[self-hosted, umbrel]` jobs never do. If you used Docker for jobs with
-  `[self-hosted, umbrel]`, change those jobs to `umbrel-docker`. The
-  runner image adds the Docker Compose plugin (`docker compose`).
+  Fix for two or more Umbrels serving the same repository: each install now
+  names its runners umbrel-<install>-xxxxxx (the install ID is shown under
+  Runners) and its orphan sweep and "Remove runners from GitHub" only touch
+  its own registrations. Before, one Umbrel could deregister another's
+  runner while it was starting, or remove its idle runners.
 
 
-  Coming from 0.1.2 or earlier, this also has 0.1.3's links from each job
-  on the page to its log and pull request on GitHub, 0.1.2's runner image
-  with zstd, build-essential and the GitHub CLI, and 0.1.1's safety fixes
-  (visibility checked on every poll, fork jobs never run here).
+  Coming from 0.1.3 or earlier, this also has 0.1.4's Docker runners: jobs
+  that need Docker ask for `runs-on: [self-hosted, umbrel-docker]` and run
+  one at a time, and the runner image has docker compose.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []

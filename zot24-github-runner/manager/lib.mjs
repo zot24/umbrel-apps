@@ -3,7 +3,16 @@
 
 // Every runner this app registers is named like this. Cleanup only ever
 // touches registrations whose name matches, never the owner's other runners.
-export const RUNNER_NAME_RE = /^umbrel-[0-9a-f]{8}$/;
+// Runner names are umbrel-<install>-<random>. The install ID belongs to
+// this app install and lives in state.json, so when two Umbrels serve the
+// same repository each one only ever deletes its own registrations.
+// umbrel-<8 hex> is the name before 0.1.5; either Umbrel could have made it.
+export const RUNNER_NAME_RE = /^umbrel-(?:[0-9a-f]{4}-[0-9a-f]{6}|[0-9a-f]{8})$/;
+export const INSTALL_ID_RE = /^[0-9a-f]{4}$/;
+
+export function ownsRunner(installId, name) {
+  return INSTALL_ID_RE.test(installId || '') && typeof name === 'string' && name.startsWith(`umbrel-${installId}-`) && RUNNER_NAME_RE.test(name);
+}
 
 // GitHub user/org names: alphanumerics and single dashes, up to 39 chars.
 // Repo names: alphanumerics, dot, dash, underscore, up to 100 chars.

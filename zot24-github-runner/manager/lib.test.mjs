@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RUNNER_NAME_RE,
+  ownsRunner,
   backoffMs,
   demuxDockerLogs,
   forkHead,
@@ -200,7 +201,13 @@ test('tokenKind keeps classic tokens out', () => {
 });
 
 test('runner names', () => {
-  assert.ok(RUNNER_NAME_RE.test('umbrel-0a1b2c3d'));
+  assert.ok(RUNNER_NAME_RE.test('umbrel-0a1b2c3d'), 'the pre-0.1.5 name');
+  assert.ok(RUNNER_NAME_RE.test('umbrel-ab12-0a1b2c'));
+  assert.ok(ownsRunner('ab12', 'umbrel-ab12-0a1b2c'));
+  assert.ok(!ownsRunner('ab12', 'umbrel-cd34-0a1b2c'), "another Umbrel's runner");
+  assert.ok(!ownsRunner('ab12', 'umbrel-0a1b2c3d'), 'a pre-0.1.5 name is nobody\'s');
+  assert.ok(!ownsRunner('', 'umbrel-ab12-0a1b2c'), 'no install ID owns nothing');
+  assert.ok(!ownsRunner('ab12', 'umbrel-ab12-zzzzzz'));
   assert.ok(!RUNNER_NAME_RE.test('umbrel-runner'));
   assert.ok(!RUNNER_NAME_RE.test('my-laptop'));
 });
