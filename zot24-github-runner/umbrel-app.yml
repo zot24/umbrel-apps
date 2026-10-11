@@ -3,7 +3,7 @@ id: zot24-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
 category: developer
-version: "0.1.6"
+version: "0.1.7"
 tagline: Run your private repos' GitHub Actions jobs on your Umbrel
 description: >-
   GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
@@ -70,14 +70,19 @@ description: >-
   Before uninstalling, use "Remove runners from GitHub" on the app's page,
   then revoke the token on GitHub.
 releaseNotes: >-
-  More visibility. Each repository lists the jobs it is waiting on, oldest
-  first, with the reason: waiting for a free runner, needs Docker for jobs,
-  or asks for labels this Umbrel's runners lack. The queue is read across
-  every page of runs, and a GitHub error now shows the last numbers as
-  stale instead of an empty queue (no runner starts on stale data). Recent
+  Installs the 0.1.6 images. An update that already showed 0.1.6 could
+  still be running the 0.1.5 images, so the store version is 0.1.7 and the
+  image pins stay on the 0.1.6 build.
+
+
+  That build lists the jobs each repository is waiting on, oldest first,
+  with the reason: waiting for a free runner, needs Docker for jobs, or
+  asks for labels this Umbrel's runners lack. The queue is read across
+  every page of runs. A GitHub error shows the last numbers as stale
+  instead of an empty queue, and no runner starts on stale data. Recent
   jobs keeps seven days and shows jobs, results, runner minutes and queue
-  wait (p50/p95, with the number of jobs behind them) for the last 24 hours
-  and 7 days.
+  wait (p50/p95, with the number of jobs behind them) for the last 24
+  hours and 7 days.
 
 
   Coming from 0.1.4 or earlier, this also has 0.1.5's fix for two Umbrels
