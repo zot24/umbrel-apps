@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_MAX_RUNNERS,
   MAX_RUNNERS_LIMIT,
+  INSTALL_ID_RE,
   RUNNER_NAME_RE,
   backoffMs,
   demuxDockerLogs,
@@ -34,6 +35,7 @@ import {
   jobLink,
   jobWantsUs,
   normalizeRepo,
+  ownsRunner,
   parseRunnerLog,
   planSpawns,
   reapReason,
@@ -76,7 +78,7 @@ const DOCKER_LABELS = runnerLabels(ARCH, { docker: true });
 // and container names, so two compose stacks with fixed ports would clash.
 const MAX_DOCKER = 1;
 const HISTORY_MAX = 50;
-const ORPHAN_SWEEP_MS = 60 * 60_000;
+const ORPHAN_SWEEP_MS = Number(process.env.ORPHAN_SWEEP_MS || 60 * 60_000);
 // How often a registration GitHub would not delete yet is asked for again.
 const DEREG_RETRY_MS = 4 * POLL_MS;
 const IMAGE_PRUNE_MS = 24 * 3600_000;
@@ -179,6 +181,7 @@ const DEFAULT_STATE = {
   repos: [],
   history: [],
   prunedAt: 0,
+  installId: '', // set once on first start; names this install's runners
 };
 let state = structuredClone(DEFAULT_STATE);
 // A state file we cannot parse stops all scheduling: acting on an empty
@@ -492,7 +495,7 @@ function workDirOf(name) {
 
 async function spawn(repo, { dockerJob = false } = {}) {
   const withDocker = dockerJob && !!state.settings.dockerForJobs;
-  const name = `umbrel-${randomBytes(4).toString('hex')}`;
+  const name = `umbrel-${state.installId}-${randomBytes(3).toString('hex')}`;
   const workDir = workDirOf(name);
   await mkdir(workDir, { recursive: true });
   await chown(workDir, RUNNER_UID, RUNNER_GID);
@@ -792,7 +795,9 @@ async function sweepOrphans() {
     try {
       const list = await gh('GET', `/repos/${repo}/actions/runners?per_page=100`);
       for (const r of list?.runners || []) {
-        if (!RUNNER_NAME_RE.test(r.name) || mine.has(r.name) || r.busy || r.status !== 'offline') continue;
+        // Only this install's: another Umbrel's runner is offline for a few
+        // seconds between registering and connecting.
+        if (!ownsRunner(state.installId, r.name) || mine.has(r.name) || r.busy || r.status !== 'offline') continue;
         await deleteRegistration(repo, r.id);
         console.log(`[sweep] removed stale registration ${r.name} from ${repo}`);
       }
@@ -966,6 +971,7 @@ function publicState() {
     pollMs: POLL_MS,
     image: { ...image },
     arch: ARCH,
+    installId: state.installId,
     labels: LABELS,
     dockerLabels: DOCKER_LABELS,
     maxDocker: MAX_DOCKER,
@@ -1222,13 +1228,13 @@ const routes = [
 
   [
     'GET',
-    /^\/api\/runners\/(umbrel-[0-9a-f]{8})\/logs$/,
+    /^\/api\/runners\/(umbrel-(?:[0-9a-f]{4}-[0-9a-f]{6}|[0-9a-f]{8}))\/logs$/,
     async (_req, [, name]) => ({ logs: await containerLogs(findRunner(name).id) }),
   ],
 
   [
     'POST',
-    /^\/api\/runners\/(umbrel-[0-9a-f]{8})\/stop$/,
+    /^\/api\/runners\/(umbrel-(?:[0-9a-f]{4}-[0-9a-f]{6}|[0-9a-f]{8}))\/stop$/,
     async (_req, [, name]) =>
       serial(async () => {
         const r = findRunner(name);
@@ -1262,12 +1268,18 @@ const routes = [
           if (r.busy) continue;
           if (await stopRunner(r, 'idle')) report.push(`${r.repo}: ${r.name} removed (was waiting for a job)`);
         }
+        let others = 0;
         if (state.settings.token && !tokenError) {
           for (const { name: repo } of state.repos) {
             try {
               const list = await gh('GET', `/repos/${repo}/actions/runners?per_page=100`);
               for (const r of list?.runners || []) {
                 if (!RUNNER_NAME_RE.test(r.name)) continue;
+                // Another Umbrel's runner, or an unowned pre-0.1.5 name.
+                if (!ownsRunner(state.installId, r.name)) {
+                  others += 1;
+                  continue;
+                }
                 const res = await deleteRegistration(repo, r.id);
                 report.push(`${repo}: ${r.name} ${res === 'busy' ? 'is running a job; it deregisters itself when the job ends' : 'removed'}`);
               }
@@ -1277,6 +1289,7 @@ const routes = [
             }
           }
         }
+        if (others) report.push(`${others} umbrel registration(s) of another Umbrel, or from before 0.1.5, were left alone.`);
         if (!report.length) report.push('No runner registrations of this app were found on GitHub.');
         return { ok: true, report };
       }),
@@ -1401,6 +1414,10 @@ async function shutdown() {
 
 await loadState();
 if (stateError) console.error(stateError);
+else if (!INSTALL_ID_RE.test(state.installId || '')) {
+  state.installId = randomBytes(2).toString('hex');
+  await saveState();
+}
 await mkdir(WORK_DIR, { recursive: true });
 await refreshProxyIps();
 // Also refresh in the background, so a recreated proxy's old address does

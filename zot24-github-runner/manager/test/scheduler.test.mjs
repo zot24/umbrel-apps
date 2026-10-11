@@ -41,10 +41,11 @@ async function waitFor(what, fn, timeout = 8000) {
 }
 
 // One manager, one fake GitHub, one fake Docker daemon, torn down after the test.
-async function stack(t, { queued = 1 } = {}) {
+// `gh` shares one fake GitHub between managers (two Umbrels, one repo).
+async function stack(t, { queued = 1, gh: shared = null, env = {} } = {}) {
   const dir = await mkdtemp(path.join(os.tmpdir(), 'ghr-'));
-  const gh = createFakeGitHub({ queued });
-  await listen(gh.server, 0, '127.0.0.1');
+  const gh = shared || createFakeGitHub({ queued });
+  if (!shared) await listen(gh.server, 0, '127.0.0.1');
   const docker = createFakeDocker();
   const sock = path.join(dir, 'docker.sock');
   await listen(docker.server, sock);
@@ -61,6 +62,7 @@ async function stack(t, { queued = 1 } = {}) {
       POLL_MS: String(POLL_MS),
       RUNNER_UID: String(process.getuid()),
       RUNNER_GID: String(process.getgid()),
+      ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -72,8 +74,8 @@ async function stack(t, { queued = 1 } = {}) {
     child.kill('SIGKILL');
     await exited;
     docker.server.closeAllConnections?.();
-    gh.server.closeAllConnections?.();
-    await Promise.all([close(docker.server), close(gh.server)]);
+    if (!shared) gh.server.closeAllConnections?.();
+    await Promise.all([close(docker.server), ...(shared ? [] : [close(gh.server)])]);
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -119,7 +121,7 @@ test('a queued job gets one runner, with its JIT config and the box limits', asy
   await s.ticks(3);
   assert.equal(s.docker.runners().length, 1, 'one queued job, one runner');
   const [c] = s.docker.runners();
-  assert.match(c.Name, /^ghr-umbrel-[0-9a-f]{8}$/);
+  assert.match(c.Name, /^ghr-umbrel-[0-9a-f]{4}-[0-9a-f]{6}$/);
   assert.ok(c.spec.Env.some((e) => e.startsWith('ACTIONS_RUNNER_INPUT_JITCONFIG=')));
   assert.ok(!c.spec.Env.some((e) => e.includes(TOKEN)), 'the token never reaches a runner');
   assert.equal(c.spec.HostConfig.NanoCpus, 1e9);
@@ -339,4 +341,39 @@ test('Docker for jobs: umbrel-docker jobs get a Docker runner, one at a time; um
   assert.equal((await s.api('POST', '/api/settings', { dockerForJobs: false })).status, 200);
   await waitFor('no Docker runner', () => !s.docker.runners().some((c) => c.Labels['ghr.docker'] === '1'));
   await waitFor('counted as waiting', async () => (await s.repo()).dockerOff === 1);
+});
+
+test('two Umbrels on one repository: each sweeps and unregisters only its own runners', async (t) => {
+  const gh = createFakeGitHub({ queued: 2 });
+  await listen(gh.server, 0, '127.0.0.1');
+  t.after(async () => {
+    gh.server.closeAllConnections?.();
+    await close(gh.server);
+  });
+  // Sweep orphans on every pass: a runner that just registered is offline
+  // until it connects, and the fake's runners never connect.
+  const a = await stack(t, { gh, env: { ORPHAN_SWEEP_MS: '100' } });
+  const b = await stack(t, { gh, env: { ORPHAN_SWEEP_MS: '100' } });
+  await a.serve();
+  await b.serve();
+  const ida = (await a.state()).installId;
+  const idb = (await b.state()).installId;
+  assert.match(ida, /^[0-9a-f]{4}$/);
+  assert.notEqual(ida, idb, 'each install has its own ID');
+  const regs = (id) => [...gh.runners.values()].filter((r) => r.name.startsWith(`umbrel-${id}-`));
+  await waitFor('both Umbrels registered runners', () => regs(ida).length > 0 && regs(idb).length > 0);
+  // A pre-0.1.5 registration: either Umbrel could own it, so neither removes it.
+  gh.runners.set(9999, { id: 9999, name: 'umbrel-0a1b2c3d', os: 'Linux', status: 'offline', busy: false, ephemeral: true, labels: [] });
+  await a.ticks(4);
+  await b.ticks(4);
+  const bBefore = regs(idb).map((r) => r.id).sort();
+  assert.ok(bBefore.length > 0, "B's offline runners survive A's sweeps");
+  assert.ok(gh.runners.has(9999), 'the legacy registration survives the sweeps');
+
+  const res = await a.api('POST', '/api/unregister');
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(regs(ida).length, 0, "A's idle runners are deregistered");
+  assert.deepEqual(regs(idb).map((r) => r.id).sort(), bBefore, "B's runners are untouched");
+  assert.ok(gh.runners.has(9999), 'the legacy registration is untouched');
+  assert.ok(res.body.report.some((l) => /left alone/.test(l)), JSON.stringify(res.body.report));
 });

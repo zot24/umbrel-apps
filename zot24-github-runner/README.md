@@ -28,7 +28,7 @@ Umbrel
     ├── manager   ghcr.io/zot24/github-runner-manager (setup page on :3500 + scheduler)
     │              state: data/manager/state.json (token, repos, job history), mode 0600
     └── dind      private Docker daemon, own network namespace, not on the Umbrel network
-         └── ghr-umbrel-xxxxxxxx   one container per job, image = RUNNER_IMAGE
+         └── ghr-umbrel-iiii-xxxxxx   one container per job, image = RUNNER_IMAGE
               (ghcr.io/zot24/github-runner-image: GitHub's official runner image
                plus zstd, build-essential and gh, pinned by digest)
 ```
@@ -194,10 +194,21 @@ A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
 
 Leave a job on `ubuntu-latest` when it needs macOS or Windows, lots of disk, or anything above.
 
+## More than one Umbrel
+
+Two or more Umbrels can serve the same repository; each polls the queue and starts its own runners.
+Each install picks a 4-hex install ID on first start (`state.json`, shown on the Runners panel) and
+names its runners `umbrel-<install>-xxxxxx`. The hourly orphan sweep and **Remove runners from
+GitHub** only touch registrations with this install's ID: another Umbrel's runner is offline for a
+few seconds between registering and connecting, and before 0.1.5 one box could delete it. Names from
+before 0.1.5 (`umbrel-xxxxxxxx`) belong to no install and are left alone; GitHub removes offline
+ephemeral registrations after about a day.
+
 ## Removing it
 
 1. On the app's page: Settings → **Remove runners from GitHub**. It pauses the app and deletes
-   every registration it made (named `umbrel-xxxxxxxx`) from the served repositories.
+   every registration it made (named `umbrel-<install>-xxxxxx`, where `<install>` is this app
+   install's ID) from the served repositories.
 2. Uninstall the app. Stopping it also deregisters idle runners; a job that is running when the
    app stops fails, and GitHub drops that ephemeral registration within a day on its own.
 3. Revoke the token: GitHub → Settings → Developer settings → Fine-grained tokens.
@@ -213,7 +224,7 @@ the runner → Remove.
 |---|---|
 | `data/manager/state.json` | Token, served repositories, settings, last 50 jobs (0600) |
 | `data/dind/` | The private daemon's storage: the runner image, job containers, images pulled by jobs |
-| `data/work/` | One work folder per running job (`/ghr/umbrel-xxxxxxxx`), deleted when the job ends |
+| `data/work/` | One work folder per running job (`/ghr/umbrel-iiii-xxxxxx`), deleted when the job ends |
 | `data/externals/` | Copy of the runner's Node.js builds, for container jobs (Docker for jobs only) |
 | `data/sock/docker.sock` | The private daemon's socket (shared by dind and manager) |
 
