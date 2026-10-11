@@ -736,16 +736,28 @@ function statsLine(label, st) {
   return `${label}: ${st.jobs} jobs (${res}), ${st.runnerMinutes} runner-min${w}`;
 }
 
+// Which runner took the job. The name is umbrel-<this install>-<job>, so two
+// Umbrels on one repository stay distinct. The label is the pool it ran in.
+function whereRan(h) {
+  const pool = h.pool === 'docker' || h.docker === true ? 'umbrel-docker' : (h.pool === 'light' || h.docker === false ? 'umbrel' : '');
+  const name = h.runner || '';
+  if (!pool && !name) return '-';
+  const place = pool ? `<div class="code">${esc(pool)}</div>` : '';
+  const who = name ? `<div class="small muted">${esc(name)}</div>` : '';
+  return place + who;
+}
+
 function renderHistory() {
   if (!S.history.length) {
     $('#history').innerHTML = '<div class="empty"><b>NO JOBS YET</b></div>';
     return;
   }
-  $('#history').innerHTML = `<p class="small muted" style="margin:0 0 10px">${esc(statsLine('Last 24 h', S.stats?.day))}<br>${esc(statsLine('Last 7 days', S.stats?.week))}</p><table class="hist"><thead><tr><th>When</th><th>Repository</th><th>Job</th><th>Result</th><th>Took</th></tr></thead><tbody>
+  $('#history').innerHTML = `<p class="small muted" style="margin:0 0 10px">${esc(statsLine('Last 24 h', S.stats?.day))}<br>${esc(statsLine('Last 7 days', S.stats?.week))}</p><table class="hist"><thead><tr><th>When</th><th>Repository</th><th>Job</th><th>Where</th><th>Result</th><th>Took</th></tr></thead><tbody>
     ${S.history.slice(0, 20).map((h) => {
       const took = h.jobStartedAt ? dur(new Date(h.finishedAt) - new Date(h.jobStartedAt)) : '';
       return `<tr ${h.hasTail ? `data-tail="${h.index}" title="Show the runner's last lines"` : ''}>
         <td class="muted">${esc(ago(h.finishedAt))}</td><td>${esc(h.repo)}</td><td>${h.job ? jobName(h.job, h.link) : '-'}${h.link ? `<div class="small muted">${jobRef(h.link)}</div>` : ''}</td>
+        <td>${whereRan(h)}</td>
         <td>${pill(RESULT_CLASS[h.result] || 'warn', RESULT_TEXT[h.result] || h.result)}</td><td class="muted">${esc(took)}</td></tr>`;
     }).join('')}</tbody></table>`;
 }
