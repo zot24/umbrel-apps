@@ -30,18 +30,20 @@ export function normalizeRepo(input) {
 }
 
 // The labels each runner registers with. GitHub matches runs-on labels
-// case-insensitively; these spellings mirror GitHub's own defaults.
-export function runnerLabels(arch) {
-  return ['self-hosted', 'umbrel', 'Linux', arch === 'arm64' ? 'ARM64' : 'X64'];
+// case-insensitively; these spellings mirror GitHub's own defaults. A Docker
+// runner carries `umbrel-docker` instead of `umbrel`, so GitHub never hands
+// a [self-hosted, umbrel] job to a runner that has the Docker socket.
+export function runnerLabels(arch, { docker = false } = {}) {
+  return ['self-hosted', docker ? 'umbrel-docker' : 'umbrel', 'Linux', arch === 'arm64' ? 'ARM64' : 'X64'];
 }
 
-// A queued job is ours when it asks for `umbrel` and every label it asks for
-// is one our runners carry. `runs-on: self-hosted` alone is not ours: that
-// job may be meant for another runner the owner has.
+// A queued job is ours when it asks for `umbrel` (or `umbrel-docker`) and
+// every label it asks for is one these runners carry. `runs-on: self-hosted`
+// alone is not ours: that job may be meant for another runner the owner has.
 export function jobWantsUs(jobLabels, labels) {
   const have = new Set(labels.map((l) => l.toLowerCase()));
   const want = (jobLabels || []).map((l) => String(l).toLowerCase());
-  return want.includes('umbrel') && want.every((l) => have.has(l));
+  return want.some((l) => l === 'umbrel' || l === 'umbrel-docker') && want.every((l) => have.has(l));
 }
 
 // Why a workflow run's code is not the served repository's own, or '' when
@@ -139,24 +141,34 @@ export function parseRunnerLog(text) {
 // jobs, so it counts against that repo's queue. Repos with the oldest
 // queued job go first, and slots are handed out one at a time across
 // repos so a single busy repo cannot take every slot.
-export function planSpawns({ repos, runners, maxRunners, now = Date.now() }) {
+//
+// Docker jobs (queuedDocker) get Docker runners, at most maxDocker of them
+// alive at once: jobs that share one daemon also share its ports and
+// container names, so by default they run one after another.
+export function planSpawns({ repos, runners, maxRunners, maxDocker = 1, now = Date.now() }) {
   let free = maxRunners - runners.length;
+  let freeDocker = maxDocker - runners.filter((r) => r.docker).length;
   if (free <= 0) return [];
+  const key = (repo, docker) => `${docker ? 'd' : 'l'}:${repo}`;
   const idle = new Map();
-  for (const r of runners) if (!r.busy) idle.set(r.repo, (idle.get(r.repo) || 0) + 1);
+  for (const r of runners) if (!r.busy) idle.set(key(r.repo, r.docker), (idle.get(key(r.repo, r.docker)) || 0) + 1);
   const wants = repos
-    .filter((r) => r.queued > 0 && !(r.blockedUntil > now))
-    .map((r) => ({ name: r.name, need: r.queued - (idle.get(r.name) || 0), oldest: r.oldestQueuedAt || '' }))
-    .filter((r) => r.need > 0)
+    .filter((r) => !(r.blockedUntil > now))
+    .flatMap((r) => [
+      { repo: r.name, docker: false, need: (r.queued || 0) - (idle.get(key(r.name, false)) || 0), oldest: r.oldestQueuedAt || '' },
+      { repo: r.name, docker: true, need: (r.queuedDocker || 0) - (idle.get(key(r.name, true)) || 0), oldest: r.oldestDockerQueuedAt || '' },
+    ])
+    .filter((w) => w.need > 0)
     .sort((a, b) => a.oldest.localeCompare(b.oldest));
   const out = [];
   while (free > 0) {
     let progressed = false;
     for (const w of wants) {
-      if (free > 0 && w.need > 0) {
-        out.push(w.name);
+      if (free > 0 && w.need > 0 && (!w.docker || freeDocker > 0)) {
+        out.push({ repo: w.repo, docker: w.docker });
         w.need -= 1;
         free -= 1;
+        if (w.docker) freeDocker -= 1;
         progressed = true;
       }
     }

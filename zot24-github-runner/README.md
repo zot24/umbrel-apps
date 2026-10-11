@@ -79,6 +79,9 @@ Umbrel
          - run: npm ci && npm test
    ```
 
+   A job that needs Docker (`container:`, `services:`, `docker compose`) asks for
+   `runs-on: [self-hosted, umbrel-docker]` instead, and needs Docker for jobs (see Safety).
+
    Pin a job to one architecture with `runs-on: [self-hosted, umbrel, X64]` (or `ARM64`).
 
 ### Which repositories it serves, and why the token needs what it needs
@@ -135,15 +138,21 @@ and no app to maintain; it expires on the date you pick, and the page shows that
   socket, and there is no setting for it. Runners run inside a Docker daemon private to the app,
   on a bridge with inter-container traffic disabled; they reach the internet, not each other,
   other apps, or the Umbrel's Docker.
-- **Docker for jobs is opt-in, and it is root on the Umbrel.** Off by default: `container:` jobs,
-  `services:` and Docker container actions fail. On, each runner gets the app's private daemon
-  socket. That daemon runs privileged, so a job with it can start a privileged container and reach
-  the Umbrel's disks and processes. The page asks you to type `docker` before turning it on. Only
-  do that if every workflow, and every action those workflows use, is yours to trust.
+- **Docker for jobs is opt-in, and it is root on the Umbrel.** Off by default: jobs that ask for
+  `[self-hosted, umbrel-docker]` wait on GitHub, and the page counts them. On, those jobs get a
+  Docker runner: labels `self-hosted, umbrel-docker, Linux, X64` (or `ARM64`), the app's private
+  daemon socket, and the daemon's own network, so ports a job publishes are on `localhost`. Only
+  one Docker runner runs at a time: jobs on one daemon share its ports and container names, so two
+  compose stacks with fixed ports would clash. `[self-hosted, umbrel]` jobs never get the socket;
+  Docker runners do not carry `umbrel`, so GitHub never hands them such a job. The daemon runs
+  privileged, so a job with it can start a privileged container and reach the Umbrel's disks and
+  processes. The page asks you to type `docker` before turning it on. Only do that if every
+  workflow, and every action those workflows use, is yours to trust.
 - **Nothing survives a job.** Each job runs in a new container with a new work folder; both are
-  deleted when it ends, along with the runner's credentials and tool cache. While no job runs, the
-  app also removes whatever jobs left in the private daemon (containers, networks, volumes), and
-  once a day every image except the runner's own.
+  deleted when it ends, along with the runner's credentials and tool cache. While no Docker job
+  runs, the app also removes whatever jobs left in the private daemon (containers, networks,
+  volumes), and once a day every image except the runner's own. Images a Docker job builds stay
+  until then, so the next Docker job on the same Umbrel reuses them.
 - **The token stays in the manager.** A runner container only gets its own single-use JIT
   config. The runner reads it from the environment, masks it and removes it before running the
   job. Jobs run as `runner` with passwordless sudo inside their own container, so treat a job as
@@ -157,7 +166,7 @@ and no app to maintain; it expires on the date you pick, and the page shows that
 
 The runner image is GitHub's own minimal one: Ubuntu 24.04 with git, curl, jq, unzip, tar, gzip,
 python3 (no pip), ssh, sudo, the Docker CLI and buildx, and the Node.js builds the runner uses
-for JavaScript actions. This app adds three packages on top (`runner/Dockerfile`):
+for JavaScript actions. This app adds four packages on top (`runner/Dockerfile`):
 
 - `zstd`, so `actions/cache` compresses the way GitHub-hosted runners do: caches saved there
   restore here and the reverse.
@@ -165,6 +174,8 @@ for JavaScript actions. This app adds three packages on top (`runner/Dockerfile`
   Native npm modules, `cargo test` with C dependencies and the like build without an apt step.
 - `gh`, the GitHub CLI, from GitHub's apt repository as on `ubuntu-latest`. Set `GH_TOKEN`
   (for example `${{ github.token }}`) in the step, as on GitHub-hosted runners.
+- `docker compose`, the Compose plugin, from Docker's apt repository. It needs a daemon, so only
+  `[self-hosted, umbrel-docker]` jobs can use it.
 
 A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
 
@@ -175,8 +186,7 @@ A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
 | cmake, pkg-config, `-dev` libraries (libssl-dev and the like) | `sudo apt-get update && sudo apt-get install -y …` |
 | `zip`, `wget`, `rsync` | `sudo apt-get update && sudo apt-get install -y …` |
 | Cloud CLIs (aws, az, gcloud), kubectl, helm, terraform | Install them in the job, or use their setup actions. |
-| `docker compose` | Install the compose plugin in the job; Docker itself needs Docker for jobs. |
-| Docker daemon: `container:`, `services:`, Docker actions | Turn on Docker for jobs (see Safety). With it on, runners share the private daemon's network, so `services:` ports are on `localhost` as on GitHub; two parallel jobs that both publish the same fixed port collide. |
+| Docker daemon: `container:`, `services:`, `docker compose`, Docker actions | Turn on Docker for jobs (see Safety) and use `runs-on: [self-hosted, umbrel-docker]`. Docker runners share the private daemon's network, so `services:` ports are on `localhost` as on GitHub. One Docker job runs at a time. |
 | Browsers (Chrome, Firefox) for Playwright, Puppeteer, Cypress | `npx playwright install --with-deps` and the like. |
 | PostgreSQL, MySQL preinstalled | `services:` (needs Docker for jobs) or `sudo apt-get install`. |
 | x86-64 everywhere | On an arm64 Umbrel (Raspberry Pi) runners are `ARM64`: x64-only binaries and actions fail. |
