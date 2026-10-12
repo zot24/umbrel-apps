@@ -7,6 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import net from 'node:net';
 import os from 'node:os';
@@ -399,6 +400,9 @@ test('the queue: every page is read, waiting jobs carry a reason, and an API err
   assert.ok(repo.waiting.every((w, i, a) => i === 0 || a[i - 1].queuedAt <= w.queuedAt), 'oldest first');
   assert.ok(repo.oldestQueuedAt, 'the oldest wait is on the page');
 
+  // Five queued, cap 2: wait for both runners, so none is still starting
+  // when the API starts failing.
+  await waitFor('a full set of runners', () => s.docker.runners().length === 2);
   const before = s.docker.runners().length;
   s.gh.failRuns = true;
   const stale = await waitFor('marked stale', async () => {
@@ -411,4 +415,203 @@ test('the queue: every page is read, waiting jobs carry a reason, and an API err
   assert.equal(s.docker.runners().length, before, 'no new runner starts on stale data');
   s.gh.failRuns = false;
   await waitFor('fresh again', async () => !(await s.repo()).stale);
+});
+
+const GiB = 1024 ** 3;
+const runnerOfState = async (s, name) => (await s.state()).runners.find((r) => r.name === name);
+
+test('a running job shows its steps, CPU and memory; its history keeps the peaks, the OOM kills and the failed step', async (t) => {
+  const s = await stack(t);
+  await s.serve();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  const c = s.docker.runners()[0];
+  const name = c.Labels['ghr.name'];
+  s.docker.takeJob(c, 'build 1');
+  const job = s.gh.assign(c.Labels['ghr.runner-id']);
+  const t0 = new Date().toISOString();
+  job.steps = [
+    { number: 1, name: 'Set up job', status: 'completed', conclusion: 'success', started_at: t0, completed_at: t0 },
+    { number: 2, name: 'Type check', status: 'in_progress', conclusion: null, started_at: t0, completed_at: null },
+    { number: 3, name: 'Complete job', status: 'queued', conclusion: null, started_at: null, completed_at: null },
+  ];
+  c.stats = { cpuNs: 1e9, mem: 2 * GiB };
+  const r1 = await waitFor('steps and memory on the runner', async () => {
+    const r = await runnerOfState(s, name);
+    return r?.steps?.length === 3 && r.usage?.mem === 2 * GiB ? r : null;
+  });
+  assert.equal(r1.steps[1].name, 'Type check');
+  assert.equal(r1.steps[1].status, 'in_progress');
+  assert.equal(r1.usage.memLimit, c.spec.HostConfig.Memory, 'the limit Docker enforces');
+  assert.equal(r1.usage.cpuLimit, c.spec.HostConfig.NanoCpus / 1e9);
+  assert.equal(r1.usage.job, null, 'a light runner starts no containers');
+
+  c.stats = { cpuNs: 30e9, mem: 3 * GiB };
+  const r2 = await waitFor('CPU over the interval', async () => {
+    const r = await runnerOfState(s, name);
+    return r?.usage?.cpu > 0 && r.usage.memPeak === 3 * GiB ? r : null;
+  });
+  assert.ok(r2.usage.cpuPeak >= r2.usage.cpu);
+  c.stats = { cpuNs: 31e9, mem: 1 * GiB };
+  await waitFor('memory went down, the peak stays', async () => {
+    const r = await runnerOfState(s, name);
+    return r?.usage?.mem === 1 * GiB && r.usage.memPeak === 3 * GiB;
+  });
+
+  s.docker.oom(c);
+  await waitFor('the OOM kill is counted', async () => (await runnerOfState(s, name))?.usage?.oom === 1);
+  assert.match(s.log(), new RegExp(`\\[oom\\] ${name}`));
+
+  Object.assign(job, { status: 'completed', conclusion: 'failure' });
+  Object.assign(job.steps[1], { status: 'completed', conclusion: 'failure', completed_at: new Date().toISOString() });
+  s.docker.finishJob(c, 'build 1', 'Failed');
+  const done = await waitFor('history entry', async () => (await s.state()).history.find((h) => h.runner === name));
+  assert.equal(done.usage.memPeak, 3 * GiB);
+  assert.equal(done.usage.oom, 1, s.log().split('\n').filter((l) => l.includes('[oom]')).join('\n'));
+  assert.equal(done.usage.memLimit, c.spec.HostConfig.Memory);
+  assert.ok(done.usage.cpuAvg > 0);
+  assert.equal(done.usage.cpu, undefined, 'no live figures in history');
+  assert.deepEqual(done.step, { n: 2, name: 'Type check', total: 3, conclusion: 'failure' });
+  const st = await s.state();
+  assert.equal(st.stats.day.oom, 1);
+  assert.equal(st.runners.length, 0);
+});
+
+test('Logs: the current step output comes from the runner page file, read as runner, only while a job runs', async (t) => {
+  const s = await stack(t);
+  await s.serve();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  const c = s.docker.runners()[0];
+  const name = c.Labels['ghr.name'];
+  c.stepLog = '2026-10-12T00:00:01.1234567Z ##[group]Run pnpm tsc\n2026-10-12T00:00:02.0000000Z src/a.ts(1,1): error TS2322\n';
+  const idle = await s.api('GET', `/api/runners/${name}/logs`);
+  assert.equal(idle.status, 200);
+  assert.equal(idle.body.output, '', 'no job yet: nothing is read');
+  assert.equal(s.docker.execs.size, 0);
+  assert.match(idle.body.logs, /Listening for Jobs/);
+
+  s.docker.takeJob(c, 'build 1');
+  s.gh.assign(c.Labels['ghr.runner-id']);
+  await waitFor('busy', async () => (await runnerOfState(s, name))?.busy);
+  const busy = await s.api('GET', `/api/runners/${name}/logs`);
+  assert.equal(busy.body.output, '00:00:01 ##[group]Run pnpm tsc\n00:00:02 src/a.ts(1,1): error TS2322');
+  const [ex] = s.docker.execs.values();
+  assert.equal(ex.User, 'runner');
+  assert.match(ex.Cmd.join(' '), /_diag\/pages\/\*\.log/);
+  assert.match(ex.Cmd.join(' '), /tail -c \d+/);
+});
+
+test('a Docker job counts the containers it starts in the private daemon', async (t) => {
+  const s = await stack(t, { queued: 0 });
+  await s.serve();
+  assert.equal((await s.api('POST', '/api/settings', { dockerForJobs: true })).status, 200);
+  s.gh.queueRun({ labels: ['self-hosted', 'umbrel-docker'] });
+  await waitFor('a Docker runner', () => s.docker.runners().length === 1);
+  const d = s.docker.runners()[0];
+  const name = d.Labels['ghr.name'];
+  s.docker.takeJob(d, 'build 1');
+  s.gh.assign(d.Labels['ghr.runner-id']);
+  // Left by an earlier Docker job: not this one's.
+  const old = s.docker.jobContainer('leftover', { cpuNs: 900e9, mem: 5 * GiB });
+  old.Created = Number(d.Labels['ghr.created']) / 1000 - 600;
+  const db = s.docker.jobContainer('supabase_db', { cpuNs: 5e9, mem: 2 * GiB });
+  s.docker.jobContainer('supabase_kong', { cpuNs: 1e9, mem: 1 * GiB });
+  const r = await waitFor('job containers on the runner', async () => {
+    const x = await runnerOfState(s, name);
+    return x?.usage?.job?.containers === 2 ? x : null;
+  });
+  assert.equal(r.usage.job.mem, 3 * GiB);
+  db.stats = { cpuNs: 50e9, mem: 2 * GiB };
+  await waitFor('their CPU', async () => (await runnerOfState(s, name))?.usage?.job?.cpu > 0);
+  s.docker.oom(db);
+  await waitFor('an OOM kill in a job container is the Docker runner\'s', async () => (await runnerOfState(s, name))?.usage?.oom === 1);
+});
+
+test('a quick job is linked even when its run is not among the ten newest', async (t) => {
+  const s = await stack(t);
+  await s.serve();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  const c = s.docker.runners()[0];
+  // Newer runs, none of them for an Umbrel, as one push makes many.
+  for (let i = 0; i < 14; i += 1) s.gh.queueRun({ labels: ['ubuntu-latest'] });
+  s.docker.takeJob(c, 'build 1');
+  const job = s.gh.assign(c.Labels['ghr.runner-id'], { done: true });
+  s.docker.finishJob(c, 'build 1');
+  const done = await waitFor('history entry', async () => (await s.state()).history[0]);
+  assert.equal(done.link?.jobId, job.id);
+});
+
+test('the page has the Umbrel\'s own CPU, memory and free disk, where /proc has them', async (t) => {
+  const s = await stack(t);
+  await s.ticks(2);
+  const { hostUsage } = await s.state();
+  assert.ok(hostUsage, 'always present');
+  assert.ok(hostUsage.diskFree > 0 && hostUsage.diskTotal >= hostUsage.diskFree, 'statfs of the work folder');
+  if (existsSync('/proc/stat')) {
+    assert.ok(hostUsage.cpu.busy >= 0 && hostUsage.cpu.busy <= 1);
+    assert.ok(hostUsage.cpu.iowait >= 0);
+    assert.ok(hostUsage.memAvailable > 0 && hostUsage.memTotal > hostUsage.memAvailable);
+  } else {
+    assert.equal(hostUsage.cpu, null, 'no /proc here (macOS): left empty');
+  }
+});
+
+test('a failed job keeps the lines before its error from GitHub\'s log, fetched without the token at the storage end', async (t) => {
+  const s = await stack(t, { env: { FAIL_LOG_DELAY_MS: '0' } });
+  await s.serve();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  const c = s.docker.runners()[0];
+  const name = c.Labels['ghr.name'];
+  s.docker.takeJob(c, 'build 1');
+  const job = s.gh.assign(c.Labels['ghr.runner-id']);
+  job.steps = [{ number: 1, name: 'Type check', status: 'in_progress', conclusion: null, started_at: new Date().toISOString(), completed_at: null }];
+  await waitFor('linked', async () => (await runnerOfState(s, name))?.link);
+  // GitHub has not caught up when the runner exits: the step still runs.
+  s.docker.finishJob(c, 'build 1', 'Failed');
+  const first = await waitFor('history entry', async () => (await s.state()).history.find((h) => h.runner === name));
+  assert.equal(first.step.conclusion, 'in_progress');
+  await s.ticks(2);
+  assert.ok(!(await s.state()).history[0].failure?.excerpt, 'the log is not there yet: asked again later');
+  Object.assign(job, { status: 'completed', conclusion: 'failure' });
+  Object.assign(job.steps[0], { status: 'completed', conclusion: 'failure', completed_at: new Date().toISOString() });
+  job.log = ['2026-10-12T00:00:01.0000000Z ##[group]Run pnpm tsc', '2026-10-12T00:00:09.0000000Z FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory', '2026-10-12T00:00:09.5000000Z ##[error]Process completed with exit code 134.', '2026-10-12T00:00:10.0000000Z Post job cleanup.'].join('\n');
+  const h = await waitFor('the excerpt', async () => {
+    const x = (await s.state()).history[0];
+    return x.failure?.hint ? x : null;
+  }, 15_000);
+  assert.equal(h.failure.hint, 'heap');
+  assert.equal(h.step.conclusion, 'failure', 'the step is read again with the log, once GitHub has the end');
+  assert.equal(h.hasTail, true, 'the row opens');
+  const detail = await s.api('GET', `/api/history/${h.index}`);
+  assert.match(detail.body.excerpt, /^00:00:01 ##\[group\]Run pnpm tsc\n00:00:09 FATAL ERROR.*\n00:00:09 ##\[error\]Process completed with exit code 134\.$/);
+  assert.deepEqual(s.gh.blobAuth, [''], 'one download, and the token never left for the storage host');
+  assert.equal(JSON.stringify(await s.state()).includes('FATAL ERROR'), false, 'the excerpt is not in every page poll');
+});
+
+test('a succeeded job fetches no log', async (t) => {
+  const s = await stack(t, { env: { FAIL_LOG_DELAY_MS: '0' } });
+  await s.serve();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  const c = s.docker.runners()[0];
+  s.docker.takeJob(c, 'build 1');
+  const job = s.gh.assign(c.Labels['ghr.runner-id']);
+  job.log = 'x';
+  s.docker.finishJob(c, 'build 1');
+  await waitFor('history entry', async () => (await s.state()).history[0]);
+  await s.ticks(3);
+  assert.equal(s.gh.requests.filter((r) => r.includes('/logs')).length, 0);
+});
+
+test('Logs: a step output larger than the cap is cut, not read whole', async (t) => {
+  const s = await stack(t);
+  await s.serve();
+  await waitFor('one runner', () => s.docker.runners().length === 1);
+  const c = s.docker.runners()[0];
+  s.docker.takeJob(c, 'build 1');
+  s.gh.assign(c.Labels['ghr.runner-id']);
+  await waitFor('busy', async () => (await runnerOfState(s, c.Labels['ghr.name']))?.busy);
+  // A job can replace tail; what comes back is still bounded.
+  c.stepLog = Array.from({ length: 3000 }, (_, i) => `2026-10-12T00:00:01.0000000Z line ${i} ${'y'.repeat(1000)}`).join('\n');
+  const r = await s.api('GET', `/api/runners/${c.Labels['ghr.name']}/logs`);
+  assert.equal(r.status, 200);
+  assert.ok(r.body.output.length <= 64 * 1024, `got ${r.body.output.length}`);
 });

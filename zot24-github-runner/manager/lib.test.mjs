@@ -3,7 +3,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   RUNNER_NAME_RE,
+  attributeOom,
+  cleanStepLog,
+  foldUsage,
+  hostCpuBusy,
+  memUsed,
   ownsRunner,
+  parseMeminfo,
+  parseProcStat,
+  failureExcerpt,
+  failureHint,
+  stepSummary,
+  stepsOf,
+  usageView,
   backoffMs,
   demuxDockerLogs,
   forkHead,
@@ -224,6 +236,7 @@ test('jobLink: the job, its run, and its pull request when it has one', () => {
     branch: 'feat/x',
     pr: 12,
     prUrl: 'https://github.com/me/app/pull/12',
+    prMerged: false,
     runUrl: 'https://github.com/me/app/actions/runs/7',
     jobUrl: 'https://github.com/me/app/actions/runs/7/job/70',
     runId: 0,
@@ -237,12 +250,20 @@ test('jobLink: the job, its run, and its pull request when it has one', () => {
   assert.equal(nightly.pr, 0);
   assert.equal(nightly.prUrl, '', 'no pull request, no PR link');
   assert.equal(nightly.runUrl, run.html_url);
+  // A push of a merged pull request (main after a squash or merge) names it
+  // in the commit title; the run itself lists no pull request.
+  const push = (message) => jobLink('me/app', { ...run, event: 'push', head_branch: 'main', pull_requests: [], head_commit: { message } }, job);
+  assert.deepEqual([push('feat: add a thing (#1702)\n\nbody').pr, push('feat: add a thing (#1702)').prMerged], [1702, true]);
+  assert.equal(push('Merge pull request #88 from me/branch\n\ntitle').pr, 88);
+  assert.equal(push('fix: see #12 for why').pr, 0, 'a mention is not a merge');
+  assert.equal(push('docs: body mentions it\n\n(#9)').pr, 0, 'only the title counts');
+  assert.equal(jobLink('me/app', { ...run, event: 'schedule', pull_requests: [], head_commit: { message: 'x (#5)' } }, job).pr, 0, 'not a push: no guess');
   // Only https links reach the page.
   const odd = jobLink('me/app', { html_url: 'javascript:alert(1)' }, { html_url: 'http://x' });
   assert.equal(odd.runUrl, '');
   assert.equal(odd.jobUrl, '');
   assert.deepEqual(jobLink('me/app', undefined, undefined), {
-    workflow: '', event: '', branch: '', pr: 0, prUrl: '', runUrl: '', jobUrl: '',
+    workflow: '', event: '', branch: '', pr: 0, prUrl: '', prMerged: false, runUrl: '', jobUrl: '',
     runId: 0, attempt: 1, jobId: 0, sha: '', queuedAt: '', startedAt: '',
   });
   const ids = jobLink('me/app', { ...run, id: 7, run_attempt: 2, head_sha: 'abcdef0123456789' }, { ...job, id: 70, created_at: '2026-10-11T10:00:00Z', started_at: '2026-10-11T10:00:30Z' });
@@ -274,6 +295,13 @@ test('classifyQueued: what this Umbrel can do with a queued job', () => {
   assert.equal(c(['self-hosted', 'umbrel', 'gpu']), 'mismatch');
   assert.equal(c(['self-hosted', 'zot24-mac']), '', 'a Mac job is not for an Umbrel');
   assert.equal(c(['ubuntu-latest']), '');
+});
+
+test('pruneHistory: the failure excerpt is kept like the runner lines, on the newest only', () => {
+  const now = Date.parse('2026-10-11T12:00:00Z');
+  const at = new Date(now - 60_000).toISOString();
+  const kept = pruneHistory([{ finishedAt: at, failure: { hint: 'heap', excerpt: 'a' } }, { finishedAt: at, failure: { hint: 'oom', excerpt: 'b' } }], { now, keepTails: 1 });
+  assert.deepEqual(kept.map((h) => h.failure), [{ hint: 'heap', excerpt: 'a' }, { hint: 'oom', excerpt: '' }], 'the hint stays');
 });
 
 test('pruneHistory: seven days, a count cap, and runner lines only on the newest', () => {
@@ -314,4 +342,141 @@ test('historyStats: jobs, results, runner minutes and queue wait with sample cou
   assert.equal(week.jobs, 4);
   assert.equal(week.runnerMinutes, 90);
   assert.equal(historyStats([], { now, windowMs: 1000 }).wait.p50, null);
+});
+
+test('memUsed: usage minus the page cache the kernel can drop, as docker stats shows', () => {
+  assert.equal(memUsed({ usage: 5000, stats: { inactive_file: 1200 } }), 3800, 'cgroup v2');
+  assert.equal(memUsed({ usage: 5000, stats: { total_inactive_file: 1000 } }), 4000, 'cgroup v1');
+  assert.equal(memUsed({ usage: 100, stats: { inactive_file: 300 } }), 0, 'never negative');
+  assert.equal(memUsed({}), 0, 'an exited container reports nothing');
+  assert.equal(memUsed(undefined), 0);
+});
+
+test('foldUsage: CPU over each interval, peaks, and the average over busy time only', () => {
+  const s = (t, cpuS, mem, busy = true, job = null) => ({ at: t * 1000, busy, cpuNs: cpuS * 1e9, mem, memLimit: 8000, cpuLimit: 2, job });
+  let u = foldUsage(null, s(0, 0.5, 100, false));
+  assert.equal(u.cpu, null, 'the first sample has no interval yet');
+  assert.equal(u.samples, 0);
+  u = foldUsage(u, s(10, 1.5, 3000)); // 1 CPU-second over 10 s while busy
+  assert.equal(u.cpu, 0.1);
+  u = foldUsage(u, s(20, 16.5, 6000)); // 15 CPU-seconds over 10 s
+  assert.equal(u.cpu, 1.5);
+  u = foldUsage(u, s(30, 17.5, 2000));
+  const v = usageView(u);
+  assert.equal(v.cpu, 0.1, 'now');
+  assert.equal(v.cpuPeak, 1.5);
+  assert.equal(v.cpuAvg, 0.57, '17 CPU-seconds over 30 busy seconds');
+  assert.equal(v.mem, 2000);
+  assert.equal(v.memPeak, 6000);
+  assert.deepEqual([v.memLimit, v.cpuLimit, v.samples, v.oom], [8000, 2, 3, 0]);
+  // Idle intervals (before the job starts) count toward peaks of memory only.
+  const idle = foldUsage(foldUsage(null, s(0, 0, 10, false)), s(10, 5, 20, false));
+  assert.equal(usageView(idle).cpuAvg, null, 'no busy interval, no average');
+  assert.equal(usageView(idle).cpuPeak, null);
+  // A counter that went backwards (container restarted) is not negative CPU.
+  assert.equal(foldUsage(foldUsage(null, s(0, 9, 1)), s(10, 1, 1)).cpu, 0);
+});
+
+test('foldUsage: a Docker job also counts the containers it starts, new ones from zero', () => {
+  const s = (t, job) => ({ at: t * 1000, busy: true, cpuNs: 0, mem: 500, memLimit: 8000, cpuLimit: 2, job });
+  let u = foldUsage(null, s(0, [{ id: 'db', cpuNs: 40e9, mem: 1000 }]));
+  assert.equal(u.job.cpu, null, 'first sample: no interval');
+  u = foldUsage(u, s(10, [{ id: 'db', cpuNs: 50e9, mem: 1500 }, { id: 'api', cpuNs: 5e9, mem: 700 }]));
+  assert.equal(u.job.cpu, 1.5, 'db used 10 s, api (new since the last sample) 5 s, over 10 s');
+  u = foldUsage(u, s(20, [{ id: 'api', cpuNs: 6e9, mem: 300 }]));
+  const v = usageView(u);
+  assert.deepEqual(v.job, { containers: 1, containersMax: 2, cpu: 0.1, cpuAvg: 0.8, cpuPeak: 1.5, mem: 300, memPeak: 2200 });
+  assert.equal(usageView(foldUsage(null, s(0, null))).job, null, 'a light runner has no job containers');
+});
+
+test('usageView without live values: what a finished job keeps', () => {
+  const u = foldUsage(foldUsage(null, { at: 0, busy: true, cpuNs: 0, mem: 10, memLimit: 100, cpuLimit: 1, job: null }), { at: 5000, busy: true, cpuNs: 5e9, mem: 95, memLimit: 100, cpuLimit: 1, job: null });
+  u.oom = 2;
+  const kept = usageView(u, { live: false });
+  assert.deepEqual(kept, { cpuAvg: 1, cpuPeak: 1, cpuLimit: 1, memPeak: 95, memLimit: 100, oom: 2, samples: 1, job: null });
+  assert.equal(usageView(null), null);
+});
+
+test('attributeOom: an oom event goes to the runner it names, or to the Docker runner', () => {
+  const ev = (name, ghr, id = 'x') => ({ Type: 'container', Action: 'oom', timeNano: 1, Actor: { ID: id, Attributes: { name, ...(ghr ? { 'ghr.name': ghr } : {}) } } });
+  const counts = attributeOom(
+    [ev('ghr-umbrel-8ef4-aaaaaa', 'umbrel-8ef4-aaaaaa'), ev('ghr-umbrel-8ef4-aaaaaa', 'umbrel-8ef4-aaaaaa'), ev('supabase_db', null), { Type: 'container', Action: 'die', Actor: { Attributes: {} } }],
+    { dockerRunner: 'umbrel-8ef4-dddddd' },
+  );
+  assert.deepEqual(Object.fromEntries(counts), { 'umbrel-8ef4-aaaaaa': 2, 'umbrel-8ef4-dddddd': 1 });
+  assert.deepEqual(Object.fromEntries(attributeOom([ev('stray', null)], { dockerRunner: '' })), {}, 'no Docker job running: nobody to charge');
+});
+
+test('stepsOf and stepSummary: the step GitHub says is running, and the one that failed', () => {
+  const job = {
+    steps: [
+      { number: 1, name: 'Set up job', status: 'completed', conclusion: 'success', started_at: '2026-10-12T00:00:00Z', completed_at: '2026-10-12T00:00:02Z' },
+      { number: 2, name: 'Type check', status: 'in_progress', conclusion: null, started_at: '2026-10-12T00:00:02Z', completed_at: null },
+      { number: 3, name: 'Post Run actions/checkout@v4', status: 'queued', conclusion: null, started_at: null, completed_at: null },
+    ],
+  };
+  const steps = stepsOf(job);
+  assert.deepEqual(steps[1], { n: 2, name: 'Type check', status: 'in_progress', conclusion: '', startedAt: '2026-10-12T00:00:02Z', completedAt: '' });
+  assert.deepEqual(stepSummary(steps), { total: 3, done: 1, current: steps[1], failed: null });
+  steps[1] = { ...steps[1], status: 'completed', conclusion: 'failure' };
+  assert.equal(stepSummary(steps).failed.name, 'Type check');
+  assert.equal(stepSummary(steps).current, null);
+  assert.deepEqual(stepsOf({}), []);
+  assert.equal(stepsOf({ steps: Array.from({ length: 300 }, (_, i) => ({ number: i, name: 's' })) }).length, 100, 'capped');
+  assert.deepEqual(stepSummary([]), { total: 0, done: 0, current: null, failed: null });
+});
+
+test('cleanStepLog: the runner page file, cut to whole lines with short times', () => {
+  const text = 'cut line\n2026-10-12T00:23:56.1234567Z ##[group]Run pnpm test\n2026-10-12T00:23:57.0000000Z \u001b[32m ok 12 tests\u001b[0m\r\nplain continuation\n';
+  assert.equal(cleanStepLog(text, { cut: true }), '00:23:56 ##[group]Run pnpm test\n00:23:57  ok 12 tests\nplain continuation');
+  assert.equal(cleanStepLog('2026-10-12T00:00:01.5Z first\n', { cut: false }), '00:00:01 first');
+  assert.equal(cleanStepLog('', { cut: true }), '');
+});
+
+test('host figures from /proc: CPU busy between two reads, and memory', () => {
+  const a = parseProcStat('cpu  100 0 50 800 50 0 0 0 0 0\ncpu0 1 2 3\n');
+  const b = parseProcStat('cpu  160 0 70 900 70 0 0 0 0 0\n');
+  assert.deepEqual(a, { busy: 150, iowait: 50, total: 1000 });
+  assert.deepEqual(hostCpuBusy(a, b), { busy: 0.4, iowait: 0.1 }, '80 of 200 jiffies busy, 20 waiting on disk');
+  assert.equal(hostCpuBusy(null, b), null);
+  assert.equal(hostCpuBusy(b, b), null, 'no time passed');
+  assert.equal(parseProcStat('garbage'), null);
+  assert.deepEqual(parseMeminfo('MemTotal:       16118656 kB\nMemFree:  1 kB\nMemAvailable:    8059328 kB\n'), { total: 16118656 * 1024, available: 8059328 * 1024 });
+  assert.equal(parseMeminfo('nothing'), null);
+});
+
+test('historyStats: jobs that ran out of memory or came close to their limit', () => {
+  const now = Date.parse('2026-10-11T12:00:00Z');
+  const at = new Date(now - 60_000).toISOString();
+  const h = (usage) => ({ result: 'Succeeded', finishedAt: at, jobStartedAt: at, usage });
+  const st = historyStats([h({ oom: 1, memPeak: 50, memLimit: 100 }), h({ oom: 0, memPeak: 95, memLimit: 100 }), h({ oom: 0, memPeak: 10, memLimit: 100 }), h(undefined)], { now, windowMs: 3600_000 });
+  assert.equal(st.oom, 1);
+  assert.equal(st.nearMemLimit, 1, 'at or above 90% of the limit, without an OOM kill');
+  assert.equal(st.sampled, 3);
+});
+
+test('failureExcerpt: the lines leading to the last error of GitHub\'s job log', () => {
+  const t = (s, line) => `2026-10-12T00:00:${String(s).padStart(2, '0')}.1234567Z ${line}`;
+  const log = [
+    t(0, '##[group]Run actions/upload-artifact@v4'),
+    t(1, '##[error]Artifact storage quota has been hit'), // continue-on-error, not the failure
+    ...Array.from({ length: 50 }, (_, i) => t(2, `tsc line ${i}`)),
+    t(3, 'FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory'),
+    t(4, '##[error]Process completed with exit code 134.'),
+    t(5, 'Post job cleanup.'),
+  ].join('\r\n');
+  const ex = failureExcerpt(log, { before: 5 });
+  assert.deepEqual(ex.split('\n'), ['00:00:02 tsc line 46', '00:00:02 tsc line 47', '00:00:02 tsc line 48', '00:00:02 tsc line 49', '00:00:03 FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory', '00:00:04 ##[error]Process completed with exit code 134.']);
+  assert.equal(failureExcerpt([t(0, 'a'), t(1, 'b'), t(2, 'c')].join('\n'), { before: 2 }), '00:00:01 b\n00:00:02 c', 'no error line: the last lines');
+  assert.ok(failureExcerpt(t(0, 'x'.repeat(20_000)), { maxBytes: 1000 }).length <= 1000, 'capped');
+});
+
+test('failureHint: what a failure looks like, from the log and the OOM count', () => {
+  assert.equal(failureHint('FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory'), 'heap');
+  assert.equal(failureHint('##[error]Process completed with exit code 137.', { oom: 1 }), 'oom');
+  assert.equal(failureHint('', { oom: 2 }), 'oom', 'the kernel said so, whatever the log');
+  assert.equal(failureHint('##[error]Process completed with exit code 137.'), 'killed');
+  assert.equal(failureHint('ENOSPC: no space left on device, write'), 'disk');
+  assert.equal(failureHint('Error: No space left on device'), 'disk');
+  assert.equal(failureHint('##[error]Process completed with exit code 1.'), '');
 });

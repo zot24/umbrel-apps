@@ -35,13 +35,14 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
   const jobs = {};
   const runners = new Map();
   const requests = []; // "GET /repos/fake/private-repo 304"
+  const blobAuth = []; // the Authorization header each log download carried
   let nextRunId = 1001;
   let nextJobId = 5001;
   let nextRunnerId = 1;
 
   // A run and its queued jobs. `head` is the repository the run's code
   // comes from: the served repo itself, or a fork of it.
-  function queueRun({ jobs: n = 1, labels = ['self-hosted', 'umbrel'], head = REPO, fork = false, event = 'push', pr = 0, branch = 'main' } = {}) {
+  function queueRun({ jobs: n = 1, labels = ['self-hosted', 'umbrel'], head = REPO, fork = false, event = 'push', pr = 0, branch = 'main', message = 'a commit' } = {}) {
     const id = nextRunId++;
     const base = repos[REPO];
     const headRepo = head === null ? null : head === REPO ? base : { id: 900 + id, full_name: head, private: true, fork };
@@ -54,6 +55,9 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
       head_branch: branch,
       html_url: html,
       pull_requests: pr ? [{ number: pr }] : [],
+      head_sha: `${id}`.padStart(40, 'c'),
+      head_commit: { message },
+      run_attempt: 1,
       updated_at: new Date().toISOString(),
       repository: { id: base.id, full_name: base.full_name },
       head_repository: headRepo,
@@ -69,6 +73,7 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
         name: `build ${i + 1}`,
         html_url: `${html}/job/${jobId}`,
         runner_name: null,
+        steps: [],
       };
     });
     return { id, jobs: jobs[id] };
@@ -128,6 +133,14 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
       return send(201, queueRun({ jobs: Number(q.get('jobs') || 1), head: q.get('head') || REPO, fork: q.get('fork') === 'true', event: q.get('event') || 'push' }));
     }
     if (p.startsWith('/_fake/')) return send(401, { message: 'fake server: runners cannot connect here' });
+    // Where a job log download redirects: storage that needs no token.
+    const blob = p.match(/^\/_blob\/(\d+)$/);
+    if (blob) {
+      blobAuth.push(req.headers.authorization || '');
+      const job = Object.values(jobs).flat().find((j) => j.id === Number(blob[1]));
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      return res.end(job?.log || '');
+    }
     if (req.headers.authorization !== `Bearer ${TOKEN}`) return send(401, { message: 'Bad credentials' });
 
     if (req.method === 'GET' && p === '/user') return send(200, { login: 'fake-owner' });
@@ -145,7 +158,8 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
       // `fake.failRuns = true` makes the queue read fail, as an outage would.
       if (fake.failRuns) return send(502, { message: 'Server Error' });
       const status = url.searchParams.get('status');
-      const all = repo === REPO ? runs.filter((r) => !status || r.status === status) : [];
+      // Newest first, as GitHub lists them.
+      const all = repo === REPO ? runs.filter((r) => !status || r.status === status).sort((a, b) => b.id - a.id) : [];
       const perPage = Number(url.searchParams.get('per_page') || 30);
       const page = Number(url.searchParams.get('page') || 1);
       const list = all.slice((page - 1) * perPage, page * perPage);
@@ -153,6 +167,21 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
     }
     const jm = rest.match(/^\/actions\/runs\/(\d+)\/jobs$/);
     if (req.method === 'GET' && jm) return send(200, { total_count: (jobs[jm[1]] || []).length, jobs: jobs[jm[1]] || [] });
+    // A job's log: 404 until it is there (GitHub needs a moment after the
+    // job ends), then a redirect to storage, as GitHub does.
+    const logs = rest.match(/^\/actions\/jobs\/(\d+)\/logs$/);
+    if (req.method === 'GET' && logs) {
+      const job = Object.values(jobs).flat().find((j) => j.id === Number(logs[1]));
+      if (!job || job.log === undefined) return send(404, { message: 'Not Found' });
+      requests.push(`GET ${req.url} 302`);
+      res.writeHead(302, { Location: `http://${req.headers.host}/_blob/${job.id}` });
+      return res.end();
+    }
+    const one = rest.match(/^\/actions\/jobs\/(\d+)$/);
+    if (req.method === 'GET' && one) {
+      const job = Object.values(jobs).flat().find((j) => j.id === Number(one[1]));
+      return job ? send(200, job) : send(404, { message: 'Not Found' });
+    }
     if (req.method === 'POST' && rest === '/actions/runners/generate-jitconfig') {
       const id = nextRunnerId++;
       const runner = { id, name: body.name, os: 'Linux', status: 'offline', busy: false, ephemeral: true, labels: body.labels.map((name) => ({ name })) };
@@ -179,6 +208,7 @@ export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:808
     jobs,
     runners,
     requests,
+    blobAuth,
     queueRun,
     // A runner picks up one of the queued jobs: GitHub counts it busy and
     // the job leaves the queue, with the runner's name on it. `done`: the
