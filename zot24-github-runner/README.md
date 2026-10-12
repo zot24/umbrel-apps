@@ -208,7 +208,8 @@ Leave a job on `ubuntu-latest` when it needs macOS or Windows, lots of disk, or 
   The queue is read across up to three pages of 100 runs per status. When GitHub cannot be read,
   the last numbers stay on the page marked stale, and no runner starts on them.
 - **Runners:** each runner's job, linked to its log on GitHub and to its pull request (for a push
-  that merged one, such as main after a squash merge, that pull request, marked merged), the step
+  to the default branch whose commit title names a merged one, as a squash or merge commit does,
+  that pull request, marked merged), the step
   GitHub says is running, and its CPU and memory against its own limits (peak and average too).
   Every poll the app reads one-shot Docker stats of each runner's container; for a Docker job also
   of each container the job started since its runner did, which have no limit and are shown apart.

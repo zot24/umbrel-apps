@@ -522,6 +522,9 @@ test('a Docker job counts the containers it starts in the private daemon', async
   assert.equal(r.usage.job.mem, 3 * GiB);
   db.stats = { cpuNs: 50e9, mem: 2 * GiB };
   await waitFor('their CPU', async () => (await runnerOfState(s, name))?.usage?.job?.cpu > 0);
+  s.docker.oom(old);
+  await s.ticks(2);
+  assert.equal((await runnerOfState(s, name)).usage.oom, 0, 'a leftover\'s OOM kill is not this job\'s');
   s.docker.oom(db);
   await waitFor('an OOM kill in a job container is the Docker runner\'s', async () => (await runnerOfState(s, name))?.usage?.oom === 1);
 });
@@ -614,4 +617,6 @@ test('Logs: a step output larger than the cap is cut, not read whole', async (t)
   const r = await s.api('GET', `/api/runners/${c.Labels['ghr.name']}/logs`);
   assert.equal(r.status, 200);
   assert.ok(r.body.output.length <= 64 * 1024, `got ${r.body.output.length}`);
+  assert.match(r.body.output, /^00:00:01 line \d+ y+\n/, 'text, not Docker stream framing');
+  assert.equal(/[\u0000-\u0008]/.test(r.body.output), false);
 });

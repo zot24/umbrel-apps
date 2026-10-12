@@ -212,7 +212,7 @@ async function stepOutput(id) {
   });
   const res = await dockerRequest('POST', `/exec/${ex.Id}/start`, { Detach: false, Tty: false }, { timeout: 5000, maxBytes: 2 * STEP_TAIL_BYTES });
   if (res.status >= 400) throw dockerError(res);
-  const text = demuxDockerLogs(res.body);
+  const text = demuxDockerLogs(res.body, { truncated: res.body.length >= 2 * STEP_TAIL_BYTES });
   return cleanStepLog(text, { cut: Buffer.byteLength(text) >= STEP_TAIL_BYTES - 8 });
 }
 
@@ -722,8 +722,10 @@ async function stepOfEnd(repo, link, lastSeen) {
     }
   }
   const sum = stepSummary(steps);
-  const s = sum.failed || sum.current;
-  return s ? { n: s.n, name: s.name, total: sum.total, conclusion: s.conclusion || s.status } : null;
+  // GitHub's job can say neither yet; the last poll then knows best.
+  const last = stepSummary(lastSeen);
+  const s = sum.failed || sum.current || last.failed || last.current;
+  return s ? { n: s.n, name: s.name, total: sum.total || last.total, conclusion: s.conclusion || s.status } : null;
 }
 
 // ------------------------------------------------------- failure logs ----
@@ -801,16 +803,20 @@ async function drainFailLogs() {
 // A job that started and ended between two polls was never seen with its
 // runner: look for it in the repository's latest runs. One push starts a
 // run per workflow, so 30 of them; only runs updated since the runner
-// started have their jobs read. Null if not found.
+// started have their jobs read. This runs on the scheduling chain, so it
+// gives up after FIND_LINK_MS. Null if not found.
+const FIND_LINK_MS = 15_000;
 async function findJobLink(r) {
+  const deadline = Date.now() + FIND_LINK_MS;
   try {
     const since = new Date(r.createdAt).toISOString();
     const runs = await gh('GET', `/repos/${r.repo}/actions/runs?per_page=30`);
     for (const run of runs?.workflow_runs || []) {
       if ((run.updated_at || '') < since) continue;
+      if (Date.now() > deadline) break;
       const jobs = await gh('GET', `/repos/${r.repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
       const j = (jobs?.jobs || []).find((x) => x.runner_name === r.name);
-      if (j) return jobLink(r.repo, run, j);
+      if (j) return jobLink(r.repo, run, j, { defaultBranch: repoStatus.get(r.repo)?.defaultBranch });
     }
   } catch (e) {
     noteTokenFailure(e);
@@ -837,7 +843,20 @@ async function readOomEvents() {
   const key = (e) => `${e.Actor?.ID}:${e.timeNano}`;
   const fresh = events.filter((e) => !eventsSeen.has(key(e)));
   eventsSeen = new Set(events.map(key));
-  const counts = attributeOom(fresh, { dockerRunner: alive.find((r) => r.docker)?.name || '' });
+  // A kill in a container without a runner label is the Docker job's only
+  // if that container was started after its runner (one left by an
+  // earlier job can still be up). One gone already was this job's.
+  const dockerRunner = alive.find((r) => r.docker);
+  const mine = [];
+  for (const e of fresh) {
+    if (e.Actor?.Attributes?.['ghr.name'] || !dockerRunner) {
+      mine.push(e);
+      continue;
+    }
+    const c = await docker('GET', `/containers/${e.Actor?.ID}/json`, undefined, { timeout: 10_000 }).catch(() => null);
+    if (!c || Date.parse(c.Created) >= dockerRunner.createdAt - 1000) mine.push(e);
+  }
+  const counts = attributeOom(mine, { dockerRunner: dockerRunner?.name || '' });
   for (const [name, n] of counts) {
     const u = usage.get(name) || {};
     usage.set(name, { ...u, oom: (u.oom || 0) + n });
@@ -987,6 +1006,7 @@ async function pollRepo(repo, { queue = true } = {}) {
     // while nothing changes GitHub answers 304, which costs no rate limit.
     const info = await gh('GET', `/repos/${repo}`);
     st.private = info.private === true;
+    st.defaultBranch = String(info.default_branch || '');
     if (!st.private) {
       Object.assign(st, { queued: 0, queuedDocker: 0, dockerOff: 0, forks: 0, oldestQueuedAt: '', oldestDockerQueuedAt: '', error: PUBLIC_ERROR });
       await wentPublic(repo);
@@ -1021,7 +1041,7 @@ async function pollRepo(repo, { queue = true } = {}) {
           for (const j of jobs?.jobs || []) {
             // Which job each of our runners took, for links on the page.
             if (j.runner_name && ours.has(j.runner_name)) {
-              jobLinks.set(j.runner_name, jobLink(repo, run, j));
+              jobLinks.set(j.runner_name, jobLink(repo, run, j, { defaultBranch: st.defaultBranch }));
               jobSteps.set(j.runner_name, stepsOf(j));
             }
             if (j.status !== 'queued') continue;
@@ -1043,7 +1063,7 @@ async function pollRepo(repo, { queue = true } = {}) {
               // Waits on GitHub while Docker for jobs is off; the page says so.
               dockerOff += 1;
             }
-            const link = jobLink(repo, run, j);
+            const link = jobLink(repo, run, j, { defaultBranch: st.defaultBranch });
             waiting.push({ kind, jobId: link.jobId, name: String(j.name || ''), workflow: link.workflow, url: link.jobUrl, pr: link.pr, labels: (j.labels || []).map(String), queuedAt: link.queuedAt });
           }
         }

@@ -26,7 +26,7 @@ const b64 = (o) => Buffer.from(typeof o === 'string' ? o : JSON.stringify(o)).to
 
 export function createFakeGitHub({ queued = 1, publicUrl = 'http://127.0.0.1:8080', log = false } = {}) {
   const repos = {
-    'fake/private-repo': { id: 1, full_name: 'fake/private-repo', private: true, fork: false },
+    'fake/private-repo': { id: 1, full_name: 'fake/private-repo', private: true, fork: false, default_branch: 'main' },
     'fake/public-repo': { id: 2, full_name: 'fake/public-repo', private: false, fork: false },
   };
   // Workflow runs on fake/private-repo, each with its jobs. The jobs stay

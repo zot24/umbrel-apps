@@ -252,11 +252,13 @@ test('jobLink: the job, its run, and its pull request when it has one', () => {
   assert.equal(nightly.runUrl, run.html_url);
   // A push of a merged pull request (main after a squash or merge) names it
   // in the commit title; the run itself lists no pull request.
-  const push = (message) => jobLink('me/app', { ...run, event: 'push', head_branch: 'main', pull_requests: [], head_commit: { message } }, job);
+  const push = (message, branch = 'main', opts = { defaultBranch: 'main' }) => jobLink('me/app', { ...run, event: 'push', head_branch: branch, pull_requests: [], head_commit: { message } }, job, opts);
   assert.deepEqual([push('feat: add a thing (#1702)\n\nbody').pr, push('feat: add a thing (#1702)').prMerged], [1702, true]);
   assert.equal(push('Merge pull request #88 from me/branch\n\ntitle').pr, 88);
   assert.equal(push('fix: see #12 for why').pr, 0, 'a mention is not a merge');
   assert.equal(push('docs: body mentions it\n\n(#9)').pr, 0, 'only the title counts');
+  assert.equal(push('feat: add a thing (#1702)', 'feat/x').pr, 0, 'a push to another branch merged nothing');
+  assert.equal(push('feat: add a thing (#1702)', 'main', {}).pr, 0, 'default branch unknown: no guess');
   assert.equal(jobLink('me/app', { ...run, event: 'schedule', pull_requests: [], head_commit: { message: 'x (#5)' } }, job).pr, 0, 'not a push: no guess');
   // Only https links reach the page.
   const odd = jobLink('me/app', { html_url: 'javascript:alert(1)' }, { html_url: 'http://x' });
@@ -479,4 +481,19 @@ test('failureHint: what a failure looks like, from the log and the OOM count', (
   assert.equal(failureHint('ENOSPC: no space left on device, write'), 'disk');
   assert.equal(failureHint('Error: No space left on device'), 'disk');
   assert.equal(failureHint('##[error]Process completed with exit code 1.'), '');
+});
+
+test('demuxDockerLogs: a stream cut by the read cap keeps its whole frames and the cut one\'s start', () => {
+  const frame = (t) => { const b = Buffer.from(t); const h = Buffer.alloc(8); h[0] = 1; h.writeUInt32BE(b.length, 4); return Buffer.concat([h, b]); };
+  const full = Buffer.concat([frame('first line\n'), frame('second line that goes on')]);
+  const cut = full.subarray(0, full.length - 8);
+  assert.equal(demuxDockerLogs(cut, { truncated: true }), 'first line\nsecond line that');
+  assert.equal(demuxDockerLogs(cut), cut.toString(), 'not asked to: an odd buffer is returned as-is');
+});
+
+test('stepSummary: a step that timed out or was cancelled is where the job stopped too', () => {
+  const st = (n, status, conclusion) => ({ n, name: `s${n}`, status, conclusion, startedAt: '', completedAt: '' });
+  assert.equal(stepSummary([st(1, 'completed', 'success'), st(2, 'completed', 'timed_out'), st(3, 'completed', 'skipped')]).failed.n, 2);
+  assert.equal(stepSummary([st(1, 'completed', 'success'), st(2, 'completed', 'cancelled'), st(3, 'completed', 'cancelled')]).failed.n, 2);
+  assert.equal(stepSummary([st(1, 'completed', 'skipped')]).failed, null);
 });

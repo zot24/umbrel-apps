@@ -855,7 +855,7 @@ function renderHistory() {
     }).join('')}</tbody></table>`;
 }
 
-const STEP_END = { failure: 'failed', in_progress: 'running when the job ended', cancelled: 'cancelled' };
+const STEP_END = { failure: 'failed', timed_out: 'timed out', cancelled: 'cancelled', in_progress: 'running when the job ended' };
 const HINT_TEXT = { heap: 'Node heap limit', oom: 'Out of memory', killed: 'Killed (exit 137)', disk: 'Disk full' };
 
 // Why a job ended badly, when its log or the kernel said so; an OOM kill
@@ -869,7 +869,7 @@ function causePill(h) {
 // The step a job that did not succeed stopped in.
 function endStep(h) {
   if (!h.step) return '';
-  const how = h.step.conclusion === 'failure' ? 'failed at' : 'ended in';
+  const how = { failure: 'failed at', timed_out: 'timed out in', cancelled: 'cancelled in' }[h.step.conclusion] || 'ended in';
   return `<div class="small bad">${esc(`${how} step ${h.step.n} of ${h.step.total}: ${h.step.name}`)}</div>`;
 }
 

@@ -80,13 +80,14 @@ function mergedPr(message) {
 
 // Where a runner's job is on GitHub, for links on the page: the job's log,
 // its run, and the pull request the run belongs to (none for a run not tied
-// to one, such as a schedule). A push run lists no pull request; when its
-// commit merged one (main after a merge), that one is shown as merged.
+// to one, such as a schedule). A push run lists no pull request; a push to
+// the default branch whose commit merged one is shown with it, as merged.
 // Only https URLs are kept.
-export function jobLink(repo, run, job) {
+export function jobLink(repo, run, job, { defaultBranch = '' } = {}) {
   const url = (u) => (typeof u === 'string' && u.startsWith('https://') ? u : '');
   const open = Number(run?.pull_requests?.[0]?.number) || 0;
-  const merged = !open && run?.event === 'push' ? mergedPr(run?.head_commit?.message) : 0;
+  const onDefault = !!defaultBranch && run?.head_branch === defaultBranch;
+  const merged = !open && run?.event === 'push' && onDefault ? mergedPr(run?.head_commit?.message) : 0;
   const pr = open || merged;
   return {
     workflow: String(run?.name || ''),
@@ -305,13 +306,15 @@ export function stepsOf(job) {
   }));
 }
 
-// How far a job is: steps done, the one running, the first that failed.
+// How far a job is: steps done, the one running, and the first that
+// stopped it (failed, timed out, or was cancelled; later ones are skipped).
+const STOPPED = new Set(['failure', 'timed_out', 'cancelled']);
 export function stepSummary(steps) {
   return {
     total: steps.length,
     done: steps.filter((s) => s.status === 'completed').length,
     current: steps.find((s) => s.status === 'in_progress') || null,
-    failed: steps.find((s) => s.conclusion === 'failure') || null,
+    failed: steps.find((s) => STOPPED.has(s.conclusion)) || null,
   };
 }
 
@@ -372,8 +375,9 @@ export function jobLimits({ ncpu, memBytes, maxRunners }) {
 
 // Docker's non-TTY log stream frames every chunk with an 8-byte header
 // (stream type, 3 zero bytes, big-endian length). Anything that does not
-// look like that is returned as-is.
-export function demuxDockerLogs(buf) {
+// look like that is returned as-is. `truncated`: the read stopped at a cap,
+// so the last frame may be cut; its bytes so far are kept.
+export function demuxDockerLogs(buf, { truncated = false } = {}) {
   const parts = [];
   let o = 0;
   while (o + 8 <= buf.length) {
@@ -383,7 +387,7 @@ export function demuxDockerLogs(buf) {
     parts.push(buf.subarray(o + 8, o + 8 + size));
     o += 8 + size;
   }
-  if (o !== buf.length) return buf.toString();
+  if (o !== buf.length && !(truncated && o > buf.length)) return buf.toString();
   return Buffer.concat(parts).toString();
 }
 

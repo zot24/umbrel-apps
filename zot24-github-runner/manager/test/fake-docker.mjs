@@ -22,13 +22,19 @@ export function createFakeDocker({ ncpu = 4, memBytes = 16 * GiB } = {}) {
     containers.set(c.Id, { Labels: {}, State: 'created', Created: Math.floor(Date.now() / 1000), logs: '', stats: { cpuNs: 0, mem: 0 }, stepLog: '', ...c });
     return containers.get(c.Id);
   };
-  // Docker's multiplexed stream: an 8-byte header per chunk (1 = stdout).
+  // Docker's multiplexed stream: an 8-byte header per chunk (1 = stdout),
+  // in chunks of at most 16 KB as the daemon writes them.
   const frame = (text) => {
     const body = Buffer.from(text);
-    const head = Buffer.alloc(8);
-    head[0] = 1;
-    head.writeUInt32BE(body.length, 4);
-    return body.length ? Buffer.concat([head, body]) : Buffer.alloc(0);
+    const out = [];
+    for (let o = 0; o < body.length; o += 16 * 1024) {
+      const part = body.subarray(o, o + 16 * 1024);
+      const head = Buffer.alloc(8);
+      head[0] = 1;
+      head.writeUInt32BE(part.length, 4);
+      out.push(head, part);
+    }
+    return Buffer.concat(out);
   };
 
   const summary = (c) => ({ Id: c.Id, Names: [`/${c.Name}`], Labels: c.Labels, State: c.State, Created: c.Created });
@@ -88,7 +94,7 @@ export function createFakeDocker({ ncpu = 4, memBytes = 16 * GiB } = {}) {
       res.writeHead(200, { 'Content-Type': 'application/vnd.docker.raw-stream' });
       return res.end(frame(ex.container.stepLog));
     }
-    if ((m = p.match(/^\/containers\/([^/]+)(?:\/(start|kill|wait|logs|stats|exec))?$/))) {
+    if ((m = p.match(/^\/containers\/([^/]+)(?:\/(start|kill|wait|logs|stats|exec|json))?$/))) {
       const c = find(m[1]);
       if (!c) return send(404, { message: `No such container: ${m[1]}` });
       const op = m[2] || '';
@@ -105,6 +111,9 @@ export function createFakeDocker({ ncpu = 4, memBytes = 16 * GiB } = {}) {
       if (req.method === 'GET' && op === 'logs') {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         return res.end(c.logs);
+      }
+      if (req.method === 'GET' && op === 'json') {
+        return send(200, { Id: c.Id, Name: `/${c.Name}`, Created: new Date(c.Created * 1000).toISOString(), State: { Status: c.State } });
       }
       if (req.method === 'GET' && op === 'stats') {
         // One-shot stats as cgroup v2 reports them; an exited container's are zeroed.
