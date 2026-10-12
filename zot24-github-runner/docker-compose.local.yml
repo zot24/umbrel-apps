@@ -57,7 +57,7 @@ services:
       STATE_DIR: /state
       WORK_DIR: /ghr
       EXTERNALS_DIR: /externals
-      RUNNER_IMAGE: ghcr.io/zot24/github-runner-image:0.1.7@sha256:74ce6cd8371ff6ff24fdadd861f91dae44f9dcb4793d2fe4552d3ffbde8de8cf
+      RUNNER_IMAGE: ghcr.io/zot24/github-runner-image:0.1.7@sha256:31f4fb80f76ea9ff065f51e8254271bd01fb3c896b161cb272ca5f87829b9202
       GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
       IDLE_TIMEOUT_MS: ${IDLE_TIMEOUT_MS:-600000}
     volumes:
