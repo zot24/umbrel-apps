@@ -290,6 +290,19 @@ table.hist tr[data-tail]:hover td { background: rgba(80, 255, 168, 0.04); }
 .steps { margin: 0 0 12px; padding-left: 20px; }
 .steps li { margin-bottom: 4px; }
 .steps li::marker { color: var(--phosphor-dim); }
+/* Job usage: label, a 6px bar against the job's own limit, the figures. */
+.meters { display: grid; grid-template-columns: max-content minmax(90px, 180px) 1fr; gap: 6px 12px; align-items: center; margin: 0; font-size: 12px; }
+.meters dt { color: var(--text-muted); letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px; }
+.meters dd { margin: 0; min-width: 0; color: var(--text-muted); overflow-wrap: anywhere; }
+.meters dd.span { grid-column: 2 / -1; }
+.progress.red > i { background: var(--red); box-shadow: 0 0 10px var(--red), 4px 0 12px var(--red); }
+.steplist { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
+.steplist li { display: grid; grid-template-columns: 2.4em 3.2em 1fr max-content; gap: 8px; }
+.steplist .n, .steplist .t { color: var(--text-muted); }
+.sec { font: 600 11px/1.2 var(--display); letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted); margin: 18px 0 8px; }
+.sec .muted { font: 400 11px/1.2 var(--mono); letter-spacing: 0; text-transform: none; }
+.blinkt { animation: blink 1s steps(2, start) infinite; }
+#step-out { max-height: 42vh; overflow: auto; }
 </style>
 </head>
 <body>
@@ -349,6 +362,7 @@ table.hist tr[data-tail]:hover td { background: rgba(80, 255, 168, 0.04); }
       <span id="run-count" class="badge idle"><span class="dot"></span><span>0 / 0</span></span>
     </div>
     <div class="panel-body">
+      <p class="small muted" id="host" style="margin:0 0 12px"></p>
       <div id="runners" class="list"></div>
       <p class="small muted" id="limits" style="margin:12px 0 0"></p>
     </div>
@@ -418,6 +432,14 @@ function ago(t) {
   return `${dur(Date.now() - new Date(t).getTime()).split(' ')[0]} ago`;
 }
 const gb = (b) => `${(b / GB).toFixed(b % GB ? 1 : 0)} GB`;
+const cores = (n) => `${n} core${n === 1 ? '' : 's'}`;
+const has = (v) => v !== null && v !== undefined;
+
+// A 6px bar for a share of a limit: amber from 80%, red from 95%.
+function bar(frac) {
+  const f = Math.max(0, Math.min(1, Number(frac) || 0));
+  return `<div class="progress${f >= 0.95 ? ' red' : f >= 0.8 ? ' amber' : ''}"><i style="width:${(f * 100).toFixed(1)}%"></i></div>`;
+}
 
 // Copy must work over plain HTTP (Umbrel's default), where navigator.clipboard is unavailable.
 function copy(text, btn) {
@@ -672,6 +694,7 @@ function renderRunners() {
   $('#limits').textContent = S.host.ncpu
     ? `At most ${s.maxRunners} at once. Each job: ${L.cpus} CPU, ${gb(L.memory)} memory, ${L.pids} processes, ${L.maxJobHours} h. A runner that gets no job in ${L.idleMinutes} min is removed. This Umbrel's runners are named umbrel-${esc(S.installId)}-…; it never removes another Umbrel's. Labels: ${S.labels.join(', ')}.${s.dockerForJobs ? ` Docker runners: ${S.dockerLabels.join(', ')}, at most ${S.maxDocker} at once.` : ''}`
     : '';
+  renderHost();
   if (!S.runners.length) {
     $('#runners').innerHTML = `<div class="empty"><b>IDLE</b><br><br>No runner is up. One starts within about ${Math.round(S.pollMs / 1000)} s of a matching job being queued in a served repository, and is gone when the job ends.</div>`;
     return;
@@ -684,10 +707,78 @@ function renderRunners() {
       <div class="item-head"><div class="item-name">${esc(r.name)}</div>${pill(cls, text, blink)}</div>
       ${r.job ? `<div>&gt; ${jobName(r.job, r.link)} <span class="muted small">for ${esc(dur(Date.now() - new Date(r.jobStartedAt).getTime()))}</span></div>` : ''}
       ${r.link ? `<div class="item-meta">${jobRef(r.link)}</div>` : ''}
+      ${r.busy && r.steps.length ? `<div class="item-meta">${stepNow(r.steps)}</div>` : ''}
+      ${r.usage ? usageMeters(r.usage) : ''}
       <div class="item-meta">${esc(meta.join(' / '))}</div>
-      <div class="row"><button data-act="logs">Logs</button><button class="danger" data-act="stop">Stop</button></div>
+      <div class="row"><button data-act="logs">${r.busy ? 'Job' : 'Logs'}</button><button class="danger" data-act="stop">Stop</button></div>
     </div>`;
   }).join('');
+}
+
+// The whole Umbrel, other apps included, from the manager's /proc and the
+// work folder's disk. Amber when memory or disk is under 10% free.
+function renderHost() {
+  const h = S.hostUsage || {};
+  const parts = [];
+  if (h.cpu) parts.push(`CPU ${Math.round(h.cpu.busy * 100)}% busy${h.cpu.iowait >= 0.05 ? `, ${Math.round(h.cpu.iowait * 100)}% waiting on disk` : ''} (${S.host.ncpu} CPUs)`);
+  if (h.memTotal) parts.push(`memory ${gb(h.memAvailable)} free of ${gb(h.memTotal)}`);
+  if (h.diskTotal) parts.push(`disk ${gb(h.diskFree)} free of ${gb(h.diskTotal)}`);
+  const low = (h.memTotal && h.memAvailable < 0.1 * h.memTotal) || (h.diskTotal && h.diskFree < 0.1 * h.diskTotal);
+  $('#host').innerHTML = parts.length ? `<span class="${low ? 'warn' : ''}">This Umbrel now, all apps: ${esc(parts.join(' / '))}</span>` : '';
+}
+
+// A runner's CPU and memory against its own limits, sampled every poll.
+// A Docker job's own containers have no limit; they are summed apart.
+function usageMeters(u) {
+  const rows = [];
+  rows.push(has(u.cpu)
+    ? `<dt>CPU</dt><dd>${bar(u.cpu / u.cpuLimit)}</dd><dd>${esc(`${u.cpu} of ${cores(u.cpuLimit)}${has(u.cpuPeak) ? `, peak ${u.cpuPeak}` : ''}${has(u.cpuAvg) ? `, avg ${u.cpuAvg}` : ''}`)}</dd>`
+    : `<dt>CPU</dt><dd class="span">measuring (one poll)</dd>`);
+  if (u.memLimit) rows.push(`<dt>RAM</dt><dd>${bar(u.mem / u.memLimit)}</dd><dd>${esc(`${gb(u.mem)} of ${gb(u.memLimit)}, peak ${gb(u.memPeak)}, no swap`)}</dd>`);
+  if (u.job) rows.push(`<dt>Containers</dt><dd class="span">${esc(`${u.job.containers} started by the job (no limit): CPU ${has(u.job.cpu) ? u.job.cpu : '-'}${has(u.job.cpuPeak) ? ` (peak ${u.job.cpuPeak})` : ''}, RAM ${gb(u.job.mem)} (peak ${gb(u.job.memPeak)})`)}</dd>`);
+  if (u.oom) rows.push(`<dt class="bad">OOM</dt><dd class="span bad">${esc(`${u.oom} process${u.oom > 1 ? 'es' : ''} killed for memory`)}</dd>`);
+  return `<dl class="meters">${rows.join('')}</dl>`;
+}
+
+// The step GitHub last said is running, with how long it has run.
+function stepNow(steps) {
+  const cur = steps.find((x) => x.status === 'in_progress');
+  if (!cur) return esc(`${steps.filter((x) => x.status === 'completed').length} of ${steps.length} steps done`);
+  const since = cur.startedAt ? `, ${dur(Date.now() - Date.parse(cur.startedAt))}` : '';
+  return `step ${esc(cur.n)} of ${esc(steps.length)}: <span class="warn">${esc(cur.name)}</span>${esc(since)}`;
+}
+
+function stepMark(st) {
+  if (st.status === 'in_progress') return '<span class="warn blinkt">[&gt;]</span>';
+  if (st.status !== 'completed') return '<span class="muted">[ ]</span>';
+  if (st.conclusion === 'success') return '<span class="ok">[ok]</span>';
+  if (st.conclusion === 'failure') return '<span class="bad">[x]</span>';
+  return '<span class="muted">[-]</span>';
+}
+
+function stepList(steps) {
+  return `<ol class="steplist">${steps.map((st) => {
+    const t = st.startedAt ? dur((st.completedAt ? Date.parse(st.completedAt) : Date.now()) - Date.parse(st.startedAt)) : '';
+    return `<li><span class="n">${esc(st.n)}</span>${stepMark(st)}<span>${esc(st.name)}</span><span class="t">${esc(t)}</span></li>`;
+  }).join('')}</ol>`;
+}
+
+// Head of the Job window: what the runner is doing, where it came from.
+function jobView(r) {
+  const L = r.link;
+  const rows = [`<dt>Job</dt><dd>${r.job ? jobName(r.job, L) : '<span class="muted">none yet: waiting for GitHub to hand this runner a job</span>'}</dd>`];
+  if (L) {
+    const at = [L.branch, L.sha && `@ ${L.sha.slice(0, 7)}`, L.attempt > 1 && `attempt ${L.attempt}`].filter(Boolean).join(' ');
+    rows.push(`<dt>From</dt><dd>${jobRef(L)}${at ? ` <span class="muted">${esc(at)}</span>` : ''}</dd>`);
+    if (L.queuedAt && L.startedAt) rows.push(`<dt>Waited</dt><dd>${esc(dur(Date.parse(L.startedAt) - Date.parse(L.queuedAt)))} in GitHub's queue</dd>`);
+  } else if (r.job) {
+    rows.push('<dt>From</dt><dd class="muted">linked on the next poll</dd>');
+  }
+  if (r.jobStartedAt) rows.push(`<dt>Running</dt><dd>${esc(dur(Date.now() - Date.parse(r.jobStartedAt)))}</dd>`);
+  rows.push(`<dt>Runner</dt><dd>${esc(r.name)} <span class="muted">${esc(`${r.docker ? 'umbrel-docker' : 'umbrel'} / up ${dur(Date.now() - r.createdAt)}`)}</span></dd>`);
+  const usage = r.usage ? `<div class="sec">Usage <span class="muted">sampled every ${Math.round(S.pollMs / 1000)} s</span></div>${usageMeters(r.usage)}` : '';
+  const steps = r.steps.length ? `<div class="sec">Steps <span class="muted">as GitHub listed them at the last poll</span></div>${stepList(r.steps)}` : '';
+  return `<dl class="kv">${rows.join('')}</dl>${usage}${steps}`;
 }
 
 $('#runners').addEventListener('click', (e) => {
@@ -718,10 +809,11 @@ const ext = (url, text) => `<a href="${esc(url)}" target="_blank" rel="noopener 
 const jobName = (name, link) => (link?.jobUrl ? ext(link.jobUrl, esc(name)) : esc(name));
 function jobRef(link) {
   if (!link) return '';
-  const where = link.prUrl
-    ? ext(link.prUrl, `PR #${esc(link.pr)}`)
-    : link.runUrl ? ext(link.runUrl, esc([link.event, link.branch && `on ${link.branch}`].filter(Boolean).join(' ') || 'run')) : '';
-  return [esc(link.workflow), where].filter(Boolean).join(' / ');
+  const run = link.runUrl ? ext(link.runUrl, esc([link.event, link.branch && `on ${link.branch}`].filter(Boolean).join(' ') || 'run')) : '';
+  const pr = link.prUrl ? ext(link.prUrl, `PR #${esc(link.pr)}${link.prMerged ? ' (merged)' : ''}`) : '';
+  // A push that merged a pull request shows both: the run, and the PR.
+  const where = link.prMerged ? [run, pr] : [pr || run];
+  return [esc(link.workflow), ...where].filter(Boolean).join(' / ');
 }
 
 const RESULT_CLASS = { Succeeded: 'ok', Failed: 'bad', Canceled: 'idle', Cancelled: 'idle', TimedOut: 'bad', Stopped: 'warn', Lost: 'bad', NoJob: 'bad', RepoPublic: 'bad' };
@@ -733,7 +825,8 @@ function statsLine(label, st) {
   if (!st || !st.jobs) return `${label}: no jobs`;
   const res = Object.entries(st.results).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n} ${(RESULT_TEXT[k] || k).toLowerCase()}`).join(', ');
   const w = st.wait.samples ? `, wait p50 ${dur(st.wait.p50 * 1000)} / p95 ${dur(st.wait.p95 * 1000)} (${st.wait.samples} jobs)` : '';
-  return `${label}: ${st.jobs} jobs (${res}), ${st.runnerMinutes} runner-min${w}`;
+  const mem = [st.oom && `${st.oom} with an OOM kill`, st.nearMemLimit && `${st.nearMemLimit} at 90%+ of their memory`].filter(Boolean).join(', ');
+  return `${label}: ${st.jobs} jobs (${res}), ${st.runnerMinutes} runner-min${w}${mem ? `; memory: ${mem}` : ''}`;
 }
 
 // Which runner took the job. The name is umbrel-<this install>-<job>, so two
@@ -755,11 +848,41 @@ function renderHistory() {
   $('#history').innerHTML = `<p class="small muted" style="margin:0 0 10px">${esc(statsLine('Last 24 h', S.stats?.day))}<br>${esc(statsLine('Last 7 days', S.stats?.week))}</p><table class="hist"><thead><tr><th>When</th><th>Repository</th><th>Job</th><th>Where</th><th>Result</th><th>Took</th></tr></thead><tbody>
     ${S.history.slice(0, 20).map((h) => {
       const took = h.jobStartedAt ? dur(new Date(h.finishedAt) - new Date(h.jobStartedAt)) : '';
-      return `<tr ${h.hasTail ? `data-tail="${h.index}" title="Show the runner's last lines"` : ''}>
-        <td class="muted">${esc(ago(h.finishedAt))}</td><td>${esc(h.repo)}</td><td>${h.job ? jobName(h.job, h.link) : '-'}${h.link ? `<div class="small muted">${jobRef(h.link)}</div>` : ''}</td>
+      return `<tr ${h.hasTail ? `data-tail="${h.index}" title="Show why it ended"` : ''}>
+        <td class="muted">${esc(ago(h.finishedAt))}</td><td>${esc(h.repo)}</td><td>${h.job ? jobName(h.job, h.link) : '-'}${h.link ? `<div class="small muted">${jobRef(h.link)}</div>` : ''}${endStep(h)}</td>
         <td>${whereRan(h)}</td>
-        <td>${pill(RESULT_CLASS[h.result] || 'warn', RESULT_TEXT[h.result] || h.result)}</td><td class="muted">${esc(took)}</td></tr>`;
+        <td>${pill(RESULT_CLASS[h.result] || 'warn', RESULT_TEXT[h.result] || h.result)}${causePill(h)}</td><td class="muted">${esc(took)}${h.usage ? `<div class="small">${usageShort(h.usage)}</div>` : ''}</td></tr>`;
     }).join('')}</tbody></table>`;
+}
+
+const STEP_END = { failure: 'failed', timed_out: 'timed out', cancelled: 'cancelled', in_progress: 'running when the job ended' };
+const HINT_TEXT = { heap: 'Node heap limit', oom: 'Out of memory', killed: 'Killed (exit 137)', disk: 'Disk full' };
+
+// Why a job ended badly, when its log or the kernel said so; an OOM kill
+// in a job that still passed is worth knowing too.
+function causePill(h) {
+  if (h.failure?.hint) return `<div style="margin-top:4px">${pill('bad', HINT_TEXT[h.failure.hint] || h.failure.hint)}</div>`;
+  if (h.usage?.oom) return `<div style="margin-top:4px">${pill('warn', `${h.usage.oom} OOM kill${h.usage.oom > 1 ? 's' : ''}`)}</div>`;
+  return '';
+}
+
+// The step a job that did not succeed stopped in.
+function endStep(h) {
+  if (!h.step) return '';
+  const how = { failure: 'failed at', timed_out: 'timed out in', cancelled: 'cancelled in' }[h.step.conclusion] || 'ended in';
+  return `<div class="small bad">${esc(`${how} step ${h.step.n} of ${h.step.total}: ${h.step.name}`)}</div>`;
+}
+
+// Peaks of a finished job, against its limits.
+function usageShort(u) {
+  const bits = [];
+  if (u.memPeak) {
+    const near = u.memLimit && u.memPeak >= 0.9 * u.memLimit;
+    bits.push(`<span class="${near ? 'warn' : 'muted'}">RAM peak ${esc(gb(u.memPeak))}${u.memLimit ? ` of ${esc(gb(u.memLimit))}` : ''}</span>`);
+  }
+  if (has(u.cpuAvg)) bits.push(`<span class="muted">CPU avg ${esc(u.cpuAvg)}${u.cpuLimit ? ` of ${esc(u.cpuLimit)}` : ''}</span>`);
+  if (u.job?.memPeak) bits.push(`<span class="muted">containers ${esc(gb(u.job.memPeak))}</span>`);
+  return bits.join('<br>');
 }
 
 $('#history').addEventListener('click', async (e) => {
@@ -767,10 +890,18 @@ $('#history').addEventListener('click', async (e) => {
   const tr = e.target.closest('tr[data-tail]');
   if (!tr) return;
   const h = S.history[Number(tr.dataset.tail)];
-  openModal(`<div class="panel-header"><div class="panel-title">${esc(h.runner)} // ${esc(h.repo)}</div></div>
-    <div class="panel-body"><pre class="out" id="tail-out">loading...</pre></div>`, { wide: true });
+  const rows = [`<dt>Job</dt><dd>${h.job ? jobName(h.job, h.link) : '-'}${h.link ? ` <span class="muted">${jobRef(h.link)}</span>` : ''}</dd>`,
+    `<dt>Result</dt><dd>${pill(RESULT_CLASS[h.result] || 'warn', RESULT_TEXT[h.result] || h.result)}${h.failure?.hint ? ` ${pill('bad', HINT_TEXT[h.failure.hint] || h.failure.hint)}` : ''}</dd>`];
+  if (h.step) rows.push(`<dt>Step</dt><dd>${esc(`${h.step.n} of ${h.step.total}: ${h.step.name} (${STEP_END[h.step.conclusion] || h.step.conclusion})`)}</dd>`);
+  if (h.usage) rows.push(`<dt>Usage</dt><dd>${usageShort(h.usage).replace(/<br>/g, ' / ')}${h.usage.oom ? ` / <span class="bad">${esc(`${h.usage.oom} OOM kill${h.usage.oom > 1 ? 's' : ''}`)}</span>` : ''}</dd>`);
+  rows.push(`<dt>Runner</dt><dd>${esc(h.runner)} <span class="muted">${esc(h.docker ? 'umbrel-docker' : 'umbrel')}</span></dd>`);
+  openModal(`<div class="panel-header"><div class="panel-title">${esc(h.job || h.runner)} // ${esc(h.repo)}</div></div>
+    <div class="panel-body"><dl class="kv">${rows.join('')}</dl>
+      <div id="fail-sec" style="display:none"><div class="sec">GitHub's log <span class="muted">the lines before its last error</span></div><pre class="out" id="fail-out"></pre></div>
+      <div class="sec">Runner</div><pre class="out" id="tail-out">loading...</pre></div>`, { wide: true });
   try {
-    const { tail } = await api('GET', `/api/history/${tr.dataset.tail}`);
+    const { tail, excerpt } = await api('GET', `/api/history/${tr.dataset.tail}`);
+    if (excerpt) { $('#fail-sec').style.display = ''; $('#fail-out').textContent = excerpt; }
     $('#tail-out').textContent = tail || '(no output)';
   } catch (err) { $('#tail-out').textContent = `error: ${err.message}`; }
 });
@@ -927,19 +1058,35 @@ async function openAddRepo() {
   }
 }
 
+// The Job window: what the runner is doing (links, steps, usage, from the
+// page's state), the current step's output read from the runner itself,
+// and the runner's own console. Refreshed every 3 s while open.
 function openLogs(name) {
   let timer = null;
-  openModal(`<div class="panel-header"><div class="panel-title">Logs // ${esc(name)}</div><span class="badge ok blink"><span class="dot"></span><span>Live</span></span></div>
-    <div class="panel-body"><pre class="out" id="log-out">loading...</pre></div>`, { wide: true, onClose: () => clearInterval(timer) });
+  openModal(`<div class="panel-header"><div class="panel-title">Job // ${esc(name)}</div><span class="badge ok blink"><span class="dot"></span><span>Live</span></span></div>
+    <div class="panel-body"><div id="job-view"></div>
+      <div class="sec">Current step <span class="muted">read from the runner as it writes it; can trail by a few lines. The full log is on GitHub.</span></div>
+      <pre class="out" id="step-out">loading...</pre>
+      <div class="sec">Runner</div>
+      <pre class="out" id="log-out" style="min-height:0">loading...</pre></div>`, { wide: true, onClose: () => clearInterval(timer) });
   const load = async () => {
-    const out = $('#log-out');
-    if (!out) return;
+    const view = $('#job-view');
+    if (!view) return;
+    const r = S?.runners.find((x) => x.name === name);
+    if (r) view.innerHTML = jobView(r);
     try {
-      const { logs } = await api('GET', `/api/runners/${name}/logs`);
-      const atBottom = out.parentElement.scrollTop + out.parentElement.clientHeight >= out.parentElement.scrollHeight - 30;
-      out.textContent = logs.trim() || '(no output yet)';
-      if (atBottom) out.parentElement.scrollTop = out.parentElement.scrollHeight;
-    } catch (err) { out.textContent = `${err.message}\n\nThe runner may have finished; see Recent jobs.`; clearInterval(timer); }
+      const { logs, output, outputError } = await api('GET', `/api/runners/${name}/logs`);
+      const out = $('#step-out');
+      if (!out) return;
+      const atBottom = out.scrollTop + out.clientHeight >= out.scrollHeight - 30;
+      out.textContent = output || (outputError ? `Could not read it: ${outputError}` : r?.busy ? '(this step has written nothing yet)' : '(no job yet)');
+      if (atBottom) out.scrollTop = out.scrollHeight;
+      $('#log-out').textContent = logs.trim() || '(no output yet)';
+    } catch (err) {
+      if ($('#step-out')) $('#step-out').textContent = '';
+      if ($('#log-out')) $('#log-out').textContent = `${err.message}\n\nThe runner may have finished; see Recent jobs.`;
+      clearInterval(timer);
+    }
   };
   load();
   timer = setInterval(load, 3000);
@@ -959,6 +1106,8 @@ function openHelp() {
         <li>Each job runs as <span class="code">runner</span> with sudo inside its own container, under the CPU, memory and time limits shown under Runners.</li>
         <li>Nothing survives a job: no workspace, no tool cache, no credentials.</li>
       </ul>
+      <label>What you see of a job</label>
+      <p>Every poll the app reads each runner's CPU and memory from the private daemon (and, for a Docker job, of the containers it started), and counts processes the kernel killed for memory. <b>Job</b> on a runner shows its steps as GitHub lists them and the current step's output, read from the runner's own log file inside its container. When a job fails, the app fetches GitHub's log of it once and keeps the lines before its last error; click the row in Recent jobs.</p>
       <label>Coming from ubuntu-latest</label>
       <p>The runner image is GitHub's own minimal one (Ubuntu 24.04, git, curl, jq, unzip, the Docker CLI, sudo) plus <span class="code">zstd</span>, <span class="code">build-essential</span> (gcc, g++, make), the GitHub CLI <span class="code">gh</span> and <span class="code">docker compose</span> (for Docker jobs). It does not have the hosted image's preinstalled toolchains: use <span class="code">actions/setup-node</span>, <span class="code">setup-python</span>, <span class="code">setup-go</span> and friends, or <span class="code">sudo apt-get install</span> what a job needs (for example <span class="code">cmake</span>). The README has the full list.</p>
       <label>Removing it</label>

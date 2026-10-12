@@ -19,7 +19,7 @@
 import http from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
 import { lookup } from 'node:dns/promises';
-import { chown, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { chown, mkdir, readFile, readdir, rename, rm, statfs, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,23 +28,35 @@ import {
   MAX_RUNNERS_LIMIT,
   INSTALL_ID_RE,
   RUNNER_NAME_RE,
+  attributeOom,
   backoffMs,
   classifyQueued,
+  cleanStepLog,
   demuxDockerLogs,
+  failureExcerpt,
+  failureHint,
+  foldUsage,
   forkHead,
   historyStats,
+  hostCpuBusy,
   jobLimits,
   jobLink,
   jobWantsUs,
+  memUsed,
   normalizeRepo,
   ownsRunner,
+  parseMeminfo,
+  parseProcStat,
   parseRunnerLog,
   planSpawns,
   pruneHistory,
   reapReason,
   runnerLabels,
+  stepSummary,
+  stepsOf,
   stripAnsi,
   tokenKind,
+  usageView,
 } from './lib.mjs';
 
 const PORT = Number(process.env.PORT || 3500);
@@ -88,6 +100,8 @@ const ORPHAN_SWEEP_MS = Number(process.env.ORPHAN_SWEEP_MS || 60 * 60_000);
 // How often a registration GitHub would not delete yet is asked for again.
 const DEREG_RETRY_MS = 4 * POLL_MS;
 const IMAGE_PRUNE_MS = 24 * 3600_000;
+// How much of the current step's output the Logs window reads per refresh.
+const STEP_TAIL_BYTES = 32 * 1024;
 
 class UserError extends Error {
   constructor(message, status = 400) {
@@ -108,7 +122,9 @@ function normalizeRef(ref) {
 
 // ---------------------------------------------------------------- docker --
 
-function dockerRequest(method, urlPath, body, { timeout = 30_000, onData } = {}) {
+// maxBytes: stop reading there and resolve with what came (a stream from
+// inside a job's container is not trusted to stop by itself).
+function dockerRequest(method, urlPath, body, { timeout = 30_000, onData, maxBytes = Infinity } = {}) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
     const req = http.request(
@@ -122,9 +138,15 @@ function dockerRequest(method, urlPath, body, { timeout = 30_000, onData } = {})
       },
       (res) => {
         const chunks = [];
+        let size = 0;
         res.on('data', (c) => {
           chunks.push(c);
+          size += c.length;
           if (onData) onData(c);
+          if (size >= maxBytes) {
+            resolve({ status: res.statusCode, body: Buffer.concat(chunks).subarray(0, maxBytes) });
+            req.destroy();
+          }
         });
         res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks) }));
         res.on('error', reject);
@@ -163,6 +185,35 @@ async function containerLogs(id, tail = 400) {
   const res = await dockerRequest('GET', `/containers/${id}/logs?stdout=1&stderr=1&tail=${tail}`);
   if (res.status >= 400) throw dockerError(res);
   return stripAnsi(demuxDockerLogs(res.body));
+}
+
+// One-shot stats: no second sample, so it answers at once. CPU is the
+// container's CPU time since it started; foldUsage turns two reads into a
+// rate. A container that has just exited answers with empty figures: null.
+async function containerStats(id) {
+  const st = await docker('GET', `/containers/${id}/stats?stream=false&one-shot=true`, undefined, { timeout: 10_000 });
+  if (!st?.memory_stats?.limit) return null;
+  return { cpuNs: Number(st.cpu_stats?.cpu_usage?.total_usage) || 0, mem: memUsed(st.memory_stats), memLimit: Number(st.memory_stats.limit) };
+}
+
+// The current step's output, as the runner writes it before uploading it to
+// GitHub (secrets already masked): the newest page file in its _diag/pages.
+// Read by an exec inside the job's own container, as `runner`, so a path is
+// resolved in that container and never in the manager's, where the token is.
+// The job controls that container (sudo), so it can change what this prints
+// but gains nothing it did not have; the reply is capped and timed out, and
+// the page shows it as text.
+async function stepOutput(id) {
+  const ex = await docker('POST', `/containers/${id}/exec`, {
+    User: 'runner',
+    AttachStdout: true,
+    AttachStderr: false,
+    Cmd: ['sh', '-c', `f=$(ls -t /home/runner/_diag/pages/*.log 2>/dev/null | head -n 1); [ -z "$f" ] || tail -c ${STEP_TAIL_BYTES} "$f"`],
+  });
+  const res = await dockerRequest('POST', `/exec/${ex.Id}/start`, { Detach: false, Tty: false }, { timeout: 5000, maxBytes: 2 * STEP_TAIL_BYTES });
+  if (res.status >= 400) throw dockerError(res);
+  const text = demuxDockerLogs(res.body, { truncated: res.body.length >= 2 * STEP_TAIL_BYTES });
+  return cleanStepLog(text, { cut: Buffer.byteLength(text) >= STEP_TAIL_BYTES - 8 });
 }
 
 async function removeContainer(id) {
@@ -457,6 +508,29 @@ function limits() {
   return jobLimits({ ncpu: host.ncpu, memBytes: host.memBytes, maxRunners: state.settings.maxRunners });
 }
 
+// The whole Umbrel, other apps included: /proc/stat and /proc/meminfo in a
+// container are the host's. Free disk is of the work folder's volume, where
+// jobs and the private daemon's images live. A figure that cannot be read
+// (no /proc outside Linux) stays null.
+const hostUsage = { cpu: null, memTotal: null, memAvailable: null, diskFree: null, diskTotal: null };
+let procStat = null;
+
+async function readHostUsage() {
+  const [stat, meminfo, fsStat] = await Promise.all([
+    readFile('/proc/stat', 'utf8').catch(() => ''),
+    readFile('/proc/meminfo', 'utf8').catch(() => ''),
+    statfs(WORK_DIR).catch(() => null),
+  ]);
+  const cur = parseProcStat(stat);
+  hostUsage.cpu = hostCpuBusy(procStat, cur);
+  procStat = cur;
+  const mem = parseMeminfo(meminfo);
+  hostUsage.memTotal = mem?.total ?? null;
+  hostUsage.memAvailable = mem?.available ?? null;
+  hostUsage.diskFree = fsStat ? fsStat.bavail * fsStat.bsize : null;
+  hostUsage.diskTotal = fsStat ? fsStat.blocks * fsStat.bsize : null;
+}
+
 function socketGid() {
   try {
     return statSync(SOCK).gid;
@@ -472,6 +546,13 @@ const repoStatus = new Map();
 const repoBackoff = new Map(); // repo -> { failures, until }
 let alive = []; // runners with a running container, refreshed every tick
 const jobLinks = new Map(); // runner name -> jobLink() of the job it took, seen while polling
+const jobSteps = new Map(); // runner name -> stepsOf() that job, as of the last poll
+const usage = new Map(); // runner name -> foldUsage() record of its samples
+// Docker events are read from here on: OOM kills before the manager started
+// belong to runners it no longer knows. Both ends of a read are inclusive,
+// so the events of the last read are remembered and not counted twice.
+let eventsSince = Date.now() / 1000;
+let eventsSeen = new Set();
 let tickError = '';
 let tickAt = 0;
 let orphansSweptAt = 0;
@@ -492,6 +573,8 @@ function runnerOf(c, parsed) {
     job: parsed.job || '',
     jobStartedAt: parsed.jobStartedAt || '',
     result: parsed.result || '',
+    // Its CPU limit as started (a cap change applies to new runners only).
+    cpus: Number(L['ghr.cpus']) || limits().cpus,
   };
 }
 
@@ -528,6 +611,7 @@ async function spawn(repo, { dockerJob = false } = {}) {
       'ghr.runner-id': String(jit.runner.id),
       'ghr.created': String(Date.now()),
       'ghr.docker': withDocker ? '1' : '0',
+      'ghr.cpus': String(lim.cpus),
     },
     HostConfig: {
       Init: true,
@@ -568,7 +652,11 @@ async function finish(c, parsed, reason = '', deregistered = false) {
   } catch {}
   const ranJob = !!r.job;
   const link = jobLinks.get(r.name) || (ranJob ? await findJobLink(r) : null);
+  const steps = jobSteps.get(r.name) || [];
+  const used = usageView(usage.get(r.name), { live: false });
   jobLinks.delete(r.name);
+  jobSteps.delete(r.name);
+  usage.delete(r.name);
   if (!ranJob && !deregistered) {
     // An ephemeral registration that never took a job can linger as an
     // offline runner; remove it now rather than wait a day for GitHub to.
@@ -587,6 +675,13 @@ async function finish(c, parsed, reason = '', deregistered = false) {
   repoBackoff.set(r.repo, b);
   // An idle runner removed on schedule is not news; everything else is.
   if (result !== 'Unused') {
+    const failed = ranJob && result !== 'Succeeded';
+    const step = failed ? await stepOfEnd(r.repo, link, steps) : null;
+    // A cancelled job was stopped on purpose: its log says nothing new.
+    if (failed && link?.jobId && !/^Cancell?ed$/.test(result)) {
+      failLogs.push({ repo: r.repo, jobId: link.jobId, runner: r.name, due: Date.now() + FAIL_LOG_DELAY_MS, tries: 0 });
+      if (failLogs.length > 20) failLogs.shift();
+    }
     state.history.unshift({
       runner: r.name,
       repo: r.repo,
@@ -598,6 +693,10 @@ async function finish(c, parsed, reason = '', deregistered = false) {
       jobStartedAt: r.jobStartedAt,
       finishedAt: parsed.jobFinishedAt || new Date().toISOString(),
       docker: r.docker,
+      // Samples every poll: peaks and averages are of those, not exact.
+      usage: used && (used.samples || used.memPeak || used.oom) ? used : null,
+      step,
+      failure: failed && used?.oom ? { hint: 'oom', excerpt: '' } : null,
       tail: result === 'Succeeded' ? '' : logs.trim().split('\n').slice(-25).join('\n'),
     });
     state.history = pruneHistory(state.history);
@@ -608,23 +707,194 @@ async function finish(c, parsed, reason = '', deregistered = false) {
   console.log(`[done] ${r.name} ${r.repo}: ${result}${r.job ? ` (${r.job})` : ''}`);
 }
 
+// Where a job that did not succeed stopped: the step GitHub marks failed,
+// else the step it was running at the last poll. Asks GitHub for the job
+// once (the last poll can be up to one interval old). Null when unknown.
+async function stepOfEnd(repo, link, lastSeen) {
+  let steps = lastSeen;
+  if (link?.jobId) {
+    try {
+      const job = await gh('GET', `/repos/${repo}/actions/jobs/${link.jobId}`);
+      if (job?.steps?.length) steps = stepsOf(job);
+    } catch (e) {
+      noteTokenFailure(e);
+      console.error('[steps]', repo, link.jobId, e.message);
+    }
+  }
+  const sum = stepSummary(steps);
+  // GitHub's job can say neither yet; the last poll then knows best.
+  const last = stepSummary(lastSeen);
+  const s = sum.failed || sum.current || last.failed || last.current;
+  return s ? { n: s.n, name: s.name, total: sum.total || last.total, conclusion: s.conclusion || s.status } : null;
+}
+
+// ------------------------------------------------------- failure logs ----
+
+// For a job that did not succeed, GitHub's own log has the lines that say
+// why. It is there a few seconds after the job ends, so it is fetched later,
+// off the scheduling chain, and kept on the history entry (failureExcerpt).
+const FAIL_LOG_DELAY_MS = Number(process.env.FAIL_LOG_DELAY_MS ?? 20_000);
+const FAIL_LOG_TRIES = 4;
+const FAIL_LOG_MAX_BYTES = 16 * 1024 * 1024;
+const failLogs = []; // { repo, jobId, runner, due, tries }
+let failLogsRunning = false;
+
+// GitHub answers with a redirect to storage. It is followed by hand, so the
+// token goes to the API and never to the storage host. A log bigger than
+// FAIL_LOG_MAX_BYTES keeps its end. Null while GitHub has no log yet.
+async function jobLogText(repo, jobId) {
+  const res = await fetch(`${GITHUB_API}/repos/${repo}/actions/jobs/${jobId}/logs`, {
+    headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${state.settings.token}`, 'User-Agent': 'zot24-github-runner', 'X-GitHub-Api-Version': '2022-11-28' },
+    redirect: 'manual',
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (res.status === 404 || res.status === 410) return null;
+  const to = res.headers.get('location');
+  if (res.status < 300 || res.status >= 400 || !to) throw new GitHubError(githubMessage(res, null), res.status, res.headers);
+  const target = new URL(to, GITHUB_API);
+  if (target.protocol !== 'https:' && target.origin !== new URL(GITHUB_API).origin) throw new Error(`log redirect to ${target.origin} refused`);
+  const blob = await fetch(target, { headers: { 'User-Agent': 'zot24-github-runner' }, signal: AbortSignal.timeout(120_000) });
+  if (!blob.ok) throw new Error(`log download: HTTP ${blob.status}`);
+  const chunks = [];
+  let size = 0;
+  for await (const c of blob.body) {
+    chunks.push(c);
+    size += c.length;
+    while (size - chunks[0].length > FAIL_LOG_MAX_BYTES) size -= chunks.shift().length;
+  }
+  return Buffer.concat(chunks).toString();
+}
+
+async function drainFailLogs() {
+  if (failLogsRunning) return;
+  failLogsRunning = true;
+  try {
+    for (const x of [...failLogs]) {
+      if (x.due > Date.now() || !state.settings.token || tokenError) continue;
+      let text = null;
+      try {
+        text = await jobLogText(x.repo, x.jobId);
+      } catch (e) {
+        noteTokenFailure(e);
+        console.error('[faillog]', x.repo, x.jobId, e.message);
+      }
+      x.tries += 1;
+      if (text === null && x.tries < FAIL_LOG_TRIES) {
+        x.due = Date.now() + FAIL_LOG_DELAY_MS * 2 ** x.tries;
+        continue;
+      }
+      failLogs.splice(failLogs.indexOf(x), 1);
+      if (text === null) continue;
+      // By now GitHub has the job's end: which step failed, read again.
+      const step = await stepOfEnd(x.repo, { jobId: x.jobId }, []);
+      await serial(async () => {
+        const h = state.history.find((e) => e.runner === x.runner && e.link?.jobId === x.jobId);
+        if (!h) return;
+        h.failure = { hint: failureHint(text, { oom: h.usage?.oom || 0 }), excerpt: failureExcerpt(text) };
+        if (step) h.step = step;
+        await saveState();
+      });
+    }
+  } finally {
+    failLogsRunning = false;
+  }
+}
+
 // A job that started and ended between two polls was never seen with its
-// runner: look for it in the repository's latest runs. Null if not found.
+// runner: look for it in the repository's latest runs. One push starts a
+// run per workflow, so 30 of them; only runs updated since the runner
+// started have their jobs read. This runs on the scheduling chain, so it
+// gives up after FIND_LINK_MS. Null if not found.
+const FIND_LINK_MS = 15_000;
 async function findJobLink(r) {
+  const deadline = Date.now() + FIND_LINK_MS;
   try {
     const since = new Date(r.createdAt).toISOString();
-    const runs = await gh('GET', `/repos/${r.repo}/actions/runs?per_page=10`);
+    const runs = await gh('GET', `/repos/${r.repo}/actions/runs?per_page=30`);
     for (const run of runs?.workflow_runs || []) {
       if ((run.updated_at || '') < since) continue;
+      if (Date.now() > deadline) break;
       const jobs = await gh('GET', `/repos/${r.repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
       const j = (jobs?.jobs || []).find((x) => x.runner_name === r.name);
-      if (j) return jobLink(r.repo, run, j);
+      if (j) return jobLink(r.repo, run, j, { defaultBranch: repoStatus.get(r.repo)?.defaultBranch });
     }
   } catch (e) {
     noteTokenFailure(e);
     console.error('[link]', r.name, e.message);
   }
   return null;
+}
+
+// OOM kills since the last read, from the private daemon's event log: one
+// call for every container, a job process killed inside a runner that keeps
+// going included. Read before collect(), so a runner that died of it has
+// the kill in its history entry.
+async function readOomEvents() {
+  const until = Date.now() / 1000;
+  const res = await dockerRequest('GET', `/events?since=${eventsSince.toFixed(3)}&until=${until.toFixed(3)}&filters=${q({ type: ['container'], event: ['oom'] })}`, undefined, { timeout: 10_000 });
+  if (res.status >= 400) throw dockerError(res);
+  eventsSince = until;
+  const events = [];
+  for (const line of res.body.toString().split('\n')) {
+    try {
+      if (line.trim()) events.push(JSON.parse(line));
+    } catch {}
+  }
+  const key = (e) => `${e.Actor?.ID}:${e.timeNano}`;
+  const fresh = events.filter((e) => !eventsSeen.has(key(e)));
+  eventsSeen = new Set(events.map(key));
+  // A kill in a container without a runner label is the Docker job's only
+  // if that container was started after its runner (one left by an
+  // earlier job can still be up). One gone already was this job's.
+  const dockerRunner = alive.find((r) => r.docker);
+  const mine = [];
+  for (const e of fresh) {
+    if (e.Actor?.Attributes?.['ghr.name'] || !dockerRunner) {
+      mine.push(e);
+      continue;
+    }
+    const c = await docker('GET', `/containers/${e.Actor?.ID}/json`, undefined, { timeout: 10_000 }).catch(() => null);
+    if (!c || Date.parse(c.Created) >= dockerRunner.createdAt - 1000) mine.push(e);
+  }
+  const counts = attributeOom(mine, { dockerRunner: dockerRunner?.name || '' });
+  for (const [name, n] of counts) {
+    const u = usage.get(name) || {};
+    usage.set(name, { ...u, oom: (u.oom || 0) + n });
+    console.log(`[oom] ${name}: ${n} process${n > 1 ? 'es' : ''} killed for memory`);
+  }
+}
+
+// One stats read per live runner, and for a Docker runner (at most one per
+// daemon) also per container its job started: every running container in
+// the daemon without the ghr.managed label created since that runner
+// started (housekeeping waits while a Docker job runs, so one from an
+// earlier job can still be up).
+async function sampleUsage() {
+  const at = Date.now();
+  const dockerRunner = alive.find((r) => r.docker);
+  let jobIds = [];
+  if (dockerRunner) {
+    const since = Math.floor(dockerRunner.createdAt / 1000) - 1;
+    jobIds = (await docker('GET', '/containers/json')).filter((c) => !c.Labels?.['ghr.managed'] && c.Created >= since).map((c) => c.Id);
+  }
+  await Promise.all(
+    alive.map(async (r) => {
+      try {
+        const own = await containerStats(r.id);
+        if (!own) return;
+        let job = null;
+        if (r.docker) {
+          const reads = await Promise.all(jobIds.map((id) => containerStats(id).then((st) => st && { id, cpuNs: st.cpuNs, mem: st.mem }, () => null)));
+          job = reads.filter(Boolean);
+        }
+        usage.set(r.name, foldUsage(usage.get(r.name) || null, { at, busy: r.busy, cpuNs: own.cpuNs, mem: own.mem, memLimit: own.memLimit, cpuLimit: r.cpus, job }));
+      } catch (e) {
+        if (e.status !== 404) console.error('[usage]', r.name, e.message);
+      }
+    }),
+  );
+  // An OOM count for a runner that is gone without a finish here.
+  for (const name of usage.keys()) if (!alive.some((r) => r.name === name)) usage.delete(name);
 }
 
 // Reads every runner container. Exited ones are finished; the rest are the
@@ -736,6 +1006,7 @@ async function pollRepo(repo, { queue = true } = {}) {
     // while nothing changes GitHub answers 304, which costs no rate limit.
     const info = await gh('GET', `/repos/${repo}`);
     st.private = info.private === true;
+    st.defaultBranch = String(info.default_branch || '');
     if (!st.private) {
       Object.assign(st, { queued: 0, queuedDocker: 0, dockerOff: 0, forks: 0, oldestQueuedAt: '', oldestDockerQueuedAt: '', error: PUBLIC_ERROR });
       await wentPublic(repo);
@@ -769,7 +1040,10 @@ async function pollRepo(repo, { queue = true } = {}) {
           const jobs = await gh('GET', `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
           for (const j of jobs?.jobs || []) {
             // Which job each of our runners took, for links on the page.
-            if (j.runner_name && ours.has(j.runner_name)) jobLinks.set(j.runner_name, jobLink(repo, run, j));
+            if (j.runner_name && ours.has(j.runner_name)) {
+              jobLinks.set(j.runner_name, jobLink(repo, run, j, { defaultBranch: st.defaultBranch }));
+              jobSteps.set(j.runner_name, stepsOf(j));
+            }
             if (j.status !== 'queued') continue;
             // Never a fork's code, whatever the job's labels.
             if (fork) {
@@ -789,7 +1063,7 @@ async function pollRepo(repo, { queue = true } = {}) {
               // Waits on GitHub while Docker for jobs is off; the page says so.
               dockerOff += 1;
             }
-            const link = jobLink(repo, run, j);
+            const link = jobLink(repo, run, j, { defaultBranch: st.defaultBranch });
             waiting.push({ kind, jobId: link.jobId, name: String(j.name || ''), workflow: link.workflow, url: link.jobUrl, pr: link.pr, labels: (j.labels || []).map(String), queuedAt: link.queuedAt });
           }
         }
@@ -893,6 +1167,7 @@ async function tick() {
     }
     await ensureNetwork();
     if (state.settings.dockerForJobs) await ensureExternals();
+    await readOomEvents().catch((e) => console.error('[oom]', e.message));
     await collect();
 
     // Every pass re-reads each served repo's visibility. While paused, only
@@ -965,7 +1240,12 @@ async function tick() {
       }
     }
 
+    // Figures for the page: a failed read is logged, never a tick error.
+    await sampleUsage().catch((e) => console.error('[usage]', e.message));
+    await readHostUsage().catch((e) => console.error('[host]', e.message));
     await housekeeping();
+    // Off the chain: a slow log download does not hold up scheduling.
+    if (failLogs.length) drainFailLogs().catch((e) => console.error('[faillog]', e.message));
     tickError = '';
   } catch (e) {
     tickError = e.message;
@@ -1009,6 +1289,7 @@ function publicState() {
     dockerLabels: DOCKER_LABELS,
     maxDocker: MAX_DOCKER,
     host: { ...host },
+    hostUsage: { ...hostUsage },
     limits: { ...lim, maxJobHours: Math.round((MAX_JOB_MS / 3600_000) * 10) / 10, idleMinutes: Math.round(IDLE_MS / 60_000) },
     rate: { ...rate },
     settings: {
@@ -1045,9 +1326,14 @@ function publicState() {
         running: alive.filter((x) => x.repo === r.name).length,
       };
     }),
-    runners: alive.map(({ c, parsed, id, ...r }) => ({ ...r, link: jobLinks.get(r.name) || null })),
+    runners: alive.map(({ c, parsed, id, ...r }) => ({ ...r, link: jobLinks.get(r.name) || null, steps: jobSteps.get(r.name) || [], usage: usageView(usage.get(r.name)) })),
     // The newest 50 for the table; the stats cover all kept history.
-    history: state.history.slice(0, 50).map(({ tail, ...h }, i) => ({ ...h, index: i, hasTail: !!tail })),
+    history: state.history.slice(0, 50).map(({ tail, failure, ...h }, i) => ({
+      ...h,
+      failure: failure ? { hint: failure.hint } : null,
+      index: i,
+      hasTail: !!(tail || failure?.excerpt),
+    })),
     historyKept: state.history.length,
     stats: {
       day: historyStats(state.history, { windowMs: 24 * 3600_000 }),
@@ -1273,7 +1559,15 @@ const routes = [
   [
     'GET',
     /^\/api\/runners\/(umbrel-(?:[0-9a-f]{4}-[0-9a-f]{6}|[0-9a-f]{8}))\/logs$/,
-    async (_req, [, name]) => ({ logs: await containerLogs(findRunner(name).id) }),
+    async (_req, [, name]) => {
+      const r = findRunner(name);
+      // The step output only exists while a job runs; nothing is exec'd before.
+      const [logs, out] = await Promise.all([
+        containerLogs(r.id),
+        r.busy ? stepOutput(r.id).then((output) => ({ output }), (e) => ({ output: '', outputError: e.message })) : { output: '' },
+      ]);
+      return { logs, output: out.output, outputError: out.outputError || '' };
+    },
   ],
 
   [
@@ -1295,7 +1589,7 @@ const routes = [
     async (_req, [, i]) => {
       const h = state.history[Number(i)];
       if (!h) throw new UserError('No such entry.', 404);
-      return { tail: h.tail || '' };
+      return { tail: h.tail || '', excerpt: h.failure?.excerpt || '' };
     },
   ],
 

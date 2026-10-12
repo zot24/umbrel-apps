@@ -153,6 +153,13 @@ and no app to maintain; it expires on the date you pick, and the page shows that
   runs, the app also removes whatever jobs left in the private daemon (containers, networks,
   volumes), and once a day every image except the runner's own. Images a Docker job builds stay
   until then, so the next Docker job on the same Umbrel reuses them.
+- **Reading a job's output.** The Job window's step output is read by a `docker exec` inside that
+  job's own container, as `runner`, only while the window is open. The job controls that container
+  (it has sudo), so it can change what the exec prints but gains nothing by it; the manager caps
+  the reply at 64 KB, gives up after 5 s, and the page shows it as text. Nothing in the job's work
+  folder is read from the manager's side, where the token is. A failed job's log is fetched from
+  GitHub's API with the token; GitHub answers with a redirect to its log storage, which the app
+  follows without the token.
 - **The token stays in the manager.** A runner container only gets its own single-use JIT
   config. The runner reads it from the environment, masks it and removes it before running the
   job. Jobs run as `runner` with passwordless sudo inside their own container, so treat a job as
@@ -200,10 +207,28 @@ Leave a job on `ubuntu-latest` when it needs macOS or Windows, lots of disk, or 
   reason they still wait here (a free runner, Docker for jobs off, or labels this Umbrel lacks).
   The queue is read across up to three pages of 100 runs per status. When GitHub cannot be read,
   the last numbers stay on the page marked stale, and no runner starts on them.
+- **Runners:** each runner's job, linked to its log on GitHub and to its pull request (for a push
+  to the default branch whose commit title names a merged one, as a squash or merge commit does,
+  that pull request, marked merged), the step
+  GitHub says is running, and its CPU and memory against its own limits (peak and average too).
+  Every poll the app reads one-shot Docker stats of each runner's container; for a Docker job also
+  of each container the job started since its runner did, which have no limit and are shown apart.
+  Processes the kernel killed for memory are counted from the private daemon's `oom` events, a job
+  process killed inside a runner that kept going included. Above the list: the whole Umbrel's CPU
+  (busy, and waiting on disk), free memory and free disk, other apps included.
+- **Job** (on a running runner): the links, waited and running times, usage, GitHub's list of the
+  job's steps, and the current step's output as the runner writes it, before it is uploaded to
+  GitHub (secrets are already masked in it). It comes from the runner's own log file, read every
+  3 s while the window is open, and can trail by a few lines. The full log is on GitHub.
 - **Recent jobs:** the newest 50 of up to seven days (2000 entries) kept in `state.json`, each with
-  its run, attempt, job ID, commit, pool (light or Docker) and GitHub's queued/started times. The
-  runner's last lines are kept for the newest 50. Above the table: jobs, results, runner minutes and
-  queue wait p50/p95 for the last 24 hours and 7 days, with the number of jobs behind the wait.
+  its run, attempt, job ID, commit, pool (light or Docker), GitHub's queued/started times, and its
+  peak memory and average CPU against its limits. A job that did not succeed also keeps the step it
+  stopped in. For one that failed, the app fetches GitHub's log of it once (a few seconds after it
+  ends, when GitHub has it) and keeps the lines before its last error, with a flag when they show
+  Node.js at its heap limit, an OOM kill, exit 137 or a full disk. Those lines and the runner's last
+  lines are kept for the newest 50. Above the table: jobs, results, runner minutes, queue wait
+  p50/p95, and jobs with an OOM kill or at 90% or more of their memory, for the last 24 hours and 7
+  days, with the number of jobs behind the wait.
 
 ## More than one Umbrel
 
