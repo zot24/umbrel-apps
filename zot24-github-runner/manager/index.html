@@ -692,7 +692,7 @@ function renderRunners() {
   badge($('#run-count'), busy ? 'ok' : 'idle', `${S.runners.length} / ${s.maxRunners}`, busy > 0);
   const L = S.limits;
   $('#limits').textContent = S.host.ncpu
-    ? `At most ${s.maxRunners} at once. Each job: ${L.cpus} CPU, ${gb(L.memory)} memory, ${L.pids} processes, ${L.maxJobHours} h. A runner that gets no job in ${L.idleMinutes} min is removed. This Umbrel's runners are named umbrel-${esc(S.installId)}-…; it never removes another Umbrel's. Labels: ${S.labels.join(', ')}.${s.dockerForJobs ? ` Docker runners: ${S.dockerLabels.join(', ')}, at most ${S.maxDocker} at once.` : ''}`
+    ? `At most ${s.maxRunners} at once. Each job: any idle CPU of ${L.cpus} (other apps win when the CPU is busy), ${gb(L.memory)} memory, ${L.pids} processes, ${L.maxJobHours} h. A runner that gets no job in ${L.idleMinutes} min is removed. This Umbrel's runners are named umbrel-${esc(S.installId)}-…; it never removes another Umbrel's. Labels: ${S.labels.join(', ')}.${s.dockerForJobs ? ` Docker runners: ${S.dockerLabels.join(', ')}, at most ${S.maxDocker} at once.` : ''}`
     : '';
   renderHost();
   if (!S.runners.length) {
