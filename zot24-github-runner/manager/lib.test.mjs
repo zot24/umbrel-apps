@@ -1,6 +1,7 @@
 // node --test manager/lib.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   RUNNER_NAME_RE,
   attributeOom,
@@ -80,36 +81,44 @@ test('jobWantsUs: needs umbrel, and only labels we have', () => {
   assert.equal(jobWantsUs(['self-hosted', 'umbrel', 'umbrel-docker'], docker), false);
 });
 
-test('jobLimits: half the box, split across the cap', () => {
+test('jobLimits: memory is half the box split across the cap; CPU is the whole box, shared by weight', () => {
   // A 4-core, 16 GB Umbrel Home.
-  assert.deepEqual(jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 2 }), { cpus: 1, memory: 4 * GiB, pids: 4096, shm: GiB });
-  assert.deepEqual(jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 1 }), { cpus: 2, memory: 8 * GiB, pids: 4096, shm: GiB });
-  // A 4 GB Raspberry Pi: the floor wins.
+  assert.deepEqual(jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 2 }), { cpus: 4, memory: 4 * GiB, pids: 4096, shm: GiB });
+  assert.deepEqual(jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 1 }), { cpus: 4, memory: 8 * GiB, pids: 4096, shm: GiB });
+  // A 4 GB Raspberry Pi: the memory floor wins.
   const pi = jobLimits({ ncpu: 4, memBytes: 4 * GiB, maxRunners: 4 });
-  assert.equal(pi.cpus, 0.5);
+  assert.equal(pi.cpus, 4);
   assert.equal(pi.memory, GiB);
   assert.equal(pi.shm, GiB / 4);
-  // A big server: the ceiling wins.
+  // A big server: the memory ceiling wins; a job may still use every CPU.
   const big = jobLimits({ ncpu: 64, memBytes: 256 * GiB, maxRunners: 1 });
-  assert.equal(big.cpus, 4);
+  assert.equal(big.cpus, 64);
   assert.equal(big.memory, 8 * GiB);
-  // A bogus cap is clamped, not trusted.
+  // A bogus cap is clamped, not trusted. An unknown CPU count reads as 2.
   assert.deepEqual(jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 99 }), jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 4 }));
+  assert.equal(jobLimits({ memBytes: 16 * GiB, maxRunners: 2 }).cpus, 2);
 });
 
-test('jobLimits: when the floor binds, a full set can take the whole box', () => {
+test('jobLimits: when the memory floor binds, a full set can take all the memory', () => {
   // The README's numbers. 4-core, 4 GB Pi at cap 4: memory is all used.
   const pi = jobLimits({ ncpu: 4, memBytes: 4 * GiB, maxRunners: 4 });
   assert.equal(4 * pi.memory, 4 * GiB);
-  assert.equal(4 * pi.cpus, 2);
-  // 2-core box at cap 4: every core.
-  assert.equal(4 * jobLimits({ ncpu: 2, memBytes: 16 * GiB, maxRunners: 4 }).cpus, 2);
-  // Cap at most the CPU count and half the memory in GB: within half.
+  // Cap at most half the memory in GB: within half.
   const half = jobLimits({ ncpu: 4, memBytes: 4 * GiB, maxRunners: 2 });
-  assert.deepEqual([2 * half.cpus, 2 * half.memory], [2, 2 * GiB]);
-  // 4-core, 16 GB at the default cap: 2 CPUs and 8 GB for the set.
+  assert.equal(2 * half.memory, 2 * GiB);
+  // 4-core, 16 GB at the default cap: 8 GB for the set.
   const home = jobLimits({ ncpu: 4, memBytes: 16 * GiB, maxRunners: 2 });
-  assert.deepEqual([2 * home.cpus, 2 * home.memory], [2, 8 * GiB]);
+  assert.equal(2 * home.memory, 8 * GiB);
+});
+
+test('docker-compose: dind has a low CPU weight and no hard CPU cap', () => {
+  // Every job runs inside dind. A low weight lets the Umbrel's other apps
+  // win when the CPU is busy; an idle box gives the jobs every core.
+  const compose = readFileSync(new URL('../docker-compose.yml', import.meta.url), 'utf8');
+  const dind = compose.slice(compose.indexOf('\n  dind:\n'), compose.indexOf('\n  manager:\n'));
+  const shares = Number(dind.match(/^    cpu_shares: (\d+)$/m)?.[1]);
+  assert.ok(shares >= 2 && shares < 1024, `dind cpu_shares is ${shares}`);
+  assert.doesNotMatch(dind, /^    (cpus|cpu_quota|cpu_period):/m);
 });
 
 test('demuxDockerLogs strips stream frames and passes raw text through', () => {
