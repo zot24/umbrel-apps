@@ -26,6 +26,10 @@ services:
     restart: on-failure
     privileged: true
     stop_grace_period: 1m
+    # Every job runs inside this daemon. A low CPU weight (cgroup v2 weight 10
+    # against the default 100) lets the Umbrel's other apps win when the CPU
+    # is busy, and gives the jobs every idle core. There is no hard CPU cap.
+    cpu_shares: 256
     networks:
       - ghr_private
     # --mtu 1450 leaves headroom under the 1500 of the network this nests

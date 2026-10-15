@@ -121,17 +121,19 @@ and no app to maintain; it expires on the date you pick, and the page shows that
   that is itself a fork has every run headed by a fork, so none of its jobs run here.
 - **A fixed concurrency cap.** No more than 1 to 4 runners (default 2) exist at once, whatever is
   queued. Extra jobs wait in GitHub's queue.
-- **Resource limits sized for an Umbrel.** Each runner gets half of the Umbrel's CPUs and half its
-  memory divided by the cap, with no swap, but never less than 0.5 CPU and 1 GB and never more
-  than 4 CPUs and 8 GB per job. Also 4096 processes and 6 h 10 min of run time.
-  - Above the floor a full set of runners stays within half the box. On a 4-core, 16 GB box at
-    the default cap of 2: 1 CPU and 4 GB per job, 2 CPUs and 8 GB for the set.
-  - The floor wins when the cap is above the number of CPUs, or above half the memory in GB. A
-    full set can then use cap × 0.5 CPU and cap × 1 GB, up to the whole box. On a 4-core, 4 GB
-    Raspberry Pi at cap 4, four runners can use 4 × 1 GB = all 4 GB of memory (and 2 of the 4
-    CPUs). On a 2-core box at cap 4, they can use 4 × 0.5 = both CPUs.
-  - To keep a full set within half, keep the cap at most the CPU count and at most half the
-    memory in GB: cap 2 on a 4 GB Pi gives 1 CPU and 1 GB per job, 2 CPUs and 2 GB for the set.
+- **Resource limits sized for an Umbrel.** CPU has no hard quota: a job may use every idle core,
+  and jobs share the CPU by weight. All jobs run inside the app's Docker daemon (`dind`), which has a
+  low CPU weight (`cpu_shares: 256`, cgroup v2 weight 10 against the default 100), so the Umbrel's
+  other apps win when the CPU is busy. Memory is half the Umbrel's memory divided by the cap, with
+  no swap, but never less than 1 GB and never more than 8 GB per job. Also 4096 processes and 6 h
+  10 min of run time.
+  - Above the memory floor a full set of runners stays within half the memory. On a 16 GB box at
+    the default cap of 2: 4 GB per job, 8 GB for the set.
+  - The floor wins when the cap is above half the memory in GB. A full set can then use cap × 1 GB,
+    up to the whole box. On a 4 GB Pi at cap 4, the jobs can use all 4 GB. To stay within half,
+    keep the cap at most half the memory in GB.
+  - Until 0.1.8 each job also had a hard CPU quota of half the CPUs divided by the cap (0.67 CPU
+    per job at cap 3 on a 4-core box), which left an idle box mostly unused.
   - Limits are set when a runner starts, so after raising the cap the runners already up keep
     their larger share until they finish. The page shows the actual values.
 - **No access to the Umbrel's Docker.** No container of this app mounts the Umbrel's Docker

@@ -125,7 +125,9 @@ test('a queued job gets one runner, with its JIT config and the box limits', asy
   assert.match(c.Name, /^ghr-umbrel-[0-9a-f]{4}-[0-9a-f]{6}$/);
   assert.ok(c.spec.Env.some((e) => e.startsWith('ACTIONS_RUNNER_INPUT_JITCONFIG=')));
   assert.ok(!c.spec.Env.some((e) => e.includes(TOKEN)), 'the token never reaches a runner');
-  assert.equal(c.spec.HostConfig.NanoCpus, 1e9);
+  // No hard CPU quota: jobs share the CPU by weight, and dind's low
+  // cpu_shares lets other apps win under contention.
+  assert.equal(c.spec.HostConfig.NanoCpus, undefined, 'no hard CPU quota');
   assert.equal(c.spec.HostConfig.Memory, c.spec.HostConfig.MemorySwap);
   assert.equal(s.gh.runners.size, 1, 'one registration on GitHub');
   const saved = await readFile(path.join(s.dir, 'state', 'state.json'), 'utf8');
@@ -442,7 +444,7 @@ test('a running job shows its steps, CPU and memory; its history keeps the peaks
   assert.equal(r1.steps[1].name, 'Type check');
   assert.equal(r1.steps[1].status, 'in_progress');
   assert.equal(r1.usage.memLimit, c.spec.HostConfig.Memory, 'the limit Docker enforces');
-  assert.equal(r1.usage.cpuLimit, c.spec.HostConfig.NanoCpus / 1e9);
+  assert.equal(r1.usage.cpuLimit, 4, 'a job may use every CPU of the box');
   assert.equal(r1.usage.job, null, 'a light runner starts no containers');
 
   c.stats = { cpuNs: 30e9, mem: 3 * GiB };

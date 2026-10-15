@@ -360,15 +360,18 @@ export function parseMeminfo(text) {
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const GiB = 1024 ** 3;
 
-// Per-job limits, sized for an Umbrel: half its CPUs and half its memory,
-// divided by the concurrency cap. Floors keep a job usable on a small box;
-// ceilings keep a big box from handing one job everything. A full set of
-// runners stays within half the box only while the floors do not bind: with
-// fewer CPUs than the cap, or less than 2 GB of memory per runner, a full
-// set takes cap x 0.5 CPU and cap x 1 GB, up to the whole box.
+// Per-job limits, sized for an Umbrel. Memory: half the box divided by the
+// concurrency cap, with a 1 GB floor and an 8 GB ceiling; a full set stays
+// within half the box while the floor does not bind (less than 2 GB of memory
+// per runner lets a full set take cap x 1 GB, up to the whole box).
+// CPU has no hard quota: `cpus` is the box's CPU count, the most a job can
+// use. Jobs share the CPU by weight inside dind, and dind's low cpu_shares
+// (docker-compose.yml) lets the Umbrel's other apps win when the CPU is busy.
+// A hard quota of half the CPUs left an idle box mostly unused (0.67 CPU per
+// job at cap 3 on a 4-core box).
 export function jobLimits({ ncpu, memBytes, maxRunners }) {
   const cap = clamp(Math.floor(maxRunners) || 1, 1, MAX_RUNNERS_LIMIT);
-  const cpus = Math.round(clamp((ncpu || 2) / 2 / cap, 0.5, 4) * 100) / 100;
+  const cpus = Math.max(1, Math.floor(ncpu || 2));
   const memory = clamp(Math.floor((memBytes || 4 * GiB) / 2 / cap), GiB, 8 * GiB);
   return { cpus, memory, pids: 4096, shm: Math.min(GiB, Math.floor(memory / 4)) };
 }

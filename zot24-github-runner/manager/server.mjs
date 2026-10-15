@@ -573,7 +573,7 @@ function runnerOf(c, parsed) {
     job: parsed.job || '',
     jobStartedAt: parsed.jobStartedAt || '',
     result: parsed.result || '',
-    // Its CPU limit as started (a cap change applies to new runners only).
+    // The CPUs it may use as started: the box's count, shared by weight.
     cpus: Number(L['ghr.cpus']) || limits().cpus,
   };
 }
@@ -619,7 +619,7 @@ async function spawn(repo, { dockerJob = false } = {}) {
       // network namespace, so `services:` ports published by the job are on
       // localhost, as on a GitHub-hosted runner.
       NetworkMode: withDocker ? 'host' : NETWORK,
-      NanoCpus: Math.round(lim.cpus * 1e9),
+      // No NanoCpus: jobs share the CPU by weight (see jobLimits).
       Memory: lim.memory,
       MemorySwap: lim.memory,
       PidsLimit: lim.pids,
