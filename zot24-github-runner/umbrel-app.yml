@@ -3,7 +3,7 @@ id: zot24-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
 category: developer
-version: "0.1.8"
+version: "0.1.9"
 tagline: Run your private repos' GitHub Actions jobs on your Umbrel
 description: >-
   GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
@@ -16,8 +16,10 @@ description: >-
   Every job gets a fresh runner: the app registers a one-job runner on the
   repository, starts it in a new container inside a Docker daemon private to
   this app, and deletes the container and its work folder when the job ends.
-  Nothing carries over from one job to the next. Runners only connect out to
-  GitHub; nothing on your Umbrel is exposed.
+  Only the pnpm package store carries over: each repository keeps one, so
+  its jobs install packages from your Umbrel's disk, and it is wiped once a
+  week. Runners only connect out to GitHub; nothing on your Umbrel is
+  exposed.
 
 
   Safety:
@@ -72,23 +74,17 @@ description: >-
   Before uninstalling, use "Remove runners from GitHub" on the app's page,
   then revoke the token on GitHub.
 releaseNotes: >-
-  Jobs share the CPU by weight instead of a hard quota. A job can use
-  every idle core of this Umbrel, and your other apps win when the CPU is
-  busy: the Docker daemon that runs the jobs has a low CPU weight. Before,
-  each job was held to half of the CPUs divided by the parallel-job cap,
-  even on an idle box (0.67 CPU per job on a 4-core box with a cap of 3).
-  Memory limits do not change.
+  Each repository keeps a pnpm package store on this Umbrel between jobs.
+  Every runner of that repository uses it, so `pnpm install` copies the
+  packages from the Umbrel's disk instead of downloading all of them on
+  every job. The stores are in the app's data folder (data/cache), one per
+  repository, and the app wipes them once a week while no job runs. Jobs of
+  one repository share its store; two repositories never share one.
 
 
-  Each running job shows its steps, its CPU and memory against its limits,
-  and the live output of the current step. Out-of-memory kills are
-  counted. Recent jobs keeps each job's peak memory and average CPU, the
-  step a job stopped in, and for a failed job the lines before its error
-  in GitHub's log, flagged for the Node heap limit, an OOM kill, exit 137
-  or a full disk. The Runners panel shows the whole Umbrel's CPU, memory
-  and disk. A run on main links the pull request it merged. Recent jobs
-  also shows where each job ran (umbrel or umbrel-docker, and the runner
-  name).
+  Leave `cache: pnpm` out of `actions/setup-node` in workflows that run
+  here. pnpm already finds its packages in the store, so that cache only
+  adds a download of the whole store to each job.
 
 
   The update restarts the app, so a job that is running is stopped.

@@ -195,7 +195,7 @@ A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
 |---|---|
 | Node.js, Python packages/pip, Java, Go, Ruby, .NET SDK, Rust on `PATH` | `actions/setup-node`, `setup-python`, `setup-java`, `setup-go`, `ruby/setup-ruby`, `setup-dotnet`, `dtolnay/rust-toolchain` |
 | A warm tool cache (`/opt/hostedtoolcache`) | The setup actions download on every job, because the work folder (where the cache lives) is wiped. |
-| A useful `actions/setup-node` `cache:` | Leave `cache:` out. The cache key includes the store path, which is under the job's own work folder, so it never restores, and each job uploads a new entry. pnpm uses the repository's store instead (see Caches between jobs). |
+| A useful `actions/setup-node` `cache:` | Leave `cache:` out. pnpm already copies its packages from the repository's store (see Caches between jobs), so the cache only adds a download of the whole store to each job, and an upload after each lockfile change. Without the store, the cache never restores: its key includes the store path, which is then under the job's own work folder. |
 | cmake, pkg-config, `-dev` libraries (libssl-dev and the like) | `sudo apt-get update && sudo apt-get install -y …` |
 | `zip`, `wget`, `rsync` | `sudo apt-get update && sudo apt-get install -y …` |
 | Cloud CLIs (aws, az, gcloud), kubectl, helm, terraform | Install them in the job, or use their setup actions. |
