@@ -58,6 +58,7 @@ async function stack(t, { queued = 1, gh: shared = null, env = {} } = {}) {
       DOCKER_SOCK: sock,
       STATE_DIR: path.join(dir, 'state'),
       WORK_DIR: path.join(dir, 'work'),
+      CACHE_DIR: path.join(dir, 'cache'),
       RUNNER_IMAGE: 'ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807',
       GITHUB_API_URL: `http://127.0.0.1:${gh.server.address().port}`,
       POLL_MS: String(POLL_MS),
@@ -129,6 +130,11 @@ test('a queued job gets one runner, with its JIT config and the box limits', asy
   // cpu_shares lets other apps win under contention.
   assert.equal(c.spec.HostConfig.NanoCpus, undefined, 'no hard CPU quota');
   assert.equal(c.spec.HostConfig.Memory, c.spec.HostConfig.MemorySwap);
+  // The repository's pnpm store outlives the job: a bind at the same path, for pnpm 9 and later.
+  const store = path.join(s.dir, 'cache', REPO.replace('/', '__'), 'pnpm-store');
+  assert.ok(c.spec.HostConfig.Binds.includes(`${store}:${store}`), 'the pnpm store is mounted');
+  assert.ok(c.spec.Env.includes(`npm_config_store_dir=${store}`), 'pnpm 9 uses it');
+  assert.ok(c.spec.Env.includes(`pnpm_config_store_dir=${store}`), 'pnpm 10 and later use it');
   assert.equal(s.gh.runners.size, 1, 'one registration on GitHub');
   const saved = await readFile(path.join(s.dir, 'state', 'state.json'), 'utf8');
   assert.ok(!s.log().includes(TOKEN), 'the token is not logged');

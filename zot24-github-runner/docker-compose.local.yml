@@ -31,6 +31,7 @@ services:
       - dind-data:/data
       - dind-sock:/sock
       - work:/ghr
+      - cache:/ghr-cache
       - externals:/home/runner/externals
     networks:
       - ghr_private
@@ -56,6 +57,7 @@ services:
       DIND_SOCK_PATH: /sock/docker.sock
       STATE_DIR: /state
       WORK_DIR: /ghr
+      CACHE_DIR: /ghr-cache
       EXTERNALS_DIR: /externals
       RUNNER_IMAGE: ghcr.io/zot24/github-runner-image:0.1.7@sha256:f606183c9614f93d4284e8c8636f165269413c223870dbfc7e9b2fa8026ee483
       GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
@@ -64,6 +66,7 @@ services:
       - dind-sock:/sock
       - manager-state:/state
       - work:/ghr
+      - cache:/ghr-cache
       - externals:/externals
       - ./manager:/app:ro
 
@@ -96,5 +99,6 @@ volumes:
   dind-data:
   dind-sock:
   work:
+  cache:
   externals:
   manager-state:
