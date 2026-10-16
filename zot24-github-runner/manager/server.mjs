@@ -72,6 +72,13 @@ const STATE_DIR = process.env.STATE_DIR || '/state';
 const WORK_DIR = process.env.WORK_DIR || '/ghr';
 // The manager's view of dind's /home/runner/externals (see ensureExternals).
 const EXTERNALS_DIR = process.env.EXTERNALS_DIR || '/externals';
+// Caches that outlive a job: one folder per repository (owner__name), with
+// its pnpm store. Mounted at the SAME path in dind and here, like WORK_DIR.
+// Unset (no volume): no cache, and every job downloads its packages again.
+const CACHE_DIR = process.env.CACHE_DIR || '';
+// The caches are wiped this often, and only while no runner is alive, so the
+// stores do not grow for ever as lockfiles move on.
+const CACHE_PRUNE_MS = Number(process.env.CACHE_PRUNE_MS || 7 * 24 * 3600_000);
 const IMAGE = normalizeRef(process.env.RUNNER_IMAGE || '');
 const GITHUB_API = (process.env.GITHUB_API_URL || 'https://api.github.com').replace(/\/+$/, '');
 const POLL_MS = Number(process.env.POLL_MS || 15_000);
@@ -238,6 +245,7 @@ const DEFAULT_STATE = {
   repos: [],
   history: [],
   prunedAt: 0,
+  cachePrunedAt: 0,
   installId: '', // set once on first start; names this install's runners
 };
 let state = structuredClone(DEFAULT_STATE);
@@ -582,12 +590,27 @@ function workDirOf(name) {
   return path.join(WORK_DIR, name);
 }
 
+// The repository's pnpm store, owned by the runner user. A job's work folder
+// is deleted when the job ends, so a store there never helps the next job.
+// pnpm 9 reads npm_config_store_dir, pnpm 10 and later pnpm_config_store_dir.
+// Each store layout (v3, v10, ...) is a subfolder, so both share the folder.
+async function repoCache(repo) {
+  if (!CACHE_DIR) return { binds: [], env: [] };
+  const dir = path.join(CACHE_DIR, repo.replace('/', '__'));
+  const store = path.join(dir, 'pnpm-store');
+  await mkdir(store, { recursive: true });
+  await chown(dir, RUNNER_UID, RUNNER_GID);
+  await chown(store, RUNNER_UID, RUNNER_GID);
+  return { binds: [`${store}:${store}`], env: [`npm_config_store_dir=${store}`, `pnpm_config_store_dir=${store}`] };
+}
+
 async function spawn(repo, { dockerJob = false } = {}) {
   const withDocker = dockerJob && !!state.settings.dockerForJobs;
   const name = `umbrel-${state.installId}-${randomBytes(3).toString('hex')}`;
   const workDir = workDirOf(name);
   await mkdir(workDir, { recursive: true });
   await chown(workDir, RUNNER_UID, RUNNER_GID);
+  const cache = await repoCache(repo);
   const jit = await gh('POST', `/repos/${repo}/actions/runners/generate-jitconfig`, {
     name,
     runner_group_id: 1,
@@ -602,7 +625,7 @@ async function spawn(repo, { dockerJob = false } = {}) {
     Cmd: ['/home/runner/run.sh'],
     // The runner reads its JIT config from here, masks it, and removes it
     // from the environment its jobs inherit.
-    Env: [`ACTIONS_RUNNER_INPUT_JITCONFIG=${jit.encoded_jit_config}`, 'ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=0'],
+    Env: [`ACTIONS_RUNNER_INPUT_JITCONFIG=${jit.encoded_jit_config}`, 'ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=0', ...cache.env],
     Labels: {
       'ghr.managed': '1',
       'ghr.runner': '1',
@@ -624,7 +647,7 @@ async function spawn(repo, { dockerJob = false } = {}) {
       MemorySwap: lim.memory,
       PidsLimit: lim.pids,
       ShmSize: lim.shm,
-      Binds: [`${workDir}:${workDir}`, ...(withDocker ? [`${DIND_SOCK}:/var/run/docker.sock`] : [])],
+      Binds: [`${workDir}:${workDir}`, ...cache.binds, ...(withDocker ? [`${DIND_SOCK}:/var/run/docker.sock`] : [])],
       GroupAdd: withDocker ? [String(socketGid())] : [],
       RestartPolicy: { Name: 'no' },
       LogConfig: { Type: 'json-file', Config: { 'max-size': '5m', 'max-file': '2' } },
@@ -1122,6 +1145,16 @@ async function housekeeping() {
   const live = new Set(alive.map((r) => r.name));
   for (const dir of await readdir(WORK_DIR).catch(() => [])) {
     if (!live.has(dir)) await rm(path.join(WORK_DIR, dir), { recursive: true, force: true });
+  }
+  // A runner started this tick is already in `alive` (collect), so no job
+  // sees its store go away under it.
+  if (CACHE_DIR && !alive.length && Date.now() - (state.cachePrunedAt || 0) >= CACHE_PRUNE_MS) {
+    for (const dir of await readdir(CACHE_DIR).catch(() => [])) {
+      await rm(path.join(CACHE_DIR, dir), { recursive: true, force: true });
+    }
+    state.cachePrunedAt = Date.now();
+    await saveState();
+    console.log('[prune] wiped the job caches');
   }
   // Light runners never touch the daemon, so only a Docker job holds this back.
   if (alive.some((r) => r.docker)) return;

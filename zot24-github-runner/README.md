@@ -46,7 +46,8 @@ Umbrel
    new container from the runner image with it. JIT runners are ephemeral: one job, then they
    deregister.
 4. When the container exits, the manager records the job and its result, then deletes the
-   container and the job's work folder. The next job gets a new container.
+   container and the job's work folder. The next job gets a new container. Only the
+   repository's pnpm store stays (see Caches between jobs).
 5. A runner that gets no job within 10 minutes (another runner took it, or it was cancelled) is
    deregistered and removed. A job still running after 6 hours 10 minutes is stopped.
 
@@ -150,8 +151,10 @@ and no app to maintain; it expires on the date you pick, and the page shows that
   privileged, so a job with it can start a privileged container and reach the Umbrel's disks and
   processes. The page asks you to type `docker` before turning it on. Only do that if every
   workflow, and every action those workflows use, is yours to trust.
-- **Nothing survives a job.** Each job runs in a new container with a new work folder; both are
-  deleted when it ends, along with the runner's credentials and tool cache. While no Docker job
+- **Nothing survives a job, except the pnpm store.** Each job runs in a new container with a new
+  work folder; both are deleted when it ends, along with the runner's credentials and tool cache.
+  Each repository's pnpm store stays (see Caches between jobs). Jobs of one repository share it,
+  so a job of that repository can change what a later job of it installs. Forks never run here. While no Docker job
   runs, the app also removes whatever jobs left in the private daemon (containers, networks,
   volumes), and once a day every image except the runner's own. Images a Docker job builds stay
   until then, so the next Docker job on the same Umbrel reuses them.
@@ -192,6 +195,7 @@ A GitHub-hosted `ubuntu-latest` has much more. What jobs will miss:
 |---|---|
 | Node.js, Python packages/pip, Java, Go, Ruby, .NET SDK, Rust on `PATH` | `actions/setup-node`, `setup-python`, `setup-java`, `setup-go`, `ruby/setup-ruby`, `setup-dotnet`, `dtolnay/rust-toolchain` |
 | A warm tool cache (`/opt/hostedtoolcache`) | The setup actions download on every job, because the work folder (where the cache lives) is wiped. |
+| A useful `actions/setup-node` `cache:` | Leave `cache:` out. The cache key includes the store path, which is under the job's own work folder, so it never restores, and each job uploads a new entry. pnpm uses the repository's store instead (see Caches between jobs). |
 | cmake, pkg-config, `-dev` libraries (libssl-dev and the like) | `sudo apt-get update && sudo apt-get install -y …` |
 | `zip`, `wget`, `rsync` | `sudo apt-get update && sudo apt-get install -y …` |
 | Cloud CLIs (aws, az, gcloud), kubectl, helm, terraform | Install them in the job, or use their setup actions. |
@@ -256,6 +260,18 @@ ephemeral registrations after about a day.
 A stale registration can also be removed by hand: repository → Settings → Actions → Runners →
 the runner → Remove.
 
+## Caches between jobs
+
+Each served repository has a pnpm store at `data/cache/<owner>__<name>/pnpm-store`. Every runner
+of that repository mounts it at `/ghr-cache/<owner>__<name>/pnpm-store` and gets
+`npm_config_store_dir` (pnpm 9) and `pnpm_config_store_dir` (pnpm 10 and later). The first
+`pnpm install` fills it, and the next jobs copy the packages from it instead of downloading them.
+pnpm writes each file under a temporary name and renames it, so parallel jobs can share the store.
+
+The app wipes every store once a week, and only while no runner is alive, so a store does not grow
+for ever as the lockfile moves on. The next install fills it again. Without `CACHE_DIR` (and the
+`data/cache` volume) the manager mounts no store, and each job downloads its packages.
+
 ## Data
 
 | Path (under the app data dir) | What |
@@ -263,6 +279,7 @@ the runner → Remove.
 | `data/manager/state.json` | Token, served repositories, settings, last 50 jobs (0600) |
 | `data/dind/` | The private daemon's storage: the runner image, job containers, images pulled by jobs |
 | `data/work/` | One work folder per running job (`/ghr/umbrel-iiii-xxxxxx`), deleted when the job ends |
+| `data/cache/` | One pnpm store per repository (`/ghr-cache/<owner>__<name>/pnpm-store`), wiped once a week |
 | `data/externals/` | Copy of the runner's Node.js builds, for container jobs (Docker for jobs only) |
 | `data/sock/docker.sock` | The private daemon's socket (shared by dind and manager) |
 
