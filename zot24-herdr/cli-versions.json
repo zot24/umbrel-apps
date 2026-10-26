@@ -2,7 +2,7 @@
   "checked_at": "2026-10-15T22:05:09Z",
   "image_pins": {
     "herdr": {
-      "current": "0.9.3",
+      "current": "0.9.5",
       "latest_stable": "0.9.5"
     },
     "ttyd": {
@@ -10,8 +10,8 @@
       "latest_stable": "1.7.7"
     },
     "moshi-hook": {
-      "current": "0.4.18",
-      "latest_stable": "0.4.30"
+      "current": "0.4.38",
+      "latest_stable": "0.4.38"
     }
   },
   "volume_clis_latest": {
