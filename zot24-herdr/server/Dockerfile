@@ -17,7 +17,7 @@
 # Multi-arch: built with docker buildx for linux/amd64 + linux/arm64;
 # TARGETARCH selects the matching pinned herdr binary.
 
-FROM node:22-bookworm-slim
+FROM node:22-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
 
 ARG HERDR_VERSION=0.9.5
 # herdr releases don't publish checksums. These were computed from the

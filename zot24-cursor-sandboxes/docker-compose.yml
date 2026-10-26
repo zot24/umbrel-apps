@@ -17,7 +17,7 @@ services:
   # ports therefore stay on cs_private. The manager reaches it through the
   # socket volume, not the network.
   dind:
-    image: docker:28.3.0-dind@sha256:d33eb93fe02683e984e6f8a93c0b3d85bb74f56ec83922bc39fb34ba23ab42bc
+    image: docker:29.9.2-dind@sha256:9e79b879b177fbd72c34376a3dd3d91747da5db49e1f560f76aea59561471977
     restart: on-failure
     privileged: true
     stop_grace_period: 1m

@@ -14,7 +14,7 @@
 #   # token: github_pat_FAKE_0000000000000000000000, repo: fake/private-repo
 services:
   dind:
-    image: docker:28.3.0-dind@sha256:d33eb93fe02683e984e6f8a93c0b3d85bb74f56ec83922bc39fb34ba23ab42bc
+    image: docker:29.9.2-dind@sha256:9e79b879b177fbd72c34376a3dd3d91747da5db49e1f560f76aea59561471977
     privileged: true
     command: >
       dockerd
@@ -42,7 +42,7 @@ services:
       retries: 24
 
   manager:
-    image: node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+    image: node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
     init: true
     stop_grace_period: 30s
     depends_on:
@@ -72,7 +72,7 @@ services:
 
   fake-github:
     profiles: [fake]
-    image: node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+    image: node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
     command: ["node", "/app/test/fake-github.mjs"]
     environment:
       PORT: "8080"

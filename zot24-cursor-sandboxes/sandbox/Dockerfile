@@ -9,7 +9,7 @@
 # Built for linux/amd64 + linux/arm64 by .github/workflows/build-cursor-sandboxes.yml,
 # which pins the digest into ../docker-compose.yml (SANDBOX_IMAGE). The manager
 # pulls that exact digest into the nested daemon.
-FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
+FROM node:22-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
 
 ARG TARGETARCH
 # Cursor CLI build. ci/update-cursor-cli.sh rewrites this line when
