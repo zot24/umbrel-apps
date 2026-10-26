@@ -3,7 +3,7 @@ id: zot24-github-runner
 name: GitHub Runner
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-github-runner/icon.svg
 category: developer
-version: "0.1.9"
+version: "0.1.10"
 tagline: Run your private repos' GitHub Actions jobs on your Umbrel
 description: >-
   GitHub Runner turns your Umbrel into a self-hosted runner for GitHub
@@ -74,21 +74,12 @@ description: >-
   Before uninstalling, use "Remove runners from GitHub" on the app's page,
   then revoke the token on GitHub.
 releaseNotes: >-
-  Each repository keeps a pnpm package store on this Umbrel between jobs.
-  Every runner of that repository uses it, so `pnpm install` copies the
-  packages from the Umbrel's disk instead of downloading all of them on
-  every job. The stores are in the app's data folder (data/cache), one per
-  repository, and the app wipes them once a week while no job runs. Jobs of
-  one repository share its store; two repositories never share one.
-
-
-  Leave `cache: pnpm` out of `actions/setup-node` in workflows that run
-  here. pnpm already finds its packages in the store, so that cache only
-  adds a download of the whole store to each job.
-
-
-  The update restarts the app, so a job that is running is stopped.
-  Update when no job is running.
+  Security update for the eMudhra CA compromise
+  (https://blog.cloudflare.com/emudhra-certificate-compromise/). The
+  manager is rebuilt on Node 22.23.4 with Alpine ca-certificates
+  20261020-r0, the runner image moves to GitHub Actions runner 2.338.2
+  (Ubuntu ca-certificates 20260816ubuntu0.24.04.1), and the private Docker
+  daemon moves to 29.9.2. Jobs running during the update are stopped.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []

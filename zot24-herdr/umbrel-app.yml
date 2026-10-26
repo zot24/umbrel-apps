@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.9.11"
+version: "0.9.12"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -104,6 +104,15 @@ description: >-
   - Herdr is free software (AGPL-3.0) by Oğulcan Çancık:
     https://github.com/ogulcancelik/herdr — https://herdr.dev
 releaseNotes: >-
+  0.9.12: Security update for the eMudhra CA compromise
+  (https://blog.cloudflare.com/emudhra-certificate-compromise/). The image
+  is rebuilt on node:22-bookworm-slim with Node 22.23.4 and the patched
+  Debian ca-certificates (20250419~deb12u2), so forged certificates
+  chained to the compromised eMudhra intermediates are rejected. Updating
+  restarts the Herdr server: the layout comes back, but processes running
+  in panes stop.
+
+
   0.9.11: Herdr 0.9.3 to 0.9.5. Session saves are written out fully
   before they replace the old file, so a crash or power cut is less
   likely to leave an unreadable layout. The server uses less CPU on
