@@ -59,7 +59,7 @@ services:
       WORK_DIR: /ghr
       CACHE_DIR: /ghr-cache
       EXTERNALS_DIR: /externals
-      RUNNER_IMAGE: ghcr.io/zot24/github-runner-image:0.1.8@sha256:14593245761cd168f325040c645dbb52a73d0ebe92ee76b7ad4825547a379110
+      RUNNER_IMAGE: ghcr.io/zot24/github-runner-image:0.1.10@sha256:b8b0ce14e3ea57ad25e0b41bb674240758463639910f7d784db16a0fed4804b2
       GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
       IDLE_TIMEOUT_MS: ${IDLE_TIMEOUT_MS:-600000}
     volumes:
