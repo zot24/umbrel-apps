@@ -39,6 +39,34 @@ HERDR_LATEST_TAG="$(github_json repos/ogulcancelik/herdr/releases/latest | pytho
 HERDR_LATEST="${HERDR_LATEST_TAG#v}"
 TTYD_LATEST="$(github_json repos/tsl0922/ttyd/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
 
+# moshi-hook pins come from the vendor's published checksums.txt (same file
+# https://getmoshi.app/install.sh verifies against). Never self-hash: if the
+# file or the entry is missing, fail. The tarball is downloaded only to
+# confirm it matches the vendor value.
+moshi_sha() {
+  local ver="$1" arch="$2" base sums asset sha got
+  base="https://cdn.getmoshi.app/hook/v${ver}"
+  sums="$TMP/moshi-checksums-${ver}.txt"
+  asset="moshi-hook_Linux_${arch}.tar.gz"
+  if [ ! -s "$sums" ] && ! curl -fsSL -H "User-Agent: $UA" -o "$sums" "$base/checksums.txt"; then
+    echo "::error::moshi-hook v${ver}: could not fetch $base/checksums.txt" >&2
+    return 1
+  fi
+  sha="$(awk -v f="$asset" '$2 == f {print $1}' "$sums")"
+  if ! [[ "$sha" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "::error::moshi-hook v${ver}: no valid entry for $asset in checksums.txt" >&2
+    return 1
+  fi
+  curl -fsSL -H "User-Agent: $UA" -o "$TMP/$asset" "$base/$asset" || {
+    echo "::error::moshi-hook v${ver}: could not download $asset" >&2; return 1; }
+  got="$(sha256sum "$TMP/$asset" | awk '{print $1}')"
+  if [ "$got" != "$sha" ]; then
+    echo "::error::moshi-hook v${ver}: $asset sha256 $got != vendor $sha" >&2
+    return 1
+  fi
+  printf '%s\n' "$sha"
+}
+
 MOSHI_CUR="$(current_arg MOSHI_HOOK_VERSION)"
 MOSHI_LATEST="$(curl -fsSL -H "User-Agent: $UA" https://cdn.getmoshi.app/hook/latest/version.txt | tr -d " \r\n")"
 MOSHI_LATEST="${MOSHI_LATEST#v}"
@@ -138,10 +166,8 @@ fi
 
 if [ -n "$MOSHI_LATEST" ] && [ "$MOSHI_LATEST" != "$MOSHI_CUR" ]; then
   echo "==> moshi-hook $MOSHI_CUR -> $MOSHI_LATEST"
-  curl -fsSL -o "$TMP/mh-x86_64.tgz" "https://cdn.getmoshi.app/hook/v${MOSHI_LATEST}/moshi-hook_Linux_x86_64.tar.gz"
-  curl -fsSL -o "$TMP/mh-arm64.tgz"  "https://cdn.getmoshi.app/hook/v${MOSHI_LATEST}/moshi-hook_Linux_arm64.tar.gz"
-  SHA_X86="$(sha256sum "$TMP/mh-x86_64.tgz" | awk '{print $1}')"
-  SHA_ARM="$(sha256sum "$TMP/mh-arm64.tgz" | awk '{print $1}')"
+  SHA_X86="$(moshi_sha "$MOSHI_LATEST" x86_64)"
+  SHA_ARM="$(moshi_sha "$MOSHI_LATEST" arm64)"
   echo "    x86_64  $SHA_X86"
   echo "    arm64   $SHA_ARM"
   python3 - "$DF" "$MOSHI_LATEST" "$SHA_X86" "$SHA_ARM" <<'PY'
