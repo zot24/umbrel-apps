@@ -20,7 +20,7 @@ services:
     # time, so the workflow's commit-back step is what makes this app
     # installable. Until the first build runs, this tag has no @sha256 and
     # the app will not install.
-    image: ghcr.io/zot24/herdr-umbrel:0.9.11@sha256:a0d0a22cb4770a733e3be2c63dd261c703ce017b39e7d2f6acf37243ba1c0cf2
+    image: ghcr.io/zot24/herdr-umbrel:0.9.12@sha256:86e32904a5ae000fe415e08120659f93bbeebafc43bcda1650b2e17299fc72b3
     restart: on-failure
     init: true
     stop_grace_period: 30s
