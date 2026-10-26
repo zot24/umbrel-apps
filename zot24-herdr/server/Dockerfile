@@ -82,9 +82,9 @@ RUN set -eux; \
 
 # moshi-hook: Easy Pair QR + agent-hook daemon. Pinned tarball + sha256,
 # same pattern as herdr/ttyd. Linux arch names match cdn.getmoshi.app.
-ARG MOSHI_HOOK_VERSION=0.4.30
-ARG MOSHI_HOOK_SHA256_X86_64=54564d8dcb29cd7c6b6aa73c10a823ff5b719a5faeee31d3cfaec6ca47e97968
-ARG MOSHI_HOOK_SHA256_AARCH64=a76296868e230bcccdf98569f74fdd8779d2aa911811c39157d72776f0a35a6d
+ARG MOSHI_HOOK_VERSION=0.4.38
+ARG MOSHI_HOOK_SHA256_X86_64=6e3b46166c10fa3dabb00441f18052794dc1dafc831c2bbca28e11bad60d7753
+ARG MOSHI_HOOK_SHA256_AARCH64=fd801522d8474fc04144fc1d66ba59abceb4d70277d2558253f53d77b87313c0
 ARG TARGETARCH
 RUN set -eux; \
     case "$TARGETARCH" in \
