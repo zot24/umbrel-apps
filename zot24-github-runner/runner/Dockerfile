@@ -12,7 +12,7 @@
 #
 # ci/update-runner.sh bumps the FROM line (tag + index digest) weekly;
 # build-github-runner.yml rebuilds this image and pins it as RUNNER_IMAGE.
-FROM ghcr.io/actions/actions-runner:2.338.0@sha256:4ffadc0002b2581327e06101fc8c06cd189232baf79fe561fac9caeb76f5e807
+FROM ghcr.io/actions/actions-runner:2.338.1@sha256:e275409999c37162649aa050ca573f03eab2eabcb3a1e7fcc47548de6b4f9690
 
 USER root
 RUN install -d -m 0755 /etc/apt/keyrings \
