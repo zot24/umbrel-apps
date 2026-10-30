@@ -50,6 +50,7 @@ RUN apt-get update \
         git \
         gnupg \
         gosu \
+        jq \
         mosh \
         openssh-client \
         openssh-server \
