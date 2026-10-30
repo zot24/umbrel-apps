@@ -63,8 +63,11 @@ fi
 # installer left in /data/.local/bin, e.g. moshi-hook 0.3.x, which Moshi then
 # flags against the 0.4.x daemon. Move the image's dir to the front of that
 # old PATH line, and set the stale binaries aside (renamed, not deleted).
+# herdr-core / hc land there when a desktop app ran `hc machine add` against
+# this box before the image shipped its own, or ran `hc machine update`; the
+# core that runs here comes with app updates, like herdr itself.
 sed -i 's#^export PATH=/data/\.npm-global/bin:#export PATH=/usr/local/bin:/data/.npm-global/bin:#' /data/.profile
-for bin in moshi-hook moshi herdr; do
+for bin in moshi-hook moshi herdr herdr-core hc; do
     if [ -e "/data/.local/bin/$bin" ] || [ -L "/data/.local/bin/$bin" ]; then
         mv -f "/data/.local/bin/$bin" "/data/.local/bin/$bin.stale"
         echo "[entrypoint] moved stale /data/.local/bin/$bin aside ($bin.stale)" >&2
@@ -110,6 +113,19 @@ fi
 # exits early (e.g. a stale socket after an unclean shutdown), the first
 # client attach via ttyd will spawn a fresh server instead.
 gosu "$RUN_USER" herdr server &
+
+# herdr-core (hc): the Herdr desktop app adds this box as an SSH machine
+# (port 7683) and runs that machine's spaces and terminals in this core. It is
+# separate from the TUI server above; the two do not share terminals. Started
+# here so it is up before the first client, and outlives every client: with
+# no systemd user manager in the container, `server start` runs it detached
+# (hc warns about that on stderr), so it lives as long as the container.
+# State and its socket go to /data/.local/state/herdr-core (no
+# XDG_RUNTIME_DIR here, in SSH sessions or in ttyd), so every client finds
+# the same core. hc opens terminals with plain $SHELL; see login-shell.sh.
+gosu "$RUN_USER" env SHELL=/usr/local/lib/herdr-umbrel/login/bash \
+    herdr-core server start || \
+    echo "[entrypoint] herdr-core did not start (non-fatal); the first hc client starts one" >&2
 
 # Internal machine API for sibling Umbrel apps (Hermes, etc.).
 # NOT published through app_proxy. Auth: HERDR_AGENT_TOKEN in /data/.env.
