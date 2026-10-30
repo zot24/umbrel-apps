@@ -120,13 +120,24 @@ jobs:
             --title "integrate: cloudflared upstreams" \
             --body-file zot24-cloudflared/ci/pending/REPORT.md
 
+      - name: Check for a Claude API key
+        id: claude-key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "present=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=0" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Note missing Claude API key
-        if: steps.pr.outputs.opened == '1' && secrets.ANTHROPIC_API_KEY == ''
+        if: steps.pr.outputs.opened == '1' && steps.claude-key.outputs.present != '1'
         run: echo "::notice::ANTHROPIC_API_KEY is not set, so this pull request was opened without a Claude port."
 
       - name: Port interesting upstream changes
         id: adapt
-        if: steps.pr.outputs.opened == '1' && secrets.ANTHROPIC_API_KEY != ''
+        if: steps.pr.outputs.opened == '1' && steps.claude-key.outputs.present == '1'
         continue-on-error: true
         uses: anthropics/claude-code-base-action@beta
         with:
@@ -141,7 +152,7 @@ jobs:
             --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git diff*),Bash(git status*)"
 
       - name: Commit the Claude port
-        if: steps.pr.outputs.opened == '1' && secrets.ANTHROPIC_API_KEY != ''
+        if: steps.pr.outputs.opened == '1' && steps.claude-key.outputs.present == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
