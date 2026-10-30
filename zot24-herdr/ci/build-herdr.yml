@@ -17,6 +17,7 @@ on:
       - 'zot24-herdr/server/bootstrap-agents.sh'
       - 'zot24-herdr/server/agent-bridge.mjs'
       - 'zot24-herdr/server/ssh-login.sh'
+      - 'zot24-herdr/server/login-shell.sh'
       - 'zot24-herdr/server/web-gate.mjs'
       - 'zot24-herdr/server/web/**'
       - '.github/workflows/build-herdr.yml'

@@ -52,7 +52,9 @@
     .pill.on { color: var(--ok); border-color: #1f6b45; }
     .check { display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--muted); font-size: 13.5px; }
     .hidden { display: none; }
-    .moshi { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .moshi, .desk { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+    pre { background: #0b0d10; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 10px 0;
+      overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
     .qr { background: #fff; border-radius: 12px; padding: 10px; margin: 12px 0; width: 240px; height: 240px; }
     .qr svg { width: 100%; height: 100%; display: block; }
     code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
@@ -135,6 +137,12 @@
         <button type="button" id="open">Open Herdr</button>
         <button type="button" class="ghost" id="pair">Pair phone</button>
         <button type="button" class="ghost" id="edit">Edit keys</button>
+      </div>
+      <div class="desk">
+        <h2>Herdr desktop app</h2>
+        <p class="hint">Run agents here from the Herdr app on your computer. Add your computer’s SSH public key under Edit keys, then add this to <code>~/.ssh/config</code> on that computer:</p>
+        <pre id="desk-config"></pre>
+        <p class="hint">In Herdr, choose Add machine and pick <code>umbrel-herdr</code>. Its spaces run in this app and keep running while your computer sleeps. They are separate from the Herdr TUI that Open Herdr shows.</p>
       </div>
     </div>
   </div>
@@ -292,6 +300,8 @@
       } catch (_) {}
       location.href = "/t/";
     };
+    $("desk-config").textContent =
+      "Host umbrel-herdr\n    HostName " + location.hostname + "\n    User node\n    Port 7683";
     $("open").onclick = () => { location.href = "/t/"; };
     $("pair").onclick = () => { show("view-setup"); refreshMoshi(); };
     $("edit").onclick = () => { show("view-setup"); refreshMoshi(); };

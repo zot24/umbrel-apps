@@ -6,8 +6,11 @@
 #   1. A bare `ssh -p 7683 node@box` lands straight in the Herdr TUI — the same
 #      thing `docker exec -it zot24-herdr_server_1 herdr` gives you today.
 #   2. An explicit remote command still runs. Moshi's session picker shells out
-#      to `herdr session list --json`, and `herdr --remote` invokes `herdr` over
-#      SSH; a bare ForceCommand would swallow both and silently break them.
+#      to `herdr session list --json`, `herdr --remote` invokes `herdr` over
+#      SSH, and the Herdr desktop app reaches herdr-core with
+#      `sh -c '… exec herdr-core connect'`; a bare ForceCommand would swallow
+#      all three and silently break them. That last one carries a byte
+#      protocol on stdout, so nothing on this path may print to stdout.
 #
 # sshd puts the client's requested command in SSH_ORIGINAL_COMMAND when
 # ForceCommand is set, so branching on it preserves case 2.

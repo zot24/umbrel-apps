@@ -1,26 +1,30 @@
 {
-  "checked_at": "2026-10-15T22:05:09Z",
+  "checked_at": "2026-10-30T14:12:01Z",
   "image_pins": {
     "herdr": {
-      "current": "0.9.3",
+      "current": "0.9.5",
       "latest_stable": "0.9.5"
+    },
+    "herdr-core": {
+      "current": "0.1.14",
+      "latest_stable": "0.1.14"
     },
     "ttyd": {
       "current": "1.7.7",
       "latest_stable": "1.7.7"
     },
     "moshi-hook": {
-      "current": "0.4.18",
-      "latest_stable": "0.4.30"
+      "current": "0.4.43",
+      "latest_stable": "0.4.43"
     }
   },
   "volume_clis_latest": {
-    "claude-code": "2.1.301",
-    "vercel": "64.2.0",
-    "supabase": "2.121.0",
+    "claude-code": "2.1.314",
+    "vercel": "65.8.0",
+    "supabase": "2.122.0",
     "grok": "install.sh (unpinned)",
     "kimi": "install.sh (unpinned)",
     "gh": "apt (image rebuild)"
   },
-  "note": "Volume CLIs upgrade on container start via bootstrap-agents.sh. Image pins (herdr/ttyd) change only via this script + Build: Herdr."
+  "note": "Volume CLIs upgrade on container start via bootstrap-agents.sh. Image pins (herdr/herdr-core/ttyd/moshi-hook) change only via this script + Build: Herdr."
 }

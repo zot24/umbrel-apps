@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Check upstream herdr + ttyd (and snapshot agent CLI latest versions).
+# Check upstream herdr + herdr-core + ttyd + moshi-hook (and snapshot agent
+# CLI latest versions).
 # If image pins are behind, rewrite Dockerfile / VERSION / umbrel-app.yml.
 # Does not commit. The GitHub Action opens the PR.
 #
@@ -35,9 +36,15 @@ current_arg() {
 HERDR_CUR="$(current_arg HERDR_VERSION)"
 TTYD_CUR="$(current_arg TTYD_VERSION)"
 
-HERDR_LATEST_TAG="$(github_json repos/ogulcancelik/herdr/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+HERDR_LATEST_TAG="$(github_json repos/herdrdev/herdr/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
 HERDR_LATEST="${HERDR_LATEST_TAG#v}"
 TTYD_LATEST="$(github_json repos/tsl0922/ttyd/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+
+# herdr-core ships on releases.herdr.dev, not GitHub releases. latest.json
+# names the version; that version's manifest.json holds each tarball's sha256.
+HC_CUR="$(current_arg HC_VERSION)"
+HC_LATEST="$(curl -fsSL -H "User-Agent: $UA" https://releases.herdr.dev/core/latest.json \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
 
 MOSHI_CUR="$(current_arg MOSHI_HOOK_VERSION)"
 MOSHI_LATEST="$(curl -fsSL -H "User-Agent: $UA" https://cdn.getmoshi.app/hook/latest/version.txt | tr -d " \r\n")"
@@ -52,14 +59,15 @@ CLAUDE_V="$(npm_latest @anthropic-ai/claude-code)"
 VERCEL_V="$(npm_latest vercel)"
 SUPABASE_V="$(npm_latest supabase)"
 
-python3 - "$CLI_JSON" "$HERDR_CUR" "$HERDR_LATEST" "$TTYD_CUR" "$TTYD_LATEST" \
+python3 - "$CLI_JSON" "$HERDR_CUR" "$HERDR_LATEST" "$HC_CUR" "$HC_LATEST" "$TTYD_CUR" "$TTYD_LATEST" \
   "$MOSHI_CUR" "$MOSHI_LATEST" "$CLAUDE_V" "$VERCEL_V" "$SUPABASE_V" <<'PY'
 import json, sys, datetime
-path, herdr_cur, herdr_latest, ttyd_cur, ttyd_latest, moshi_cur, moshi_latest, claude, vercel, supabase = sys.argv[1:]
+path, herdr_cur, herdr_latest, hc_cur, hc_latest, ttyd_cur, ttyd_latest, moshi_cur, moshi_latest, claude, vercel, supabase = sys.argv[1:]
 doc = {
     "checked_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     "image_pins": {
         "herdr": {"current": herdr_cur, "latest_stable": herdr_latest},
+        "herdr-core": {"current": hc_cur, "latest_stable": hc_latest},
         "ttyd": {"current": ttyd_cur, "latest_stable": ttyd_latest},
         "moshi-hook": {"current": moshi_cur, "latest_stable": moshi_latest},
     },
@@ -71,7 +79,7 @@ doc = {
         "kimi": "install.sh (unpinned)",
         "gh": "apt (image rebuild)",
     },
-    "note": "Volume CLIs upgrade on container start via bootstrap-agents.sh. Image pins (herdr/ttyd) change only via this script + Build: Herdr.",
+    "note": "Volume CLIs upgrade on container start via bootstrap-agents.sh. Image pins (herdr/herdr-core/ttyd/moshi-hook) change only via this script + Build: Herdr.",
 }
 with open(path, "w") as f:
     json.dump(doc, f, indent=2)
@@ -86,7 +94,7 @@ if [ "$HERDR_LATEST" != "$HERDR_CUR" ]; then
   echo "==> herdr $HERDR_CUR → $HERDR_LATEST"
   for arch in x86_64 aarch64; do
     curl -fsSL -o "$TMP/herdr-linux-${arch}" \
-      "https://github.com/ogulcancelik/herdr/releases/download/v${HERDR_LATEST}/herdr-linux-${arch}"
+      "https://github.com/herdrdev/herdr/releases/download/v${HERDR_LATEST}/herdr-linux-${arch}"
   done
   SHA_X86="$(sha256sum "$TMP/herdr-linux-x86_64" | awk '{print $1}')"
   SHA_ARM="$(sha256sum "$TMP/herdr-linux-aarch64" | awk '{print $1}')"
@@ -109,6 +117,30 @@ PY
   changed=1
 else
   echo "herdr pin current ($HERDR_CUR)"
+fi
+
+if [ "$HC_LATEST" != "$HC_CUR" ]; then
+  echo "==> herdr-core $HC_CUR → $HC_LATEST"
+  curl -fsSL -H "User-Agent: $UA" -o "$TMP/hc-manifest.json" \
+    "https://releases.herdr.dev/core/${HC_LATEST}/manifest.json"
+  SHA_X86="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["targets"]["linux-x86_64"]["sha256"])' "$TMP/hc-manifest.json")"
+  SHA_ARM="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["targets"]["linux-aarch64"]["sha256"])' "$TMP/hc-manifest.json")"
+  echo "    x86_64  $SHA_X86"
+  echo "    aarch64 $SHA_ARM"
+  python3 - "$DF" "$HC_LATEST" "$SHA_X86" "$SHA_ARM" <<'PY'
+from pathlib import Path
+import re, sys
+path, ver, sha_x, sha_a = sys.argv[1:]
+text = Path(path).read_text()
+text = re.sub(r"(#   - herdr-core \(hc\) v)[0-9.]+", rf"\g<1>{ver}", text, count=1)
+text = re.sub(r"^ARG HC_VERSION=.*$", f"ARG HC_VERSION={ver}", text, count=1, flags=re.M)
+text = re.sub(r"^ARG HC_SHA256_X86_64=.*$", f"ARG HC_SHA256_X86_64={sha_x}", text, count=1, flags=re.M)
+text = re.sub(r"^ARG HC_SHA256_AARCH64=.*$", f"ARG HC_SHA256_AARCH64={sha_a}", text, count=1, flags=re.M)
+Path(path).write_text(text)
+PY
+  changed=1
+else
+  echo "herdr-core pin current ($HC_CUR)"
 fi
 
 if [ "$TTYD_LATEST" != "$TTYD_CUR" ]; then
@@ -163,14 +195,14 @@ if [ "$changed" -eq 1 ]; then
   CUR_APP_VER="$(grep -E '^version: ' "$MANIFEST" | sed -E 's/^version: *"([^"]+)".*/\1/')"
   NEW_VER="$(python3 -c 'import sys; a=sys.argv[1].split("."); a[-1]=str(int(a[-1])+1); print(".".join(a))' "$CUR_APP_VER")"
   printf '%s\n' "$NEW_VER" > "$VERSION_FILE"
-  python3 - "$MANIFEST" "$NEW_VER" "$HERDR_CUR" "$HERDR_LATEST" <<'PY'
+  python3 - "$MANIFEST" "$NEW_VER" "$HERDR_CUR" "$HERDR_LATEST" "$HC_LATEST" <<'PY'
 from pathlib import Path
 import re, sys
-path, new_ver, old_herdr, new_herdr = sys.argv[1:]
+path, new_ver, old_herdr, new_herdr, new_hc = sys.argv[1:]
 text = Path(path).read_text()
 text = re.sub(r'^version: ".*"', f'version: "{new_ver}"', text, count=1, flags=re.M)
 note = (
-    f"  {new_ver}: image pins refreshed (herdr {new_herdr}; see cli-versions.json). "
+    f"  {new_ver}: image pins refreshed (herdr {new_herdr}, herdr-core {new_hc}; see cli-versions.json). "
     "Image pins refreshed by zot24-herdr/ci/update-deps.sh.\n\n\n"
 )
 text = re.sub(r"(releaseNotes: >-\n)", rf"\1{note}", text, count=1)
@@ -185,6 +217,8 @@ if [ -n "${GITHUB_OUTPUT:-}" ]; then
   echo "changed=$changed" >> "$GITHUB_OUTPUT"
   echo "herdr_current=$HERDR_CUR" >> "$GITHUB_OUTPUT"
   echo "herdr_latest=$HERDR_LATEST" >> "$GITHUB_OUTPUT"
+  echo "hc_current=$HC_CUR" >> "$GITHUB_OUTPUT"
+  echo "hc_latest=$HC_LATEST" >> "$GITHUB_OUTPUT"
   echo "ttyd_current=$TTYD_CUR" >> "$GITHUB_OUTPUT"
   echo "ttyd_latest=$TTYD_LATEST" >> "$GITHUB_OUTPUT"
   echo "moshi_current=$MOSHI_CUR" >> "$GITHUB_OUTPUT"

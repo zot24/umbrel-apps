@@ -1,7 +1,7 @@
 name: "Update: Herdr deps"
 
-# Weekly check of upstream herdr + ttyd pins. Opens a PR when the Dockerfile
-# is behind latest stable. Volume CLIs (claude/codex/grok/kimi/pi/vercel/supabase) are
+# Weekly check of upstream herdr + herdr-core + ttyd + moshi-hook pins. Opens
+# a PR when the Dockerfile is behind latest stable. Volume CLIs (claude/codex/grok/kimi/pi/vercel/supabase) are
 # not baked into the image — bootstrap-agents.sh upgrades them on every start.
 #
 # Canonical copy lives in the app tree because the repo PAT often lacks
@@ -33,6 +33,7 @@ jobs:
           {
             echo "### Herdr dep check"
             echo "- herdr pin: \`${{ steps.bump.outputs.herdr_current }}\` latest stable: \`${{ steps.bump.outputs.herdr_latest }}\`"
+            echo "- herdr-core pin: \`${{ steps.bump.outputs.hc_current }}\` latest stable: \`${{ steps.bump.outputs.hc_latest }}\`"
             echo "- ttyd pin: \`${{ steps.bump.outputs.ttyd_current }}\` latest stable: \`${{ steps.bump.outputs.ttyd_latest }}\`"
             echo "- image changed: \`${{ steps.bump.outputs.changed }}\`"
             echo "- volume CLIs upgrade on Herdr container start (bootstrap-agents.sh), not in this image"
@@ -45,18 +46,21 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          BRANCH="chore/herdr-deps-${{ steps.bump.outputs.herdr_latest }}"
+          # herdr-core releases far more often than herdr: name both, or a core-only
+          # bump reuses the last herdr-only branch name and the push fails.
+          BRANCH="chore/herdr-deps-${{ steps.bump.outputs.herdr_latest }}-core-${{ steps.bump.outputs.hc_latest }}"
           git checkout -b "$BRANCH"
           git add zot24-herdr/server/Dockerfile zot24-herdr/VERSION zot24-herdr/umbrel-app.yml zot24-herdr/cli-versions.json
-          git commit -m "chore(herdr): bump herdr ${{ steps.bump.outputs.herdr_current }} → ${{ steps.bump.outputs.herdr_latest }}
+          git commit -m "chore(herdr): bump image pins (herdr ${{ steps.bump.outputs.herdr_latest }}, herdr-core ${{ steps.bump.outputs.hc_latest }})
 
           Image pins only. Volume agent CLIs upgrade via bootstrap-agents.sh."
           git push -u origin "$BRANCH"
           gh pr create --base main --head "$BRANCH" \
-            --title "chore(herdr): bump herdr to ${{ steps.bump.outputs.herdr_latest }}" \
+            --title "chore(herdr): bump image pins (herdr ${{ steps.bump.outputs.herdr_latest }}, herdr-core ${{ steps.bump.outputs.hc_latest }})" \
             --body "$(cat <<EOF
           ## Summary
           - herdr \`${{ steps.bump.outputs.herdr_current }}\` → \`${{ steps.bump.outputs.herdr_latest }}\`
+          - herdr-core \`${{ steps.bump.outputs.hc_current }}\` → \`${{ steps.bump.outputs.hc_latest }}\`
           - ttyd \`${{ steps.bump.outputs.ttyd_current }}\` → \`${{ steps.bump.outputs.ttyd_latest }}\`
 
           After merge, **Build: Herdr** rebuilds the multi-arch image and pins the digest. Then update the app on Umbrel.

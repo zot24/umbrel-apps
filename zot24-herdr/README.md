@@ -9,7 +9,9 @@ and everything is exactly where you left it.
 - **App ID**: `zot24-herdr`
 - **Ports**: 7681 web terminal (behind Umbrel auth, never published) · 7682
   agent-bridge (internal only, sibling apps) · 7683 SSH (published, key-only)
-- **Upstream**: [ogulcancelik/herdr](https://github.com/ogulcancelik/herdr) v0.9.3 (AGPL-3.0)
+- **Upstream**: [herdrdev/herdr](https://github.com/herdrdev/herdr) (Herdr TUI)
+  v0.9.5 and [herdrdev/herdr-core](https://github.com/herdrdev/herdr-core)
+  (`hc`) v0.1.14, both Apache-2.0
 
 ## How it's wired
 
@@ -19,10 +21,12 @@ and everything is exactly where you left it.
         |  (a) Umbrel app proxy (Umbrel login)      — web UI
         |  (b) SSH/Mosh into host, over Tailscale   — phone (Moshi)
         |  (c) herdr --remote, over SSH/Tailscale   — laptop thin client
+        |  (d) Herdr desktop app, over SSH (7683)   — machine in its sidebar
         v
   zot24-herdr_server_1 container
     ├── ttyd :7681 ──► herdr        (attach client for browser sessions)
-    └── herdr server                (headless; owns panes, agents, sessions)
+    ├── herdr server                (headless; owns panes, agents, sessions)
+    └── herdr-core (hc)             (headless; owns the desktop app's terminals)
               └── /data volume: config, session state, agent CLIs, workspaces
 ```
 
@@ -30,6 +34,11 @@ and everything is exactly where you left it.
 Clients — the ttyd web terminal, an `ssh` + `docker exec` session, or
 `herdr --remote` — only attach/detach (`ctrl+b q`). Closing every client
 leaves every agent running.
+
+Herdr now comes in two lines: the Herdr TUI above, and a native desktop app
+built on herdr-core. The container runs a herdr-core too, so the desktop app
+can add this box as a machine (d). The two runtimes do not share terminals:
+agents you start from the desktop app are not in the TUI, and the reverse.
 
 ## Installing on Umbrel
 
@@ -151,6 +160,37 @@ herdr --remote umbrel-herdr --session agents
 The local process is a thin client; the server on your Umbrel owns the
 session. Use `--remote-keybindings server` to apply the container's
 keybindings instead of your laptop's.
+
+### (d) Desktop app — the Umbrel as a Herdr machine
+
+The [Herdr desktop app](https://herdr.dev) (macOS, Linux, Windows) draws
+natively and cannot run in a browser. Instead it adds other computers as
+machines over SSH, and this app's sshd on 7683 is that door. Spaces on the
+Umbrel machine run their terminals in the container's herdr-core, so agents
+keep working while your laptop sleeps.
+
+1. Add your computer's public key the same way as the phone's (setup page
+   **Edit keys**, or `authorized_keys`).
+2. Add a host to `~/.ssh/config` on that computer. The setup page's Ready
+   screen shows this entry with your hostname filled in:
+
+   ```
+   Host umbrel-herdr
+       HostName your-umbrel
+       User node
+       Port 7683
+   ```
+
+3. In Herdr, choose **Add machine** and pick `umbrel-herdr`. From a shell,
+   `hc machine add umbrel-herdr --name umbrel` does the same.
+
+The image ships herdr-core, so the app finds it and does not offer to copy
+one over. Update the Umbrel app to update it; `hc machine update` against
+this box only lasts until the next app restart, which goes back to the
+image's copy. New terminals start a login bash, so they get the same `PATH`
+and `/data/.env` keys as an SSH session. An app update or restart stops
+the programs in them; the desktop app's panes come back with a fresh shell
+in their last folder, as after a reboot of any Herdr machine.
 
 ## Signing in (GitHub, Codex, Grok, …)
 
@@ -298,6 +338,8 @@ Everything lives under the app data volume mounted at `/data` (which is also
 | Path | Contents |
 | --- | --- |
 | `/data/.config/herdr/` | config.toml, server socket, session state, logs |
+| `/data/.local/state/herdr-core/` | herdr-core socket, terminal records, saved screens, machine connections, logs |
+| `/data/.config/herdr-core/` | herdr-core `config.toml` and templates |
 | `/data/.npm-global/` | npm-installed CLIs (`claude`, `vercel`, `supabase`, …) |
 | `/data/.codex/` | Codex auth, config + Herdr hook |
 | `/data/.grok/` | Grok Build CLI binary + auth |
@@ -383,9 +425,10 @@ bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh
 
 ## Updating
 
-Herdr is baked into the image (pinned + sha256-verified). App updates ship
-new Herdr versions through the Umbrel store update flow — do **not** run
-`herdr update` inside the container (the binary is root-owned; and an
+Herdr and herdr-core are baked into the image (pinned + sha256-verified).
+App updates ship new versions through the Umbrel store update flow — do
+**not** run `herdr update` or `hc update` inside the container, or
+`hc machine update` against it (the image's binaries are root-owned; and an
 in-place update would be lost on the next container rebuild anyway).
 
 ## Security notes
@@ -397,6 +440,11 @@ in-place update would be lost on the next container rebuild anyway).
 - Reach the host over **Tailscale**; don't expose SSH on your router.
 - Treat the app data volume like a dev workstation: agent CLIs can read
   everything in `/data`, use your API keys, and push to your git remotes.
+- herdr-core has no password of its own: anyone who reaches its socket can
+  run commands as `node`. It listens only on a Unix socket inside the
+  container; the desktop app reaches it through the same key-only SSH on
+  7683. Its saved screens in `/data/.local/state/herdr-core/` can hold
+  secrets that were on screen.
 - Herdr pane-history replay (`[experimental] pane_history`) can persist
   secrets visible on screen — leave it off unless you need it.
 - The container runs as an unprivileged user (UID 1000) and needs no
@@ -420,8 +468,9 @@ This app lives in the [zot24/umbrel-apps](https://github.com/zot24/umbrel-apps)
 community store repo as `zot24-herdr/`:
 
 ```
-server/Dockerfile        # node:22-bookworm-slim + herdr (pinned sha256) + ttyd + mosh + bwrap
-server/entrypoint.sh     # chown /data, seed config, start herdr server + ttyd
+server/Dockerfile        # node:22-bookworm-slim + herdr + herdr-core (pinned sha256) + ttyd + mosh + bwrap
+server/entrypoint.sh     # chown /data, seed config, start herdr server + herdr-core + ttyd
+server/login-shell.sh    # $SHELL for herdr-core terminals (login bash)
 docker-compose.yml       # Umbrel production compose (app_proxy + server)
 docker-compose.local.yml # local dev (build from source, publishes 7681)
 umbrel-app.yml           # Umbrel app manifest (manifestVersion 1.1)
