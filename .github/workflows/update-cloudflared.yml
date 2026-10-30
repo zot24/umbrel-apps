@@ -1,0 +1,118 @@
+name: "Update: cloudflared"
+
+# Hourly check of the cloudflare/cloudflared release pinned in
+# connector/Dockerfile. The running connector does not wait for this:
+# update-bin.sh installs a newer checksum-verified binary within 5 minutes
+# and restarts the tunnel. This job keeps the published image current so a
+# new install starts close to upstream. When a newer multi-arch image exists, this job
+# bumps the pin and the app patch version, builds ghcr.io/zot24/cloudflared
+# and ghcr.io/zot24/cloudflared-connector, and commits those digests to
+# main in the same commit.
+#
+# One commit on purpose. A version bump that lands before the digest pin
+# makes Umbrel record the new version while the compose file still points
+# at the old image, and the later pin commit does not change the version,
+# so the box never updates again. Building here, then committing, avoids
+# that window. [skip ci] keeps a token that does trigger workflows from
+# starting a second build of the same commit.
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check upstream cloudflared
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash zot24-cloudflared/ci/update-cloudflared.sh
+
+      - uses: docker/setup-qemu-action@v3
+        if: steps.bump.outputs.changed == '1'
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.bump.outputs.changed == '1'
+
+      - uses: docker/login-action@v3
+        if: steps.bump.outputs.changed == '1'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push web
+        if: steps.bump.outputs.changed == '1'
+        uses: docker/build-push-action@v6
+        with:
+          context: zot24-cloudflared/web
+          file: zot24-cloudflared/web/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/zot24/cloudflared:${{ steps.bump.outputs.app_version }}
+            ghcr.io/zot24/cloudflared:latest
+          cache-from: type=gha,scope=cloudflared-web
+          cache-to: type=gha,mode=max,scope=cloudflared-web
+
+      - name: Build and push connector
+        if: steps.bump.outputs.changed == '1'
+        uses: docker/build-push-action@v6
+        with:
+          context: zot24-cloudflared/connector
+          file: zot24-cloudflared/connector/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/zot24/cloudflared-connector:${{ steps.bump.outputs.app_version }}-cf.${{ steps.bump.outputs.cf_latest }}
+            ghcr.io/zot24/cloudflared-connector:latest
+          cache-from: type=gha,scope=cloudflared-connector
+          cache-to: type=gha,mode=max,scope=cloudflared-connector
+
+      - name: Pin image digests
+        if: steps.bump.outputs.changed == '1'
+        run: |
+          VERSION="${{ steps.bump.outputs.app_version }}"
+          CF="${{ steps.bump.outputs.cf_latest }}"
+          CONNECTOR_TAG="${VERSION}-cf.${CF}"
+          WEB_DIGEST=$(docker buildx imagetools inspect "ghcr.io/zot24/cloudflared:${VERSION}" --format '{{ .Manifest.Digest }}')
+          CONNECTOR_DIGEST=$(docker buildx imagetools inspect "ghcr.io/zot24/cloudflared-connector:${CONNECTOR_TAG}" --format '{{ .Manifest.Digest }}')
+          if [ -z "$WEB_DIGEST" ] || [ -z "$CONNECTOR_DIGEST" ]; then
+            echo "::error::Could not determine manifest digests"
+            exit 1
+          fi
+          COMPOSE=zot24-cloudflared/docker-compose.yml
+          # Connector first. zot24/cloudflared: is a prefix of the connector name.
+          sed -E -i \
+            "s|image: ghcr.io/zot24/cloudflared-connector:[^[:space:]]*|image: ghcr.io/zot24/cloudflared-connector:${CONNECTOR_TAG}@${CONNECTOR_DIGEST}|" \
+            "$COMPOSE"
+          sed -E -i \
+            "s|image: ghcr.io/zot24/cloudflared:[^[:space:]]*|image: ghcr.io/zot24/cloudflared:${VERSION}@${WEB_DIGEST}|" \
+            "$COMPOSE"
+          grep -n 'image: ghcr.io/' "$COMPOSE"
+
+      - name: Commit and push
+        if: steps.bump.outputs.changed == '1'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add \
+            zot24-cloudflared/connector/Dockerfile \
+            zot24-cloudflared/VERSION \
+            zot24-cloudflared/umbrel-app.yml \
+            zot24-cloudflared/docker-compose.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(cloudflared): cloudflared ${{ steps.bump.outputs.cf_latest }} (app ${{ steps.bump.outputs.app_version }}) [skip ci]"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && break
+            echo "Push attempt $i failed, retrying..."
+            sleep 2
+          done

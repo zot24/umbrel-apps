@@ -1,0 +1,43 @@
+services:
+  # The tile opens the tunnel UI. PROXY_AUTH_ADD keeps the token page behind
+  # the Umbrel login. 4500 is the only published port. The connector's control
+  # port (8018) stays on the compose network: it has no access control.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-cloudflared_web_1
+      APP_PORT: 3000
+      PROXY_AUTH_ADD: "true"
+
+  web:
+    # Digest is written by build-cloudflared.yml (source changes) and by
+    # update-cloudflared.yml (upstream cloudflared releases). Umbrel rejects
+    # an image with no digest, so the app will not install until one of
+    # those workflows has pushed this line.
+    image: ghcr.io/zot24/cloudflared:1.1.1
+    restart: on-failure
+    stop_grace_period: 1s
+    depends_on:
+      - connector
+    volumes:
+      - ${APP_DATA_DIR}/data:/app/data
+    environment:
+      CLOUDFLARED_HOSTNAME: zot24-cloudflared_connector_1
+      CLOUDFLARED_METRICS_PORT: ${APP_ZOT24_CLOUDFLARED_METRICS_PORT}
+      CLOUDFLARED_TOKEN_FILE: /app/data/token
+      CLOUDFLARED_EXTRA_ARGS_FILE: /app/data/extra_args
+
+  connector:
+    image: ghcr.io/zot24/cloudflared-connector:1.1.1-cf.2026.10.6
+    restart: on-failure
+    stop_grace_period: 3s
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+    environment:
+      CLOUDFLARED_METRICS_PORT: ${APP_ZOT24_CLOUDFLARED_METRICS_PORT}
+      CLOUDFLARED_TOKEN_FILE: /data/token
+      CLOUDFLARED_EXTRA_ARGS_FILE: /data/extra_args
+    # host-gateway lets a tunnel route reach the Umbrel host, and APP_DOMAIN
+    # lets it reach the box by the name Umbrel publishes on the LAN.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "${APP_DOMAIN}:host-gateway"

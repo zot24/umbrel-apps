@@ -23,6 +23,7 @@ Each app folder has a README with its setup, its limits and how it works.
 | [Apprise](zot24-apprise/README.md) | `zot24-apprise` | 8000 | Notification gateway for Telegram, Discord and 100+ other services. The notify API stays on the container network. |
 | [Cursor Sandboxes](zot24-cursor-sandboxes/README.md) | `zot24-cursor-sandboxes` | 7690 | Machines for Cursor Cloud Agents. Each sandbox is a Cursor "My Machines" worker in its own container, inside a Docker daemon private to the app. Workers connect out only. |
 | [GitHub Runner](zot24-github-runner/README.md) | `zot24-github-runner` | 3500 | Self-hosted GitHub Actions runners for your private repositories. Jobs with `runs-on: [self-hosted, umbrel]` run on the Umbrel, one fresh container per job, inside a Docker daemon private to the app. GitHub does not bill self-hosted minutes. |
+| [Cloudflare Tunnel](zot24-cloudflared/README.md) | `zot24-cloudflared` | 4500 | Cloudflare Tunnel for other Umbrel apps. Separate from the official `cloudflared` app on port 4499. The connector installs a new cloudflared by itself. |
 | [Dockyard](zot24-dockyard/README.md) | `zot24-dockyard` | 8120 | An isolated Docker host on your Umbrel: a full Docker daemon in its own network namespace, apart from Umbrel's own Docker, to deploy and run your own containers. |
 | [Openship](zot24-openship/README.md) | `zot24-openship` | 3001 | The Openship deploy control plane (dashboard and API). It manages remote servers over SSH, and does not build or run apps on the Umbrel. |
 
@@ -39,7 +40,7 @@ How a change gets a new version depends on where the app's image comes from:
 
 | Apps | Image | What happens after a merge to `main` |
 |------|-------|--------------------------------------|
-| GitHub Runner, Cursor Sandboxes, Herdr, Playwright Renderer | Built in this repository (`ghcr.io/zot24/…`) | `Build: <app>` builds the images for amd64 and arm64, tags them with the version in `umbrel-app.yml`, and the bot commits the new digests to `docker-compose.yml` (`chore: pin …` or `chore: update … image`). The build starts only for changes to the image sources. |
+| GitHub Runner, Cursor Sandboxes, Herdr, Playwright Renderer, Cloudflare Tunnel | Built in this repository (`ghcr.io/zot24/…`) | `Build: <app>` builds the images for amd64 and arm64, tags them with the version in `umbrel-app.yml`, and the bot commits the new digests to `docker-compose.yml` (`chore: pin …` or `chore: update … image`). The build starts only for changes to the image sources. |
 | nworth | Built in `zot24/nworth` | `Pin nworth image` runs every day. It pins the newest published image and changes the version itself, so no pull request is needed. |
 | Apprise, Dockyard, Openship, Proton Bridge | Upstream images | Change the image in `docker-compose.yml` and the version in the same pull request. |
 
@@ -47,6 +48,15 @@ Two weekly workflows open their own pull requests with a new version:
 `Update: GitHub Actions runner` (the `actions/runner` base of the runner image)
 and `Update: Herdr deps` (herdr and ttyd). Merge the pull request, and the build
 on `main` makes and pins the new image.
+
+`Update: cloudflared` runs every hour. When `cloudflare/cloudflared` publishes
+a newer multi-arch image, that job bumps the app version, builds both images,
+and commits the digests in the same commit. A box that is already running
+does not wait for that commit: the connector installs the new binary and
+restarts the tunnel within a few minutes. `Integrate: cloudflared upstreams`
+runs daily and opens a pull request only when Radiokot's UI or connector, or
+the official Umbrel listing, changes something other than that cloudflared
+release.
 
 ### Ship a change to an app that is built here
 

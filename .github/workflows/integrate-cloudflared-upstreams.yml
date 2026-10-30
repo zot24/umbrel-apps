@@ -1,0 +1,102 @@
+name: "Integrate: cloudflared upstreams"
+
+# Daily look at the three cloudflared upstreams pinned in
+# zot24-cloudflared/ci/upstreams.json. When one moves, try to apply the
+# diff and open one PR on integrate/cloudflared-upstreams.
+#
+#   ui         Radiokot/umbrel-cloudflared
+#   umbrel     getumbrel/umbrel-apps  (cloudflared/ only, noted, not applied)
+#   connector  Radiokot/umbrel-cloudflared-connector
+#
+# The other repo we maintain, zot24/umbrel-apps-gallery, is named in the PR
+# when upstream icons or screenshots change. This token cannot push there.
+#
+# An open PR for the same target SHAs is left alone, so a daily run does not
+# pile on while someone is reading it.
+#
+# A diff that only moves a cloudflared image tag is not a product change.
+# update-cloudflared.yml owns that. This job advances the pin and commits
+# upstreams.json, and it does not open a pull request. Files listed under
+# "forked" in upstreams.json are not applied; the pull request carries the
+# diff so those edits can be ported without dropping our own changes.
+
+on:
+  schedule:
+    - cron: "23 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Look for upstream commits
+        id: integrate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 zot24-cloudflared/ci/integrate-upstreams.py
+
+      - name: Record ignored cloudflared release bumps
+        if: steps.integrate.outputs.changed != '1' && steps.integrate.outputs.pins == '1'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-cloudflared/ci/upstreams.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(cloudflared): note upstream release bump [skip ci]"
+          ok=0
+          for i in 1 2 3; do
+            if git pull --rebase origin main && git push; then
+              ok=1
+              break
+            fi
+            echo "Push attempt $i failed, retrying..."
+            sleep 2
+          done
+          [ "$ok" = 1 ]
+
+      - name: Open or refresh the PR
+        if: steps.integrate.outputs.changed == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGETS: ${{ steps.integrate.outputs.targets }}
+        run: |
+          set -euo pipefail
+          BRANCH=integrate/cloudflared-upstreams
+          existing=$(gh pr list --head "$BRANCH" --base main --state open \
+            --json number,body --jq '.[0] // empty')
+          if [ -n "$existing" ] && printf '%s' "$existing" | grep -F "targets: $TARGETS"; then
+            echo "Open PR already covers $TARGETS"
+            git reset --hard
+            git clean -fd -- zot24-cloudflared/ci/pending
+            find zot24-cloudflared -name '*.rej' -delete
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Lease against the tip we just fetched. The branch is absent on the
+          # first run, and --force-with-lease refuses to create it.
+          git fetch origin "$BRANCH" || true
+          git checkout -B "$BRANCH"
+          git add -A -- zot24-cloudflared
+          git diff --cached --quiet && { echo "No file changes."; exit 0; }
+          git commit -m "integrate: cloudflared upstreams"
+          if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+            git push --force-with-lease="refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" -u origin "HEAD:$BRANCH"
+          else
+            git push -u origin "HEAD:$BRANCH"
+          fi
+          if [ -n "$existing" ]; then
+            number=$(printf '%s' "$existing" | python3 -c 'import json,sys; print(json.load(sys.stdin)["number"])')
+            gh pr edit "$number" --body-file zot24-cloudflared/ci/pending/REPORT.md
+            echo "Updated PR #$number"
+            exit 0
+          fi
+          gh pr create --base main --head "$BRANCH" \
+            --title "integrate: cloudflared upstreams" \
+            --body-file zot24-cloudflared/ci/pending/REPORT.md

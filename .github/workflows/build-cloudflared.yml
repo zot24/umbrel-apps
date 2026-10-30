@@ -1,0 +1,123 @@
+name: "Build: Cloudflared"
+
+# Builds ghcr.io/zot24/cloudflared and ghcr.io/zot24/cloudflared-connector
+# for linux/amd64 and linux/arm64, then pins both digests in
+# zot24-cloudflared/docker-compose.yml. Umbrel rejects an unpinned image.
+# Upstream cloudflared bumps are handled by update-cloudflared.yml, which
+# builds and pins in one commit. This workflow is for changes to our source.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'zot24-cloudflared/web/**'
+      - 'zot24-cloudflared/connector/**'
+      - 'zot24-cloudflared/umbrel-app.yml'
+      - '.github/workflows/build-cloudflared.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to build (e.g. 1.1.0). Leave empty to read umbrel-app.yml.'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          INPUT_VERSION="${{ inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION=$(grep -E '^version: ' zot24-cloudflared/umbrel-app.yml | sed -E 's/^version: *"([^"]+)".*/\1/')
+          fi
+          CF_VERSION=$(sed -nE 's/^FROM cloudflare\/cloudflared:([^@ ]+).*/\1/p' zot24-cloudflared/connector/Dockerfile)
+          if [ -z "$VERSION" ] || [ -z "$CF_VERSION" ]; then
+            echo "::error::Could not determine version (app=$VERSION cloudflared=$CF_VERSION)"
+            exit 1
+          fi
+          echo "Version: $VERSION"
+          echo "cloudflared: $CF_VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "connector_tag=${VERSION}-cf.${CF_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push web
+        uses: docker/build-push-action@v6
+        with:
+          context: zot24-cloudflared/web
+          file: zot24-cloudflared/web/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/zot24/cloudflared:${{ steps.version.outputs.version }}
+            ghcr.io/zot24/cloudflared:latest
+          cache-from: type=gha,scope=cloudflared-web
+          cache-to: type=gha,mode=max,scope=cloudflared-web
+
+      - name: Build and push connector
+        uses: docker/build-push-action@v6
+        with:
+          context: zot24-cloudflared/connector
+          file: zot24-cloudflared/connector/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/zot24/cloudflared-connector:${{ steps.version.outputs.connector_tag }}
+            ghcr.io/zot24/cloudflared-connector:latest
+          cache-from: type=gha,scope=cloudflared-connector
+          cache-to: type=gha,mode=max,scope=cloudflared-connector
+
+      - name: Pin image digests in docker-compose.yml
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CONNECTOR_TAG="${{ steps.version.outputs.connector_tag }}"
+          # build-push-action's digest can be one platform's image, not the
+          # manifest list. Umbrel pulls by the manifest digest.
+          WEB_DIGEST=$(docker buildx imagetools inspect "ghcr.io/zot24/cloudflared:${VERSION}" --format '{{ .Manifest.Digest }}')
+          CONNECTOR_DIGEST=$(docker buildx imagetools inspect "ghcr.io/zot24/cloudflared-connector:${CONNECTOR_TAG}" --format '{{ .Manifest.Digest }}')
+          if [ -z "$WEB_DIGEST" ] || [ -z "$CONNECTOR_DIGEST" ]; then
+            echo "::error::Could not determine manifest digests"
+            exit 1
+          fi
+          echo "Web: $WEB_DIGEST"
+          echo "Connector: $CONNECTOR_DIGEST"
+          COMPOSE=zot24-cloudflared/docker-compose.yml
+          # Connector first. zot24/cloudflared: is a prefix of the connector name.
+          sed -E -i \
+            "s|image: ghcr.io/zot24/cloudflared-connector:[^[:space:]]*|image: ghcr.io/zot24/cloudflared-connector:${CONNECTOR_TAG}@${CONNECTOR_DIGEST}|" \
+            "$COMPOSE"
+          sed -E -i \
+            "s|image: ghcr.io/zot24/cloudflared:[^[:space:]]*|image: ghcr.io/zot24/cloudflared:${VERSION}@${WEB_DIGEST}|" \
+            "$COMPOSE"
+          grep -n 'image: ghcr.io/' "$COMPOSE"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-cloudflared/docker-compose.yml
+          git diff --cached --quiet || git commit -m "chore: pin cloudflared images at ${{ steps.version.outputs.version }}"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && break
+            echo "Push attempt $i failed, retrying..."
+            sleep 2
+          done

@@ -1,0 +1,32 @@
+# Local stack, no Umbrel. Builds the Dockerfiles in this directory.
+#
+#   docker compose -f docker-compose.local.yml up --build
+#   open http://localhost:3000
+services:
+  web:
+    build: ./web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - connector
+    volumes:
+      - cloudflared-data:/app/data
+    environment:
+      CLOUDFLARED_HOSTNAME: connector
+      CLOUDFLARED_METRICS_PORT: "40901"
+      CLOUDFLARED_TOKEN_FILE: /app/data/token
+      CLOUDFLARED_EXTRA_ARGS_FILE: /app/data/extra_args
+
+  connector:
+    build: ./connector
+    volumes:
+      - cloudflared-data:/data
+    environment:
+      CLOUDFLARED_METRICS_PORT: "40901"
+      CLOUDFLARED_TOKEN_FILE: /data/token
+      CLOUDFLARED_EXTRA_ARGS_FILE: /data/extra_args
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  cloudflared-data:

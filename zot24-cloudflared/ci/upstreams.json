@@ -1,0 +1,28 @@
+{
+  "ui": {
+    "repo": "Radiokot/umbrel-cloudflared",
+    "branch": "main",
+    "sha": "7e2d3a57cdbfb402467d29731dee6ba6a61d836f",
+    "dest": "zot24-cloudflared/web",
+    "exclude": [".github/", "repository-assets/", "README.md", "LICENSE", "CHANGELOG.md"],
+    "forked": [
+      "src/routes/+page.svelte",
+      "src/lib/components/TunnelRoute.svelte"
+    ]
+  },
+  "connector": {
+    "repo": "Radiokot/umbrel-cloudflared-connector",
+    "branch": "main",
+    "sha": "2ec28d03d684e126a0453bbcfe0e33f837a03245",
+    "dest": "zot24-cloudflared/connector",
+    "exclude": [],
+    "forked": ["Dockerfile", "control-loop.sh", "process.sh", "update-bin.sh"]
+  },
+  "umbrel": {
+    "repo": "getumbrel/umbrel-apps",
+    "branch": "master",
+    "path": "cloudflared",
+    "sha": "86fa1b8781f9256dbd88f885df62927d5ffac241",
+    "apply": false
+  }
+}
