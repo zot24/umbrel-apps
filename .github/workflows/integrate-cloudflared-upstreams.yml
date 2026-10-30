@@ -17,17 +17,33 @@ name: "Integrate: cloudflared upstreams"
 # A diff that only moves a cloudflared image tag is not a product change.
 # update-cloudflared.yml owns that. This job advances the pin and commits
 # upstreams.json, and it does not open a pull request. Files listed under
-# "forked" in upstreams.json are not applied; the pull request carries the
-# diff so those edits can be ported without dropping our own changes.
+# "forked" in upstreams.json are not applied. When a product pull request
+# opens and ANTHROPIC_API_KEY is set, Claude reads the report and ports the
+# interesting remainder onto that same branch. It does not merge.
+#
+# The daily run uses Sonnet on the standard Anthropic API, capped at $2.
+# That is the account where the API credit lives. Flex is an OpenAI and
+# Gemini discount tier, and Anthropic fast mode bills more, not less.
+# A manual run can pick haiku or opus instead.
 
 on:
   schedule:
     - cron: "23 8 * * *"
   workflow_dispatch:
+    inputs:
+      model:
+        description: "Claude model for this port. The daily run uses sonnet."
+        type: choice
+        options:
+          - sonnet
+          - haiku
+          - opus
+        default: sonnet
 
 jobs:
   integrate:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: write
       pull-requests: write
@@ -61,12 +77,14 @@ jobs:
           [ "$ok" = 1 ]
 
       - name: Open or refresh the PR
+        id: pr
         if: steps.integrate.outputs.changed == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TARGETS: ${{ steps.integrate.outputs.targets }}
         run: |
           set -euo pipefail
+          echo "opened=0" >> "$GITHUB_OUTPUT"
           BRANCH=integrate/cloudflared-upstreams
           existing=$(gh pr list --head "$BRANCH" --base main --state open \
             --json number,body --jq '.[0] // empty')
@@ -86,6 +104,7 @@ jobs:
           git add -A -- zot24-cloudflared
           git diff --cached --quiet && { echo "No file changes."; exit 0; }
           git commit -m "integrate: cloudflared upstreams"
+          echo "opened=1" >> "$GITHUB_OUTPUT"
           if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
             git push --force-with-lease="refs/heads/$BRANCH:refs/remotes/origin/$BRANCH" -u origin "HEAD:$BRANCH"
           else
@@ -100,3 +119,44 @@ jobs:
           gh pr create --base main --head "$BRANCH" \
             --title "integrate: cloudflared upstreams" \
             --body-file zot24-cloudflared/ci/pending/REPORT.md
+
+      - name: Note missing Claude API key
+        if: steps.pr.outputs.opened == '1' && secrets.ANTHROPIC_API_KEY == ''
+        run: echo "::notice::ANTHROPIC_API_KEY is not set, so this pull request was opened without a Claude port."
+
+      - name: Port interesting upstream changes
+        id: adapt
+        if: steps.pr.outputs.opened == '1' && secrets.ANTHROPIC_API_KEY != ''
+        continue-on-error: true
+        uses: anthropics/claude-code-base-action@beta
+        with:
+          prompt_file: zot24-cloudflared/ci/adapt-upstream-prompt.md
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: |
+            --model ${{ github.event_name == 'workflow_dispatch' && inputs.model || 'sonnet' }}
+            --effort medium
+            --permission-mode acceptEdits
+            --max-turns 12
+            --max-budget-usd 2
+            --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git diff*),Bash(git status*)"
+
+      - name: Commit the Claude port
+        if: steps.pr.outputs.opened == '1' && secrets.ANTHROPIC_API_KEY != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout integrate/cloudflared-upstreams
+          git add -A -- zot24-cloudflared
+          if git diff --cached --quiet; then
+            echo "Claude left the tree unchanged."
+            exit 0
+          fi
+          git commit -m "integrate: port interesting upstream changes"
+          git push
+          if [ -f zot24-cloudflared/ci/pending/ADAPTATION.md ]; then
+            gh pr comment integrate/cloudflared-upstreams \
+              --body-file zot24-cloudflared/ci/pending/ADAPTATION.md
+          fi

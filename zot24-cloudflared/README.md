@@ -46,7 +46,7 @@ and writes the digests into `docker-compose.yml`. Until the first of those commi
 
 `.github/workflows/integrate-cloudflared-upstreams.yml` runs daily. It reads the three pins in `ci/upstreams.json`. A cloudflared image tag, or a manifest line that only says the daemon moved, is ignored and the pin advances in a commit on `main`. The hourly job already ships that binary. You do not get a pull request for it.
 
-Anything else opens one pull request, branch `integrate/cloudflared-upstreams`. You merge it yourself.
+Anything else opens one pull request, branch `integrate/cloudflared-upstreams`. You merge it yourself. When that pull request opens and the repository secret `ANTHROPIC_API_KEY` is set, Claude Sonnet reads the report and ports the interesting remainder onto the same branch. A run stops at 12 turns or $2. It does not merge. The daily run uses Sonnet. A manual run can pick Haiku or Opus. Flex is not an Anthropic API discount, and fast mode costs more, so this trial stays on the standard tier where the API credit is.
 
 | Pin | Upstream | What the job does with a product change |
 | --- | --- | --- |
