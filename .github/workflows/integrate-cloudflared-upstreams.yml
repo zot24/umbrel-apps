@@ -18,13 +18,14 @@ name: "Integrate: cloudflared upstreams"
 # update-cloudflared.yml owns that. This job advances the pin and commits
 # upstreams.json, and it does not open a pull request. Files listed under
 # "forked" in upstreams.json are not applied. When a product pull request
-# opens and ANTHROPIC_API_KEY is set, Claude reads the report and ports the
-# interesting remainder onto that same branch. It does not merge.
+# opens and ANTHROPIC_API_KEY is set, a Flue agent reads the report and
+# ports the interesting remainder onto that same branch. It does not merge.
 #
-# The daily run uses Sonnet on the standard Anthropic API, capped at $2.
-# That is the account where the API credit lives. Flex is an OpenAI and
-# Gemini discount tier, and Anthropic fast mode bills more, not less.
-# A manual run can pick haiku or opus instead.
+# Flue runs in this job with flue run and spends the Anthropic API credit.
+# FX (vercel-labs/fx) is a smaller CI agent, but its custom connections
+# speak OpenAI-compatible endpoints only, so it cannot spend that credit.
+# The daily model is anthropic/claude-sonnet-4-6. A manual run can pick
+# Haiku or Opus. The job timeout is the spend bound.
 
 on:
   schedule:
@@ -32,13 +33,13 @@ on:
   workflow_dispatch:
     inputs:
       model:
-        description: "Claude model for this port. The daily run uses sonnet."
+        description: "Flue model specifier. The daily run uses Sonnet 4.6."
         type: choice
         options:
-          - sonnet
-          - haiku
-          - opus
-        default: sonnet
+          - anthropic/claude-sonnet-4-6
+          - anthropic/claude-haiku-4-5
+          - anthropic/claude-opus-4-7
+        default: anthropic/claude-sonnet-4-6
 
 jobs:
   integrate:
@@ -133,25 +134,30 @@ jobs:
 
       - name: Note missing Claude API key
         if: steps.pr.outputs.opened == '1' && steps.claude-key.outputs.present != '1'
-        run: echo "::notice::ANTHROPIC_API_KEY is not set, so this pull request was opened without a Claude port."
+        run: echo "::notice::ANTHROPIC_API_KEY is not set, so this pull request was opened without a Flue port."
+
+      - uses: actions/setup-node@v4
+        if: steps.pr.outputs.opened == '1' && steps.claude-key.outputs.present == '1'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: zot24-cloudflared/ci/flue/package-lock.json
 
       - name: Port interesting upstream changes
         id: adapt
         if: steps.pr.outputs.opened == '1' && steps.claude-key.outputs.present == '1'
         continue-on-error: true
-        uses: anthropics/claude-code-base-action@beta
-        with:
-          prompt_file: zot24-cloudflared/ci/adapt-upstream-prompt.md
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          claude_args: |
-            --model ${{ github.event_name == 'workflow_dispatch' && inputs.model || 'sonnet' }}
-            --effort medium
-            --permission-mode acceptEdits
-            --max-turns 12
-            --max-budget-usd 2
-            --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git diff*),Bash(git status*)"
+        working-directory: zot24-cloudflared/ci/flue
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FLUE_MODEL: ${{ github.event_name == 'workflow_dispatch' && inputs.model || 'anthropic/claude-sonnet-4-6' }}
+          REPO_ROOT: ${{ github.workspace }}
+        run: |
+          npm ci
+          npx flue run src/agents/adapt-upstream.ts \
+            --message "Port the unapplied upstream product changes described in zot24-cloudflared/ci/pending/REPORT.md. Follow zot24-cloudflared/ci/adapt-upstream-prompt.md."
 
-      - name: Commit the Claude port
+      - name: Commit the Flue port
         if: steps.pr.outputs.opened == '1' && steps.claude-key.outputs.present == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -162,7 +168,7 @@ jobs:
           git checkout integrate/cloudflared-upstreams
           git add -A -- zot24-cloudflared
           if git diff --cached --quiet; then
-            echo "Claude left the tree unchanged."
+            echo "Flue left the tree unchanged."
             exit 0
           fi
           git commit -m "integrate: port interesting upstream changes"

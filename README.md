@@ -56,8 +56,9 @@ does not wait for that commit: the connector installs the new binary and
 restarts the tunnel within a few minutes. `Integrate: cloudflared upstreams`
 runs daily and opens a pull request only when Radiokot's UI or connector, or
 the official Umbrel listing, changes something other than that cloudflared
-release. If `ANTHROPIC_API_KEY` is set, Claude then ports the interesting
-part of that pull request onto the same branch and does not merge it.
+release. If `ANTHROPIC_API_KEY` is set, a Flue agent then ports the
+interesting part of that pull request onto the same branch and does not
+merge it.
 
 ### Ship a change to an app that is built here
 

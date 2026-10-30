@@ -1,0 +1,14 @@
+{
+  "name": "zot24-cloudflared-upstream-agent",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "dependencies": {
+    "@flue/runtime": "2.3.0"
+  },
+  "devDependencies": {
+    "@flue/cli": "2.3.0"
+  }
+}
