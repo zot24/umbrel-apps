@@ -8,6 +8,7 @@ Keep these local behaviors. Do not revert them to match upstream:
 - `connector/update-bin.sh`.
 - `APP_ZOT24_CLOUDFLARED_METRICS_PORT` and metrics port 40901.
 - The three-cards-per-row route layout in `web/src/routes/+page.svelte` and `web/src/lib/components/TunnelRoute.svelte`.
+- The phosphor UI shared with the other zot24 apps: dark ground, Oxanium and Fira Code, sharp panels, and the square-tunnel icon. Do not restore the light theme, the rounded cards, the Umbrel-logo footer, or the line "Cloudflare Tunnel app by Radiokot". Keep the GPL line that names Radiokot's app.
 - Image names under `ghcr.io/zot24/`. Do not introduce `ghcr.io/radiokot` images.
 - App id `zot24-cloudflared`, UI port 4500, and the official app id `cloudflared` left as a separate app.
 

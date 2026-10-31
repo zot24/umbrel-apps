@@ -118,27 +118,22 @@
 </script>
 
 <svelte:head>
-    <title>Settings | Cloudflare Tunnel client</title>
+    <title>Settings | Cloudflare Tunnel</title>
 </svelte:head>
 
-<header class="row justify-content-between align-items-center my-3">
-    <h3 class="d-block col-auto">Settings</h3>
-    <div class="col-auto my-md-4">
-        <a class="button button-secondary" href="/">Back</a>
-    </div>
+<header class="top">
+    <h1>Settings</h1>
+    <a class="button button-secondary" href="/">Back</a>
 </header>
 
 {#await loadTunnelSettings()}
-    <p>Loading…</p>
+    <p class="muted">Loading…</p>
 {:then}
-    <div class="row">
-        <p class="d-block col-12">
+    <section class="panel">
+        <div class="panel-header">Connector</div>
+        <div class="panel-body">
             <label for="tokenInput">Connector token</label>
-            <span>&nbsp;</span>
-            <a href={PUBLIC_GUIDE_URL} target="_blank">(?)</a>
-        </p>
-
-        <div class="col-12 col-sm-9 col-md-7">
+            <a class="hint" href={PUBLIC_GUIDE_URL} target="_blank">Guide</a>
             <textarea
                 id="tokenInput"
                 name="tokenInput"
@@ -146,28 +141,11 @@
                 placeholder="Paste the token or the complete connection command"
                 bind:value={tokenInput}
             />
-        </div>
-    </div>
-    <details>
-        <summary class="d-block">
-            <h4>Advanced</h4>
-        </summary>
 
-        <div class="row">
-            <p class="d-block col-12">
-                <label for="extraArgsInput">
-                    Extra cloudflared arguments
-                </label>
-                <span>&nbsp;</span>
-                <a
-                    href={PUBLIC_CLOUDFLARED_ARGUMENTS_GUIDE_URL}
-                    target="_blank"
-                >
-                    (?)
-                </a>
-            </p>
-
-            <div class="col-12 col-sm-9 col-md-7">
+            <details>
+                <summary>Advanced</summary>
+                <label for="extraArgsInput">Extra cloudflared arguments</label>
+                <a class="hint" href={PUBLIC_CLOUDFLARED_ARGUMENTS_GUIDE_URL} target="_blank">Arguments</a>
                 <textarea
                     id="extraArgsInput"
                     name="extraArgsInput"
@@ -175,49 +153,81 @@
                     placeholder="Extra arguments to be inserted between cloudflared 'tunnel' and 'run'"
                     bind:value={extraArgsInput}
                 />
-            </div>
+            </details>
+
+            <button
+                class="button button-primary"
+                disabled={!isSaveEnabled}
+                on:click={onSaveClicked}
+            >
+                Save & Restart
+            </button>
+            {#if saveResult}
+                <p class="result">{saveResult} <a href="/">Go back</a></p>
+            {/if}
         </div>
-    </details>
-    <button
-        class="button button-primary mt-3 col-12 col-sm-auto"
-        disabled={!isSaveEnabled}
-        on:click={onSaveClicked}
-    >
-        Save & Restart
-    </button>
-    {#if saveResult}
-        <p>{saveResult} <a href="/">Go back</a></p>
-    {/if}
+    </section>
 {:catch}
-    <b>Failed to load</b>
+    <p class="bad">Failed to load</p>
 {/await}
 
 <style>
-    header h3 {
-        font-size: 2rem;
-        margin: 0px;
+    .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 22px;
+    }
+
+    .panel-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+        font: 600 13px/1.2 var(--display);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--phosphor-dim);
+    }
+
+    .panel-body {
+        padding: 16px;
+    }
+
+    label {
+        display: inline-block;
+        margin: 0 8px 8px 0;
+    }
+
+    .hint {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
     }
 
     textarea {
-        -webkit-box-sizing: border-box;
-        -moz-box-sizing: border-box;
-        box-sizing: border-box;
-        width: 100%;
+        display: block;
+        margin-bottom: 16px;
     }
 
-    summary h4::after {
-        content: "🔽";
-        padding-left: 0.5em;
+    summary {
+        cursor: pointer;
+        margin: 8px 0 12px;
+        font: 600 13px/1.2 var(--display);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--phosphor);
     }
 
-    details[open] summary h4::after {
-        content: "🔼";
-        padding-left: 0.5em;
+    .result {
+        margin-top: 14px;
     }
 
-    @media (max-width: 30em) {
-        header h3 {
-            font-size: 1.5rem;
-        }
+    .muted {
+        color: var(--text-muted);
+    }
+
+    .bad {
+        color: var(--red);
     }
 </style>

@@ -6,8 +6,14 @@
     "dest": "zot24-cloudflared/web",
     "exclude": [".github/", "repository-assets/", "README.md", "LICENSE", "CHANGELOG.md"],
     "forked": [
+      "src/app.html",
+      "src/routes/+layout.svelte",
       "src/routes/+page.svelte",
-      "src/lib/components/TunnelRoute.svelte"
+      "src/routes/settings/+page.svelte",
+      "src/lib/components/AppHeader.svelte",
+      "src/lib/components/TunnelRoute.svelte",
+      "static/logo.svg",
+      "static/site.webmanifest"
     ]
   },
   "connector": {

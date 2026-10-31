@@ -50,7 +50,7 @@ Anything else opens one pull request, branch `integrate/cloudflared-upstreams`. 
 
 | Pin | Upstream | What the job does with a product change |
 | --- | --- | --- |
-| `ui` | [Radiokot/umbrel-cloudflared](https://github.com/Radiokot/umbrel-cloudflared) | Applies it onto `web/`, except the forked route layout (`src/routes/+page.svelte`, `src/lib/components/TunnelRoute.svelte`). Those land in `ci/pending/ui-port.diff`. |
+| `ui` | [Radiokot/umbrel-cloudflared](https://github.com/Radiokot/umbrel-cloudflared) | Applies it onto `web/`, except the forked phosphor UI (`src/app.html`, `src/routes/+layout.svelte`, `src/routes/+page.svelte`, `src/routes/settings/+page.svelte`, `src/lib/components/AppHeader.svelte`, `src/lib/components/TunnelRoute.svelte`, `static/logo.svg`, `static/site.webmanifest`). Those land in `ci/pending/ui-port.diff`. |
 | `connector` | [Radiokot/umbrel-cloudflared-connector](https://github.com/Radiokot/umbrel-cloudflared-connector) | Applies scripts we did not fork. `Dockerfile`, `control-loop.sh`, `process.sh`, and `update-bin.sh` land in `ci/pending/connector-port.diff`. |
 | `umbrel` | [getumbrel/umbrel-apps](https://github.com/getumbrel/umbrel-apps) `cloudflared/` | Saves the product diff under `ci/pending/umbrel.diff`. This copy's compose file and manifest stay as written for this store. The pin is the latest commit that touched `cloudflared/`. |
 

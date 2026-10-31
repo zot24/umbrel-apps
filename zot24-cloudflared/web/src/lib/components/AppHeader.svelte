@@ -10,94 +10,104 @@
             ? "Restarting"
             : $tunnelStatus?.status;
     $: isTunnelHealthy = $tunnelStatus?.isOk() == true;
+    $: isRestarting = $tunnelStatus?.isRestarting() == true;
     $: connecorVersion = $tunnelStatus?.version;
 </script>
 
-<div class="d-flex">
-    <img class="logo me-3" src="/logo.svg" alt="Logo" />
+<div class="head">
+    <img class="mark" src="/logo.svg" alt="" />
     <div>
-        <span>
-            {#if !isTunnelStatusLoading}
-                <svg
-                    width="8"
-                    height="8"
-                    viewBox="0 0 8 8"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <circle
-                        class:status-ok={isTunnelHealthy}
-                        class:status-warning={!isTunnelHealthy}
-                        cx="4"
-                        cy="4"
-                        r="4"
-                        fill="#000000"
-                    />
-                </svg>
-                <small
-                    class:status-ok={isTunnelHealthy}
-                    class:status-warning={!isTunnelHealthy}
-                >
-                    {tunnelStatusString}
-                </small>
+        <span class="badge" class:ok={isTunnelHealthy} class:warn={!isTunnelHealthy && !isTunnelStatusLoading} class:blink={isRestarting}>
+            {#if isTunnelStatusLoading}
+                <i class="dot"></i>
+                Loading
             {:else}
-                <small class="secondary-text">&nbsp;Loading status…</small>
+                <i class="dot"></i>
+                {tunnelStatusString}
             {/if}
         </span>
-
-        <h3>Cloudflare Tunnel</h3>
-
-        <span class="secondary-text">
+        <h1>Cloudflare Tunnel</h1>
+        <div class="sub">
             {#if isTunnelHealthy && connecorVersion != null}
                 {connecorVersion}
             {:else}
-                &nbsp;…
+                zot24
             {/if}
-        </span>
+        </div>
     </div>
 </div>
 
 <style>
-    :root {
-        --status-ok-color: #00cd98;
-        --status-warning-color: #f6b900;
+    .head {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        min-width: 0;
     }
 
-    .logo {
-        width: 120px;
-        height: 120px;
-        border-radius: 22%;
-        border: 1px solid #e1e6ea;
+    .mark {
+        width: 64px;
+        height: 64px;
+        flex: none;
+        border: 1px solid var(--line);
     }
 
-    h3 {
-        font-size: 2rem;
-        margin-top: 0;
-        margin-bottom: 0.375rem;
+    h1 {
+        margin-top: 8px;
     }
 
-    .secondary-text {
-        color: var(--secondary-text-color);
+    .sub {
+        margin-top: 8px;
+        color: var(--text-muted);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
     }
 
-    .status-ok {
-        color: var(--status-ok-color);
-        fill: var(--status-ok-color);
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid currentColor;
+        padding: 4px 10px;
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
     }
 
-    .status-warning {
-        color: var(--status-warning-color);
-        fill: var(--status-warning-color);
+    .dot {
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+        box-shadow: 0 0 8px currentColor;
+    }
+
+    .ok {
+        color: var(--phosphor);
+    }
+
+    .warn {
+        color: var(--amber);
+    }
+
+    .blink .dot {
+        animation: blink 1s steps(2, start) infinite;
+    }
+
+    @keyframes blink {
+        to {
+            visibility: hidden;
+        }
     }
 
     @media (max-width: 30em) {
-        .logo {
-            width: 80px;
-            height: 80px;
+        .mark {
+            width: 48px;
+            height: 48px;
         }
 
-        h3 {
-            font-size: 1.5rem;
+        h1 {
+            font-size: 20px;
         }
     }
 </style>
