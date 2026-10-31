@@ -13,7 +13,7 @@ services:
     # update-cloudflared.yml (upstream cloudflared releases). Umbrel rejects
     # an image with no digest, so the app will not install until one of
     # those workflows has pushed this line.
-    image: ghcr.io/zot24/cloudflared:1.1.2@sha256:ed138ec5e0b66534b4fc02be0c4c3de86be98981475b02fbdc393ca38eb086ed
+    image: ghcr.io/zot24/cloudflared:1.1.2@sha256:0bec6e00ec0f3fcde1b8ef111670a2adcb95ce84629286efeef732158a4a563f
     restart: on-failure
     stop_grace_period: 1s
     depends_on:
@@ -27,7 +27,7 @@ services:
       CLOUDFLARED_EXTRA_ARGS_FILE: /app/data/extra_args
 
   connector:
-    image: ghcr.io/zot24/cloudflared-connector:1.1.2-cf.2026.10.7@sha256:3a767b735265aad744a417d5789ab15a4131a52178b1aaa58ba60b903bd3354b
+    image: ghcr.io/zot24/cloudflared-connector:1.1.2-cf.2026.10.7@sha256:5a8b7739736c5bbf2715b237a831a5d6b9d6d6327a8d8b2b1c73b256c7615e36
     restart: on-failure
     stop_grace_period: 3s
     volumes:
