@@ -1,0 +1,153 @@
+# Local proof: Lifeboat against a fake Supabase project and a fake R2, with
+# made-up data and credentials only. test/e2e.sh drives it end to end:
+#
+#   ./test/e2e.sh
+#
+# The fake project is Supabase's own Postgres 17, GoTrue and Storage images
+# behind a gateway (test/gateway.mjs) that logs every request. The backup
+# user has a select-only policy on storage, and LIFEBOAT_PG_URL is a
+# read-only role (pg_read_all_data, BYPASSRLS, default_transaction_read_only).
+# The fake R2 is MinIO behind the same gateway, which applies R2's 30-day
+# bucket lock: no overwrite, no delete of objects younger than 30 days.
+x-jwt-secret: &jwt-secret fake-jwt-secret-for-the-local-proof-only-0000
+
+services:
+  db:
+    build:
+      context: ./test
+      dockerfile_inline: |
+        FROM supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00
+        COPY db-init.sql /docker-entrypoint-initdb.d/init-scripts/99-lifeboat.sql
+        COPY seed.sql /seed.sql
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      POSTGRES_PASSWORD: fake-postgres-password
+      POSTGRES_DB: postgres
+      PGPORT: "5432"
+      POSTGRES_PORT: "5432"
+      JWT_EXP: "3600"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 3s
+      retries: 40
+
+  auth:
+    image: supabase/gotrue:v2.197.0@sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: http://gateway:8000/auth/v1
+      GOTRUE_SITE_URL: http://localhost
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:fake-postgres-password@db:5432/postgres
+      GOTRUE_JWT_SECRET: *jwt-secret
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_DISABLE_SIGNUP: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9999/health"]
+      interval: 3s
+      retries: 40
+
+  storage:
+    image: supabase/storage-api:v1.81.0@sha256:98ffec5d0678803783c30e404c27f4ec65e97efbe014088f2a86b4b8b54b9f54
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ANON_KEY: ${LB_ANON_KEY:?run test/e2e.sh}
+      SERVICE_KEY: ${LB_SERVICE_KEY:?run test/e2e.sh}
+      AUTH_JWT_SECRET: *jwt-secret
+      DATABASE_URL: postgres://supabase_storage_admin:fake-postgres-password@db:5432/postgres
+      POSTGREST_URL: http://gateway:8000/rest/v1
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      GLOBAL_S3_BUCKET: fake-stub
+      TENANT_ID: lifeboatfake
+      REGION: us-east-1
+      S3_PROTOCOL_PREFIX: /storage/v1
+      FILE_SIZE_LIMIT: "52428800"
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5000/status"]
+      interval: 3s
+      retries: 40
+
+  gateway:
+    build:
+      context: ./test
+      dockerfile_inline: |
+        FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+        COPY gateway.mjs seed-storage.mjs /app/
+        CMD ["node", "/app/gateway.mjs"]
+    environment:
+      SERVICE_KEY: ${LB_SERVICE_KEY:?run test/e2e.sh}
+      BACKUP_USER_PASSWORD: fake-backup-user-password
+
+  minio:
+    image: bitnamilegacy/minio:2025.7.23@sha256:8935e75fa5d11295c17171e4aa49efe390a1193cd7f12e4d21b92af9ffef09d7
+    environment:
+      MINIO_ROOT_USER: fake-r2-access-key
+      MINIO_ROOT_PASSWORD: fake-r2-secret-key
+      MINIO_DEFAULT_BUCKETS: lifeboat-test
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/minio/health/live"]
+      interval: 3s
+      retries: 40
+
+  # A fresh, empty Postgres 17 to restore into.
+  target:
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    environment:
+      POSTGRES_PASSWORD: fake-target-password
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 3s
+      retries: 40
+
+  lifeboat:
+    build: ./lifeboat
+    depends_on:
+      storage:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      LIFEBOAT_PG_URL: postgresql://lifeboat_ro:fake-readonly-password@db:5432/postgres
+      LIFEBOAT_SUPABASE_URL: http://gateway:8000
+      LIFEBOAT_SUPABASE_ANON_KEY: ${LB_ANON_KEY:?run test/e2e.sh}
+      LIFEBOAT_SUPABASE_S3_ENDPOINT: http://gateway:8000/storage/v1/s3
+      LIFEBOAT_BACKUP_USER_EMAIL: backup@lifeboat.test
+      LIFEBOAT_BACKUP_USER_PASSWORD: fake-backup-user-password
+      LIFEBOAT_RESTIC_PASSWORD: fake-restic-password
+      LIFEBOAT_R2_ACCESS_KEY_ID: fake-r2-access-key
+      LIFEBOAT_R2_SECRET_ACCESS_KEY: fake-r2-secret-key
+      LIFEBOAT_R2_ENDPOINT: http://gateway:9000
+      LIFEBOAT_R2_BUCKET: lifeboat-test
+      LIFEBOAT_ALERT_WEBHOOK: http://gateway:7000/services/FAKE/FAKE/FAKE
+      # The screenshot browser stands in for Umbrel's app proxy.
+      APP_PROXY_HOST: browser
+    volumes:
+      - lifeboat-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7746/healthz"]
+      interval: 3s
+      retries: 40
+
+  browser:
+    image: mcr.microsoft.com/playwright:v1.56.1-noble@sha256:f1e7e01021efd65dd1a2c56064be399f3e4de00fd021ac561325f2bfbb2b837a
+    init: true
+    command: ["sleep", "infinity"]
+
+volumes:
+  lifeboat-data:
