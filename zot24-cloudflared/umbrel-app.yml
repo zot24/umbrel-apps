@@ -3,7 +3,7 @@ id: zot24-cloudflared
 name: Cloudflare Tunnel
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-cloudflared/icon.svg
 category: networking
-version: "1.1.2"
+version: "1.1.3"
 tagline: Access your Umbrel apps from the Internet using Cloudflare network
 description: >-
   Start a secure tunnel to access your Umbrel apps from the Internet using
@@ -35,7 +35,8 @@ description: >-
   "cloudflared" on port 4499. This app is "zot24-cloudflared" on port 4500,
   so both can be installed.
 releaseNotes: >-
-  cloudflared 2026.10.6 -> 2026.10.7. Updating the app pulls the new connector.
+  The page now matches the other zot24 apps: dark phosphor panels and the
+  square tunnel icon. cloudflared stays on 2026.10.7.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []
