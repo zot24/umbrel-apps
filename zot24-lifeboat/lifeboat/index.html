@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lifeboat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Oxanium:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --phosphor: #50ffa8; --phosphor-dim: #28b870; --amber: #ffc04d; --red: #ff6060;
+  --bg: #060a0d; --surface: #0b1016; --text: #d4e0d8; --text-muted: #7a8e82;
+  --line: rgba(80, 255, 168, 0.16);
+  --display: 'Oxanium', 'Fira Code', ui-monospace, monospace;
+  --mono: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--mono); }
+.fx { position: fixed; inset: 0; pointer-events: none; }
+.fx.grid {
+  background-image: linear-gradient(rgba(80, 255, 168, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(80, 255, 168, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.fx.scan { background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px); z-index: 50; }
+.fx.vignette { background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.65) 100%); z-index: 51; }
+main { position: relative; max-width: 960px; margin: 0 auto; padding: 28px 16px 64px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+h1 { font: 700 26px var(--display); letter-spacing: 0.18em; margin: 0; color: var(--phosphor); text-shadow: 0 0 12px rgba(80, 255, 168, 0.45); }
+.sub { color: var(--text-muted); letter-spacing: 0.08em; }
+.badge { font: 600 11px var(--mono); letter-spacing: 0.16em; padding: 3px 8px; border: 1px solid currentColor; text-transform: uppercase; }
+.ok { color: var(--phosphor); } .warn { color: var(--amber); } .bad { color: var(--red); } .muted { color: var(--text-muted); }
+.blink { animation: blink 1.1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+.alert { border: 1px solid var(--red); background: rgba(255, 96, 96, 0.08); color: var(--red); padding: 12px 14px; margin-bottom: 16px; }
+.alert.amber { border-color: var(--amber); background: rgba(255, 192, 77, 0.07); color: var(--amber); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); margin-bottom: 16px; }
+.panel-header { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+.panel-header h2 { margin: 0; font: 600 13px var(--display); letter-spacing: 0.2em; text-transform: uppercase; color: var(--phosphor-dim); }
+.panel-body { padding: 12px 14px; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+dt { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; font-size: 12px; }
+dd { margin: 0; overflow-wrap: anywhere; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+th { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); font-weight: 500; }
+tr.sel td { background: rgba(80, 255, 168, 0.07); }
+tbody tr { cursor: pointer; }
+.table-wrap { overflow-x: auto; }
+label { display: block; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted); margin: 10px 0 4px; }
+input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); padding: 8px 10px; font: 13px var(--mono); }
+input:focus { outline: 1px solid var(--phosphor-dim); }
+button { margin-top: 12px; background: transparent; color: var(--phosphor); border: 1px solid var(--phosphor-dim); padding: 8px 14px; font: 600 12px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; }
+button::before { content: '> '; }
+button:hover:not(:disabled) { background: rgba(80, 255, 168, 0.1); box-shadow: 0 0 12px rgba(80, 255, 168, 0.25); }
+button:disabled { color: var(--text-muted); border-color: var(--line); cursor: not-allowed; }
+button.danger { color: var(--amber); border-color: var(--amber); }
+.progress { height: 6px; background: rgba(80, 255, 168, 0.08); margin-top: 10px; overflow: hidden; }
+.progress div { height: 100%; width: 35%; background: var(--amber); box-shadow: 0 0 10px var(--amber); animation: sweep 1.6s ease-in-out infinite; }
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.result { margin-top: 10px; font-size: 13px; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<div class="fx grid"></div><div class="fx scan"></div><div class="fx vignette"></div>
+<main>
+  <header>
+    <div><h1>LIFEBOAT</h1><div class="sub" id="project">&nbsp;</div></div>
+    <span class="badge" id="badge">...</span>
+  </header>
+  <div id="alerts"></div>
+  <div class="grid2">
+    <section class="panel">
+      <div class="panel-header"><h2>Schedule</h2><span class="badge muted">03:00 Asuncion</span></div>
+      <div class="panel-body"><dl id="schedule"></dl><div id="running"></div></div>
+    </section>
+    <section class="panel">
+      <div class="panel-header"><h2>Drill</h2><span class="badge" id="drill-badge"></span></div>
+      <div class="panel-body">
+        <div class="muted">Restores the latest snapshot into a scratch Postgres, checks every table's row count and every storage object's bytes, then deletes it.</div>
+        <div class="result" id="drill-result"></div>
+        <button id="drill">Run drill</button>
+      </div>
+    </section>
+  </div>
+  <section class="panel">
+    <div class="panel-header"><h2>Snapshots</h2><span class="badge muted" id="snap-count"></span></div>
+    <div class="panel-body table-wrap">
+      <table><thead><tr><th>Taken</th><th>ID</th><th>Size</th></tr></thead><tbody id="snapshots"></tbody></table>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="panel-header"><h2>Restore</h2><span class="badge" id="restore-badge"></span></div>
+    <div class="panel-body">
+      <label for="snap">Snapshot</label><input id="snap" readonly>
+      <label for="target">Target Postgres URL (never the source project)</label><input id="target" placeholder="postgresql://postgres:password@host:5432/postgres" autocomplete="off">
+      <label for="folder">Folder for the files (under the app's restores/)</label><input id="folder">
+      <div class="result" id="restore-result"></div>
+      <button id="restore" class="danger">Restore</button>
+    </div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const when = (iso) => (iso ? new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Asuncion' }) : 'never');
+const size = (b) => (b == null ? '' : b > 1e9 ? `${(b / 1e9).toFixed(2)} GB` : b > 1e6 ? `${(b / 1e6).toFixed(1)} MB` : `${Math.round(b / 1e3)} KB`);
+const api = (path, body) => fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json', 'x-lifeboat': '1' }, body: JSON.stringify(body) } : {}).then(async (r) => ({ ok: r.ok, data: await r.json() }));
+let selected = 'latest';
+let wasRunning = false;
+let timer;
+
+const outcome = (j, verb) => !j ? '<span class="muted">never run</span>'
+  : j.ok ? `<span class="ok">PASSED</span> ${when(j.finishedAt)}: ${j.tables} tables, ${j.rows} rows, ${j.objects} objects (${size(j.bytes)}) from ${esc(j.snapshot?.slice(0, 8))}${j.restoreErrors?.length ? ` <span class="warn">with ${j.restoreErrors.length} restore warnings</span>` : ''}`
+  : `<span class="bad">FAILED</span> ${when(j.finishedAt)}: ${esc(j.error)}`;
+const badge = (el, j) => { el.textContent = !j ? 'never' : j.ok ? 'passed' : 'failed'; el.className = `badge ${!j ? 'muted' : j.ok ? 'ok' : 'bad'}`; };
+
+async function refresh() {
+  const { data: s } = await api('/api/status');
+  $('project').textContent = s.project ? `SOURCE ${s.project}` : 'NOT CONFIGURED';
+  const b = $('badge');
+  b.textContent = s.running ? s.running.kind : s.stale ? 'overdue' : s.backup?.ok === false ? 'failed' : s.lastSuccessAt ? 'ok' : 'waiting';
+  b.className = `badge ${s.running ? 'warn blink' : s.stale || s.backup?.ok === false ? 'bad' : s.lastSuccessAt ? 'ok' : 'muted'}`;
+  $('alerts').innerHTML = (s.stale ? `<div class="alert">&#9888; NO SUCCESSFUL BACKUP IN OVER 26 HOURS. Last success: ${when(s.lastSuccessAt)}.${s.backup?.error ? ` Last error: ${esc(s.backup.error)}` : ''}</div>` : '')
+    + (s.missing.length ? `<div class="alert amber">NOT CONFIGURED: ${s.missing.map(esc).join(', ')}</div>` : '');
+  const last = s.backup;
+  $('schedule').innerHTML = `<dt>Last run</dt><dd>${last ? `${last.ok ? '<span class="ok">OK</span>' : '<span class="bad">FAILED</span>'} ${when(last.finishedAt)}${last.ok ? `: ${last.tables} tables, ${last.objects} objects, R2 ${last.r2.files} files` : `<br>${esc(last.error)}`}` : '<span class="muted">never</span>'}</dd>`
+    + `<dt>Last success</dt><dd>${when(s.lastSuccessAt)}</dd><dt>Next run</dt><dd>${when(s.nextRun)}</dd>`;
+  $('running').innerHTML = s.running ? `<div class="result warn">${esc(s.running.kind.toUpperCase())}: ${esc(s.running.step || 'starting')}</div><div class="progress"><div></div></div>` : '';
+  $('drill-result').innerHTML = outcome(s.drill);
+  $('restore-result').innerHTML = outcome(s.restore) + (s.restore?.ok ? `<br>into ${esc(s.restore.target)}, files in ${esc(s.restore.folder)}` : '');
+  badge($('drill-badge'), s.drill);
+  badge($('restore-badge'), s.restore);
+  $('drill').disabled = $('restore').disabled = !!s.running;
+  if (wasRunning && !s.running) loadSnapshots();
+  wasRunning = !!s.running;
+  clearTimeout(timer);
+  timer = setTimeout(refresh, s.running ? 2000 : 30000);
+}
+
+async function loadSnapshots() {
+  const { ok, data } = await api('/api/snapshots');
+  const list = ok ? data : [];
+  $('snap-count').textContent = `${list.length} kept`;
+  $('snapshots').innerHTML = list.map((s) => `<tr data-id="${esc(s.id)}" class="${s.id === selected ? 'sel' : ''}"><td>${when(s.time)}</td><td>${esc(s.short)}</td><td>${size(s.bytes)}</td></tr>`).join('')
+    || `<tr><td colspan="3" class="muted">${ok ? 'No snapshots yet. The first backup runs at 03:00.' : esc(data.error)}</td></tr>`;
+  if (selected === 'latest' && list[0]) pick(list[0].id);
+}
+
+function pick(id) {
+  selected = id;
+  $('snap').value = id;
+  $('folder').value ||= `restore-${id.slice(0, 8)}`;
+  for (const tr of $('snapshots').children) tr.classList.toggle('sel', tr.dataset.id === id);
+}
+
+$('snapshots').addEventListener('click', (e) => { const tr = e.target.closest('tr[data-id]'); if (tr) pick(tr.dataset.id); });
+$('drill').onclick = async () => { const r = await api('/api/drill', {}); if (!r.ok) $('drill-result').innerHTML = `<span class="bad">${esc(r.data.error)}</span>`; refresh(); };
+$('restore').onclick = async () => {
+  const r = await api('/api/restore', { snapshot: selected, targetUrl: $('target').value.trim(), folder: $('folder').value.trim() });
+  if (!r.ok) $('restore-result').innerHTML = `<span class="bad">${esc(r.data.error)}</span>`;
+  refresh();
+};
+refresh();
+loadSnapshots();
+</script>
+</body>
+</html>

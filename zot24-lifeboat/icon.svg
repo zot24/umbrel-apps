@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#0f1a17"/>
+      <stop offset="1" stop-color="#060a0d"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="1" fill="#000" opacity=".35"/>
+    </pattern>
+  </defs>
+  <rect width="256" height="256" fill="url(#bg)"/>
+  <!-- a life ring: a square ring with four amber bands -->
+  <g filter="url(#glow)">
+    <rect x="58" y="58" width="140" height="140" fill="none" stroke="#50ffa8" stroke-width="30"/>
+    <g fill="#ffc04d">
+      <rect x="113" y="43" width="30" height="30"/>
+      <rect x="113" y="183" width="30" height="30"/>
+      <rect x="43" y="113" width="30" height="30"/>
+      <rect x="183" y="113" width="30" height="30"/>
+    </g>
+  </g>
+  <!-- the water line -->
+  <path d="M28 226 H228" stroke="#28b870" stroke-width="6" filter="url(#glow)"/>
+  <rect width="256" height="256" fill="url(#scan)"/>
+</svg>

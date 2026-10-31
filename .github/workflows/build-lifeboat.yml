@@ -1,0 +1,108 @@
+name: "Build: Lifeboat"
+
+# Builds ghcr.io/zot24/lifeboat for linux/amd64 and linux/arm64, then pins
+# its digest into zot24-lifeboat/docker-compose.yml.
+#
+# Pull requests run the unit tests, the read-only check and the local proof
+# (test/e2e.sh: a fake Supabase and a fake R2), and build the image without
+# pushing it.
+#
+# The package must be public: the Umbrel pulls it unauthenticated.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'zot24-lifeboat/lifeboat/**'
+      - '.github/workflows/build-lifeboat.yml'
+  pull_request:
+    paths:
+      - 'zot24-lifeboat/**'
+      - '.github/workflows/build-lifeboat.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests and read-only check
+        run: |
+          node --test zot24-lifeboat/lifeboat/lib.test.mjs zot24-lifeboat/test/readonly-check.test.mjs
+          node zot24-lifeboat/test/readonly-check.mjs
+      - name: Local proof
+        run: zot24-lifeboat/test/e2e.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lifeboat-e2e
+          path: zot24-lifeboat/test/out/
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      PUBLISH: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION=$(grep -E '^version: ' zot24-lifeboat/umbrel-app.yml | sed -E 's/^version: *"([^"]+)".*/\1/')
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not determine version"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: zot24-lifeboat/lifeboat
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: |
+            ghcr.io/zot24/lifeboat:${{ steps.version.outputs.version }}
+            ghcr.io/zot24/lifeboat:latest
+          cache-from: type=gha,scope=lifeboat
+          cache-to: ${{ env.PUBLISH == 'true' && 'type=gha,mode=max,scope=lifeboat' || '' }}
+
+      - name: Make the GHCR package public
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method PATCH -H "Accept: application/vnd.github+json" /user/packages/container/lifeboat -f visibility=public >/dev/null \
+            || echo "::warning::Could not set lifeboat public. Umbrel pulls will 401 until the package is public."
+
+      - name: Pin the image digest
+        if: env.PUBLISH == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DIGEST=$(docker buildx imagetools inspect "ghcr.io/zot24/lifeboat:${VERSION}" --format '{{ .Manifest.Digest }}')
+          [ -n "$DIGEST" ] || { echo "::error::No manifest digest"; exit 1; }
+          sed -i "s|image: ghcr.io/zot24/lifeboat:.*|image: ghcr.io/zot24/lifeboat:${VERSION}@${DIGEST}|" zot24-lifeboat/docker-compose.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-lifeboat/docker-compose.yml
+          git diff --cached --quiet || git commit -m "chore: pin lifeboat image to ${VERSION}"
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push && exit 0
+            sleep 2
+          done
+          echo "::error::Failed to push the digest pin"
+          exit 1

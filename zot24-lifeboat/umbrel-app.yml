@@ -1,0 +1,75 @@
+manifestVersion: 1.1
+id: zot24-lifeboat
+name: Lifeboat
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-lifeboat/icon.svg
+category: developer
+version: "0.1.0"
+tagline: Nightly encrypted backups of a Supabase project, on your Umbrel and in Cloudflare R2
+description: >-
+  Lifeboat backs up one Supabase project every night at 03:00 (America/Asuncion).
+  It takes a pg_dump of the database (app schemas plus auth and storage) and
+  every file in the project's Storage buckets, and saves both as one encrypted
+  restic snapshot on your Umbrel. It then copies the same snapshot to a
+  Cloudflare R2 bucket.
+
+
+  It only reads from Supabase. The database is read with a read-only role,
+  and Storage with S3 GETs signed in as a dedicated user that has a
+  select-only policy.
+
+
+  Retention keeps 7 daily, 4 weekly and 12 monthly snapshots, and every
+  yearly snapshot forever. Nothing on R2 is deleted until it is 30 days old,
+  so an R2 bucket lock of 30 days is respected.
+
+
+  If no backup has succeeded in 26 hours, the app's page and its home-screen
+  widget show it, and an optional Slack webhook is called.
+
+
+  Restore is one button or one command. It restores a snapshot into a
+  Postgres database you choose, and the files into a folder, then checks
+  every table's row count and every file. It refuses to restore into the
+  source project. The drill does the same into a scratch Postgres, then
+  deletes it.
+
+
+  Settings go in a .env file in the app's data folder. See the README.
+releaseNotes: >-
+  First release.
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 7746
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
+widgets:
+  - id: status
+    type: four-stats
+    refresh: 1m
+    endpoint: lifeboat:7746/widgets/status
+    link: ""
+    example:
+      type: four-stats
+      link: ""
+      items:
+        - title: Status
+          text: OK
+          subtext: ""
+        - title: Last backup
+          text: 5h
+          subtext: ago
+        - title: Next run
+          text: "03:00"
+          subtext: Asuncion
+        - title: Last drill
+          text: passed
+          subtext: 2d ago
