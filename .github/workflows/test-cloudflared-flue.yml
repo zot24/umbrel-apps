@@ -1,0 +1,39 @@
+name: "Test: cloudflared Flue"
+
+# Manual check that ANTHROPIC_API_KEY reaches Flue and the model answers.
+# The agent has no sandbox, so it cannot edit the checkout. This does not
+# open a pull request and does not run on the daily schedule.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: zot24-cloudflared/ci/flue/package-lock.json
+
+      - name: Ask Flue to answer
+        working-directory: zot24-cloudflared/ci/flue
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FLUE_MODEL: anthropic/claude-sonnet-4-6
+        run: |
+          set -euo pipefail
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY is empty in this job."
+            exit 1
+          fi
+          npm ci
+          npx flue run src/agents/ping.ts --message "ping" --json > "$RUNNER_TEMP/flue.json"
+          jq -r '.message // empty' "$RUNNER_TEMP/flue.json" | tee "$RUNNER_TEMP/reply.txt"
+          grep -F 'flue-ok zot24-cloudflared' "$RUNNER_TEMP/reply.txt"
