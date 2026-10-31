@@ -13,7 +13,7 @@ services:
   # read on every start), or Docker secrets of the same names. The restic
   # repository, the storage mirror and restores live in data/lifeboat.
   lifeboat:
-    image: ghcr.io/zot24/lifeboat:0.1.0
+    image: ghcr.io/zot24/lifeboat:0.1.0@sha256:ca0344c13751594a47f51ac469796f8dc0240f34bb614b0b1e439f2dc05ae03f
     restart: on-failure
     init: true
     stop_grace_period: 1m
