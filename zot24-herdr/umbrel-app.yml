@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.10.1"
+version: "0.10.2"
 tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
 description: >-
   Herdr is a terminal multiplexer purpose-built for running AI coding agents
@@ -110,6 +110,9 @@ description: >-
   - Herdr and herdr-core are free software (Apache-2.0):
     https://github.com/herdrdev — https://herdr.dev
 releaseNotes: >-
+  0.10.2: image pins refreshed (herdr 0.9.5, herdr-core 0.1.16; see cli-versions.json). Image pins refreshed by zot24-herdr/ci/update-deps.sh.
+
+
   0.10.1: Adds jq to the image, so repo hooks that parse JSON with jq
   work in agent panes. Updating restarts the Herdr server: the layout
   comes back, but processes running in panes stop.
