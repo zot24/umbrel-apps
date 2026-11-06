@@ -12,7 +12,7 @@ services:
     # Built from zot24-umami/Dockerfile against upstream tag UMAMI_VERSION.
     # build-umami.yml writes the digest after the first successful push.
     # Umbrel rejects an image with no digest, so do not install until that pin lands.
-    image: ghcr.io/zot24/umami:3.4.1
+    image: ghcr.io/zot24/umami:3.4.1@sha256:ace89acc5054ae43d0cc8cc3bd7b93ef426ac7d25c87bf1d6599331e8ca32167
     user: "1001:1001"
     restart: on-failure
     stop_grace_period: 1m
