@@ -1,0 +1,44 @@
+services:
+  # The tile opens Umami's dashboard behind the Umbrel login.
+  # Tracking scripts and sibling apps must not use the tile URL.
+  # They should call http://zot24-umami:3000 on the Umbrel network.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-umami_app_1
+      APP_PORT: 3000
+      PROXY_AUTH_ADD: "true"
+
+  app:
+    image: ghcr.io/umami-software/umami:3.4.1@sha256:e69d1a7932e9dab0fc523edc7be1f3a53f3c261f57856fc2167ae74a8fc022e8
+    user: "1001:1001"
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      DATABASE_URL: postgresql://umami:umami@zot24-umami_db_1:5432/umami
+      DATABASE_TYPE: postgresql
+      APP_SECRET: ${APP_SEED}
+      TWO_FACTOR_ENCRYPTION_KEY: ${APP_SEED}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - zot24-umami
+
+  db:
+    image: postgres:15-alpine@sha256:8a8d55343d6fc456cb183453e3094ff140b984157b36b48f817dd581654f2aec
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: umami
+    volumes:
+      - ${APP_DATA_DIR}/data/db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
