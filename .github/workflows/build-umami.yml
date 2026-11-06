@@ -1,0 +1,95 @@
+name: "Build: Umami"
+
+# Rebuilds upstream umami-software/umami at zot24-umami/UMAMI_VERSION on the
+# Node base in zot24-umami/NODE_IMAGE_VERSION, pushes ghcr.io/zot24/umami,
+# and pins the manifest digest in docker-compose.yml. Umbrel rejects an
+# unpinned image. Upstream bumps are opened as PRs by update-umami.yml.
+
+on:
+  push:
+    branches: [main, zot24/umami]
+    paths:
+      - "zot24-umami/Dockerfile"
+      - "zot24-umami/UMAMI_VERSION"
+      - "zot24-umami/NODE_IMAGE_VERSION"
+      - ".github/workflows/build-umami.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read pins
+        id: pins
+        run: |
+          UMAMI_VERSION=$(tr -d '[:space:]' < zot24-umami/UMAMI_VERSION)
+          NODE_IMAGE_VERSION=$(tr -d '[:space:]' < zot24-umami/NODE_IMAGE_VERSION)
+          VERSION=$(grep -E '^version: ' zot24-umami/umbrel-app.yml | sed -E 's/^version: *"([^"]+)".*/\1/')
+          if [ -z "$UMAMI_VERSION" ] || [ -z "$NODE_IMAGE_VERSION" ] || [ -z "$VERSION" ]; then
+            echo "::error::Missing UMAMI_VERSION, NODE_IMAGE_VERSION, or app version"
+            exit 1
+          fi
+          echo "umami=$UMAMI_VERSION" >> "$GITHUB_OUTPUT"
+          echo "node=$NODE_IMAGE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch upstream Umami source
+        run: |
+          git clone --depth 1 --branch "${{ steps.pins.outputs.umami }}" \
+            https://github.com/umami-software/umami.git umami-src
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: umami-src
+          file: zot24-umami/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            NODE_IMAGE_VERSION=${{ steps.pins.outputs.node }}
+          tags: |
+            ghcr.io/zot24/umami:${{ steps.pins.outputs.version }}
+            ghcr.io/zot24/umami:latest
+          cache-from: type=gha,scope=umami
+          cache-to: type=gha,mode=max,scope=umami
+
+      - name: Pin image digest in docker-compose.yml
+        run: |
+          VERSION="${{ steps.pins.outputs.version }}"
+          DIGEST=$(docker buildx imagetools inspect "ghcr.io/zot24/umami:${VERSION}" --format '{{ .Manifest.Digest }}')
+          if [ -z "$DIGEST" ]; then
+            echo "::error::Could not determine manifest digest"
+            exit 1
+          fi
+          echo "Digest: $DIGEST"
+          sed -E -i \
+            "s|image: ghcr.io/zot24/umami:[^[:space:]]*|image: ghcr.io/zot24/umami:${VERSION}@${DIGEST}|" \
+            zot24-umami/docker-compose.yml
+          grep -n 'image: ghcr.io/zot24/umami' zot24-umami/docker-compose.yml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add zot24-umami/docker-compose.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: pin zot24/umami image at ${{ steps.pins.outputs.version }} [skip ci]"
+          BRANCH="${GITHUB_REF_NAME}"
+          for i in 1 2 3; do
+            git pull --rebase origin "$BRANCH" && git push && break
+            echo "Push attempt $i failed, retrying..."
+            sleep 2
+          done

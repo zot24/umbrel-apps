@@ -9,7 +9,10 @@ services:
       PROXY_AUTH_ADD: "true"
 
   app:
-    image: ghcr.io/umami-software/umami:3.4.1@sha256:e69d1a7932e9dab0fc523edc7be1f3a53f3c261f57856fc2167ae74a8fc022e8
+    # Built from zot24-umami/Dockerfile against upstream tag UMAMI_VERSION.
+    # build-umami.yml writes the digest after the first successful push.
+    # Umbrel rejects an image with no digest, so do not install until that pin lands.
+    image: ghcr.io/zot24/umami:3.4.1
     user: "1001:1001"
     restart: on-failure
     stop_grace_period: 1m

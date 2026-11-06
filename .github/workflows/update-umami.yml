@@ -1,0 +1,54 @@
+name: "Update: Umami"
+
+# Daily check of umami-software/umami releases and the Node 22.x.y-alpine
+# base. Opens a PR; it does not merge and it does not push to main.
+# Merging that PR makes build-umami.yml rebuild ghcr.io/zot24/umami and
+# pin the digest.
+
+on:
+  schedule:
+    - cron: "27 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check upstream Umami and Node
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash zot24-umami/ci/update-umami.sh
+
+      - name: Open PR if something moved
+        if: steps.bump.outputs.changed == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/umami-${{ steps.bump.outputs.app_version }}-node-${{ steps.bump.outputs.node_latest }}"
+          git checkout -b "$BRANCH"
+          git add \
+            zot24-umami/Dockerfile \
+            zot24-umami/UMAMI_VERSION \
+            zot24-umami/NODE_IMAGE_VERSION \
+            zot24-umami/VERSION \
+            zot24-umami/umbrel-app.yml
+          git commit -m "chore(umami): ${{ steps.bump.outputs.umami_latest }} on node:${{ steps.bump.outputs.node_latest }} (app ${{ steps.bump.outputs.app_version }})"
+          git push -u origin "$BRANCH"
+          BODY=$(printf '%s\n' \
+            "## Summary" \
+            "- Umami \`${{ steps.bump.outputs.umami_current }}\` → \`${{ steps.bump.outputs.umami_latest }}\` (consumed from umami-software/umami, not a fork)" \
+            "- Node \`${{ steps.bump.outputs.node_current }}\` → \`${{ steps.bump.outputs.node_latest }}\`" \
+            "- App version → \`${{ steps.bump.outputs.app_version }}\`" \
+            "" \
+            "After merge, the build workflow rebuilds \`ghcr.io/zot24/umami\` and commits its digest into docker-compose.yml. Wait for that pin before installing or updating the app on the Umbrel.")
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore(umami): ${{ steps.bump.outputs.umami_latest }} on node:${{ steps.bump.outputs.node_latest }}" \
+            --body "$BODY"

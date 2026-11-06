@@ -11,9 +11,10 @@ description: >-
   and devices — no cookies, no personal data, no third-party tracker.
 
 
-  This is zot24's pin of the official Umami image, so version bumps
-  go through zot24/umbrel-apps the same way Dockyard's do. It can sit
-  next to the official Umbrel "Umami" app (id umami, port 25727).
+  This rebuilds upstream Umami 3.4.1 on a Node base we pin
+  (currently 22.23.4-alpine) so version and Node bumps go through
+  zot24/umbrel-apps. It is not a fork of umami-software/umami. It can
+  sit next to the official Umbrel "Umami" app (id umami, port 25727).
   This app is zot24-umami on port 25728.
 
 
@@ -31,9 +32,10 @@ description: >-
 
   Sibling apps should use http://zot24-umami:3000 as well.
 releaseNotes: >-
-  First packaging. Umami 3.4.1 and Postgres 15-alpine, both pinned
-  by digest. Same upstream images as the official Umbrel Umami app.
-  Default login is admin / umami — change it after install.
+  Rebuilds upstream Umami 3.4.1 on node:22.23.4-alpine as
+  ghcr.io/zot24/umami, digest-pinned. Same Postgres 15-alpine pin as
+  the official Umbrel app. Default login is admin / umami — change
+  it after install.
 developer: zot24
 website: https://umami.is
 dependencies: []
