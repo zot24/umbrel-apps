@@ -1,0 +1,52 @@
+manifestVersion: 1.1
+id: zot24-umami
+name: Umami
+icon: https://raw.githubusercontent.com/getumbrel/umbrel-apps-gallery/master/umami/icon.svg
+category: developer
+version: "3.4.1"
+tagline: Privacy-friendly web analytics you host yourself
+description: >-
+  Umami is a simple, privacy-focused alternative to Google Analytics.
+  It lives on your Umbrel, so the data stays yours. Pages, referrers,
+  and devices — no cookies, no personal data, no third-party tracker.
+
+
+  This rebuilds upstream Umami 3.4.1 on a Node base we pin
+  (currently 22.23.4-alpine) so version and Node bumps go through
+  zot24/umbrel-apps. It is not a fork of umami-software/umami. It can
+  sit next to the official Umbrel "Umami" app (id umami, port 25727).
+  This app is zot24-umami on port 25728.
+
+
+  After install, open the tile (Umbrel login) and sign in with the
+  default Umami account: username admin, password umami. Change that
+  password right away: click the avatar in the top right, then Profile.
+
+
+  Tracking a public website needs a URL the visitor's browser can
+  reach. This app does not publish itself to the internet. If you
+  later want that, use the Cloudflare Tunnel app and point a hostname
+  at http://zot24-umami:3000 on the Umbrel network — not at this
+  app's tile URL, which stays behind the Umbrel login.
+
+
+  Sibling apps should use http://zot24-umami:3000 as well.
+releaseNotes: >-
+  Rebuilds upstream Umami 3.4.1 on node:22.23.4-alpine as
+  ghcr.io/zot24/umami, digest-pinned. Same Postgres 15-alpine pin as
+  the official Umbrel app. Default login is admin / umami — change
+  it after install.
+developer: zot24
+website: https://umami.is
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 25728
+gallery: []
+path: "/dashboard"
+defaultUsername: "admin"
+defaultPassword: "umami"
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
