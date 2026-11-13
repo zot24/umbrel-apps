@@ -3,7 +3,7 @@ id: zot24-dockyard
 name: Dockyard
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-dockyard/icon.svg
 category: developer
-version: "2.3.8"
+version: "2.3.9"
 tagline: An isolated Docker sandbox to deploy and run your own containers
 description: >-
   Dockyard is a sandboxed Docker host that lives on your Umbrel: a full Docker
@@ -32,13 +32,12 @@ description: >-
   becomes available on Dockyard's own address on the Umbrel network — so a
   Cloudflare Tunnel, or another app, can point straight at it.
 releaseNotes: >-
-  Sibling apps can drive Dockyard's daemon at
-  tcp://zot24-dockyard_api_1:2376 with DOCKER_TLS_VERIFY=1. Certificates
-  are written on first start and kept across updates. The client bundle
-  is data/tls-client (ca.pem, cert.pem, key.pem). The nested daemon is
-  privileged, so that client key is root-equivalent on the Umbrel.
-  Updating Dockyard restarts the daemon, so containers inside it stop
-  for about a minute.
+  Docker Hub pulls now go through the sibling Docker Hub Cache app
+  (http://docker-cache:5000) as a registry mirror. The cache speaks
+  HTTP, so it is also listed as an insecure registry. If that app is
+  stopped, Dockyard falls back to Docker Hub on its own. Updating
+  Dockyard restarts the daemon, so containers inside it stop for
+  about a minute.
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
 dependencies: []

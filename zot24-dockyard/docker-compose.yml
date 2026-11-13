@@ -21,6 +21,10 @@ services:
     stop_grace_period: 1m
     # --mtu 1450 leaves headroom under the 1500 of the network this nests in,
     # so full-size frames from a deployed app are never silently dropped.
+    # Docker Hub pulls go through the sibling zot24-docker-cache app at
+    # http://docker-cache:5000 (HTTP, so it is also listed as insecure).
+    # The dind container is on the Umbrel network and can resolve that
+    # name. If the cache is stopped, dockerd falls back to Docker Hub.
     command: >
       dockerd
         --host=unix:///data/docker.sock
@@ -28,6 +32,8 @@ services:
         --exec-root=/data/exec
         --pidfile=/data/docker.pid
         --mtu=1450
+        --registry-mirror http://docker-cache:5000
+        --insecure-registry docker-cache:5000
     volumes:
       - ${APP_DATA_DIR}/data/dind:/data
     healthcheck:
