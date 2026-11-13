@@ -17,8 +17,8 @@ served from that copy.
 ## Point npm or pnpm at the cache
 
 Replace `<umbrel-host>` with the Umbrel's LAN or Tailscale address.
-Do not use the Umbrel tile URL. It is the web UI, behind the
-dashboard login.
+Do not use the Umbrel tile URL as a registry. It is the Verdaccio
+web UI. The Umbrel login on that tile is off.
 
 In the project (or your user) `.npmrc`:
 
