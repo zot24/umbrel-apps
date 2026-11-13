@@ -1,0 +1,44 @@
+services:
+  # The tile is the Verdaccio UI, behind the Umbrel login. npm and
+  # pnpm clients must not use the tile URL. They should use the
+  # published host port 25751 (Mac, CI runners) or the npm-cache
+  # alias on the Umbrel network (sibling containers).
+  app_proxy:
+    environment:
+      APP_HOST: zot24-npm-cache_verdaccio_1
+      APP_PORT: 4873
+      PROXY_AUTH_ADD: "true"
+
+  verdaccio:
+    # Official Verdaccio image, multi-arch index digest.
+    # Umbrel rejects an image with no digest. Verified with crane:
+    #   crane digest verdaccio/verdaccio:7.1.0
+    image: verdaccio/verdaccio:7.1.0@sha256:c1b1b86154b43a4e1861bc7a4496d4977aa43c8bdb5db49b68445f8a9273729f
+    restart: on-failure
+    stop_grace_period: 30s
+    user: "0:0"
+    entrypoint: ["/bin/sh", "/init-storage.sh"]
+    volumes:
+      - ${APP_DATA_DIR}/data:/verdaccio/storage
+      - ${APP_DATA_DIR}/config.yaml:/verdaccio/conf/config.yaml:ro
+      - ${APP_DATA_DIR}/init-storage.sh:/init-storage.sh:ro
+    ports:
+      - "25751:4873"
+    networks:
+      default:
+        aliases:
+          - npm-cache
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:4873/-/ping",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
