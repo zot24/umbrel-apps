@@ -1,0 +1,110 @@
+services:
+  # Manifest port 25754 is the Umbrel tile. app_proxy talks to the
+  # OpenBot container on 3001. These must stay different. umbrelOS
+  # binds 127.0.0.1 to the manifest port and also redirects LAN
+  # traffic on that port to the tile. Do not publish 3001 on the
+  # host, and do not put this tile on a tunnel or a public URL.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-openbot_openbot_1
+      APP_PORT: 3001
+      PROXY_AUTH_ADD: "true"
+
+  postgres:
+    # Multi-arch index digest. Umbrel rejects an image with no digest.
+    # Verified with crane:
+    #   crane digest pgvector/pgvector:pg17
+    image: pgvector/pgvector:pg17@sha256:b513c48566e4777cd3370451400000c78eda6a08131d68f4c31d4a76f27bd8fd
+    restart: on-failure
+    stop_grace_period: 1m
+    mem_limit: 512m
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: openbot
+      POSTGRES_DB: openbot
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    volumes:
+      - ${APP_DATA_DIR}/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openbot -d openbot"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  migrate:
+    # This image's entrypoint is s6. A bare command would boot a
+    # second server before migrating. Replacing the entrypoint runs
+    # only the migrator.
+    image: ghcr.io/copilotkit/openbot:v1.0.2@sha256:2e40d30d9743d5d534f2f0856289854e9b53111ea2725d3591db3189738e6f90
+    restart: on-failure
+    mem_limit: 256m
+    entrypoint: ["sh", "-c"]
+    command: ["cd /app/server && bun scripts/migrate.ts"]
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  openbot:
+    # Index digest for v1.0.2 (linux/amd64 only). Verified with crane:
+    #   crane digest ghcr.io/copilotkit/openbot:v1.0.2
+    image: ghcr.io/copilotkit/openbot:v1.0.2@sha256:2e40d30d9743d5d534f2f0856289854e9b53111ea2725d3591db3189738e6f90
+    restart: on-failure
+    init: true
+    stop_grace_period: 30s
+    mem_limit: 2g
+    environment:
+      OPENBOT_SINGLE_USER: "true"
+      SERVER_INTERNAL_URL: http://openbot:3001
+      INTELLIGENCE_API_URL: https://api.intelligence.copilotkit.ai
+      INTELLIGENCE_GATEWAY_WS_URL: wss://realtime.intelligence.copilotkit.ai
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bun -e \"fetch('http://127.0.0.1:3001/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+
+  cron:
+    # Same image, same env, plus the two worker settings. The
+    # entrypoint override is required for the reason on migrate.
+    image: ghcr.io/copilotkit/openbot:v1.0.2@sha256:2e40d30d9743d5d534f2f0856289854e9b53111ea2725d3591db3189738e6f90
+    restart: on-failure
+    init: true
+    mem_limit: 256m
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        cd /app/server
+        while true; do
+          bun scripts/fire-routines.ts || true
+          bun scripts/cull-staged-attachments.ts || true
+          sleep 60
+        done
+    environment:
+      OPENBOT_SINGLE_USER: "true"
+      SERVER_INTERNAL_URL: http://openbot:3001
+      INTELLIGENCE_API_URL: https://api.intelligence.copilotkit.ai
+      INTELLIGENCE_GATEWAY_WS_URL: wss://realtime.intelligence.copilotkit.ai
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    depends_on:
+      openbot:
+        condition: service_healthy

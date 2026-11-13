@@ -1,0 +1,22 @@
+# Copy to <umbrel>/app-data/zot24-openbot/data/.env before install.
+# Fill every required name. Never commit this file or print its values.
+#
+# Required
+# POSTGRES_PASSWORD=
+# DATABASE_URL=postgres://openbot:<POSTGRES_PASSWORD>@postgres:5432/openbot
+# KEY_ENCRYPTION_KEY=
+# CPK_INTELLIGENCE_API_KEY=
+# OPENAI_API_KEY=
+# WORKER_SHARED_SECRET=
+#
+# LAN tile origin only. Do not set a public URL.
+# TRUSTED_ORIGINS=http://umbrel.local:25754
+# BETTER_AUTH_URL=http://umbrel.local:25754
+# OPENBOT_APP_URL=http://umbrel.local:25754
+#
+# Defaults are already in docker-compose.yml. Override only for self-hosted Intelligence.
+# INTELLIGENCE_API_URL=https://api.intelligence.copilotkit.ai
+# INTELLIGENCE_GATEWAY_WS_URL=wss://realtime.intelligence.copilotkit.ai
+#
+# Optional. Managed Intelligence issues none. Set for a self-hosted Intelligence license.
+# COPILOTKIT_LICENSE_TOKEN=

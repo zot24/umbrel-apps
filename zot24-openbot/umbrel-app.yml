@@ -1,0 +1,61 @@
+manifestVersion: 1.1
+id: zot24-openbot
+name: OpenBot
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-openbot/icon.svg
+category: developer
+version: "1.0.2"
+tagline: LAN-only self-hosted AI workspace (single-user)
+description: >-
+  OpenBot is a self-hosted workspace for AI coworkers. This Umbrel
+  app runs the official v1.0.2 all-in-one image with a Postgres
+  database and a cron container that fires due routines. The Umbrel
+  tile is the only way in. There is no public URL, no host port
+  publish, and no tunnel.
+
+
+  Single-user mode is on. Anyone who can open the tile is the
+  administrator, so the tile stays behind the Umbrel dashboard
+  login and on the LAN. Do not set OPENBOT_PUBLIC_URL,
+  OPENBOT_APP_URL, or TRUSTED_ORIGINS to a public address. OpenBot
+  refuses to start in single-user mode when it sees one.
+
+
+  Secrets live in /data/.env on the app volume (the host path is
+  <umbrel>/app-data/zot24-openbot/data/.env). Copy data-env.example
+  and fill the placeholder names. Do not commit that file. Create
+  it before you install.
+
+
+  Memory limits were sized from a read-only measurement of this
+  Umbrel, with the GitHub runners and cache apps already running:
+  openbot 2g, postgres 512m, cron 256m, migrate 256m. Lint memory
+  stays the higher priority. Installing needs a fresh yes.
+
+
+  The OpenBot application source is MIT-licensed. CopilotKit
+  Intelligence is separately licensed and is required for durable
+  conversations and memory. Production use is paid. See the pull
+  request and https://open.bot/pricing.
+
+
+  Upstream: https://github.com/CopilotKit/OpenBot (image
+  ghcr.io/copilotkit/openbot:v1.0.2, sha256-pinned). The published
+  v1.0.2 image is linux/amd64 only.
+releaseNotes: >-
+  First listing. OpenBot v1.0.2, LAN-only tile on port 25754, a
+  Postgres volume, secrets from /data/.env, and a cron container
+  for routines. Not installed by this change.
+developer: zot24
+website: https://github.com/CopilotKit/OpenBot
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 25754
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
