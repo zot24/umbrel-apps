@@ -1,0 +1,118 @@
+name: Test npm-cache
+
+# Prove the Verdaccio cache works: npm install a small package twice
+# against it, show the tarball is in storage, and show npm publish
+# is rejected. Runs on GitHub-hosted runners. Herdr has no Docker.
+
+on:
+  pull_request:
+    paths:
+      - "zot24-npm-cache/**"
+      - ".github/workflows/test-npm-cache.yml"
+  push:
+    branches: [main]
+    paths:
+      - "zot24-npm-cache/**"
+      - ".github/workflows/test-npm-cache.yml"
+  workflow_dispatch:
+
+jobs:
+  cache-hit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Start Verdaccio from the app compose file
+        working-directory: zot24-npm-cache
+        run: |
+          set -euo pipefail
+          export APP_DATA_DIR="$PWD/.ci-data"
+          mkdir -p "$APP_DATA_DIR/data"
+          cp -a config.yaml init-storage.sh "$APP_DATA_DIR/"
+          chmod +x "$APP_DATA_DIR/init-storage.sh"
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:25751/-/ping >/dev/null; then
+              echo "verdaccio is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "verdaccio did not become ready"
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs
+          exit 1
+
+      - name: Install a package twice and reject a publish
+        working-directory: zot24-npm-cache
+        run: |
+          set -euo pipefail
+          export APP_DATA_DIR="$PWD/.ci-data"
+          REGISTRY=http://127.0.0.1:25751
+          PKG=ms
+
+          first=$(mktemp -d)
+          cache1=$(mktemp -d)
+          echo '{"name":"cache-proof","private":true}' > "$first/package.json"
+          echo "== first npm install (fills the cache from registry.npmjs.org) =="
+          npm install "$PKG" --registry "$REGISTRY" --cache "$cache1" --prefix "$first" --no-fund --no-audit
+          test -d "$first/node_modules/$PKG"
+
+          echo "== tarball in Verdaccio storage after first install =="
+          find "$APP_DATA_DIR/data" -type f -name '*.tgz' | sort | tee /tmp/tarballs-first.txt
+          test -s /tmp/tarballs-first.txt
+          grep -E '/ms/-/ms-.*\.tgz$' /tmp/tarballs-first.txt
+          tarball=$(grep -E '/ms/-/ms-.*\.tgz$' /tmp/tarballs-first.txt | head -1)
+          test -s "$tarball"
+          first_mtime=$(stat -c %Y "$tarball")
+          first_hash=$(sha256sum "$tarball" | awk '{print $1}')
+          echo "STORAGE_OK: $tarball is in Verdaccio storage (sha256=$first_hash mtime=$first_mtime)"
+
+          second=$(mktemp -d)
+          cache2=$(mktemp -d)
+          echo '{"name":"cache-proof-2","private":true}' > "$second/package.json"
+          echo "== second npm install (fresh npm cache, same Verdaccio) =="
+          npm install "$PKG" --registry "$REGISTRY" --cache "$cache2" --prefix "$second" --no-fund --no-audit
+          test -d "$second/node_modules/$PKG"
+
+          second_mtime=$(stat -c %Y "$tarball")
+          second_hash=$(sha256sum "$tarball" | awk '{print $1}')
+          test "$first_hash" = "$second_hash"
+          test "$first_mtime" = "$second_mtime"
+          echo "CACHE_HIT: second install succeeded, tarball $tarball was served from Verdaccio storage (hash and mtime unchanged)"
+
+          echo "== npm publish must be rejected =="
+          pub=$(mktemp -d)
+          cat > "$pub/package.json" <<'JSON'
+          {
+            "name": "@cache-proof/should-not-publish",
+            "version": "0.0.0-not-real",
+            "description": "publish must be rejected",
+            "license": "UNLICENSED",
+            "private": false
+          }
+          JSON
+          echo "ok" > "$pub/index.js"
+          set +e
+          npm publish --registry "$REGISTRY" --cache "$(mktemp -d)" --prefix "$pub" --dry-run=false > /tmp/publish.out 2>&1
+          pub_code=$?
+          set -e
+          cat /tmp/publish.out
+          if [ "$pub_code" -eq 0 ]; then
+            echo "PUBLISH_UNEXPECTED_SUCCESS: npm publish was accepted, but this cache must reject it"
+            exit 1
+          fi
+          echo "PUBLISH_REJECTED: npm publish exited $pub_code (expected non-zero)"
+
+      - name: Verdaccio logs on failure
+        if: failure()
+        working-directory: zot24-npm-cache
+        run: |
+          export APP_DATA_DIR="$PWD/.ci-data"
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs
