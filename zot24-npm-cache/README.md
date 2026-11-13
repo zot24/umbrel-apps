@@ -4,7 +4,8 @@ A cache-only npm registry for an Umbrel, using official Verdaccio
 as a proxy in front of registry.npmjs.org.
 
 - App id: `zot24-npm-cache`
-- Host port: 25751
+- Host port (registry): 25751
+- Umbrel tile (Verdaccio UI): 25753
 - Image: `verdaccio/verdaccio:7.1.0@sha256:c1b1b86154b43a4e1861bc7a4496d4977aa43c8bdb5db49b68445f8a9273729f`
 - Remote: `https://registry.npmjs.org/`
 - Access: anyone can install. Nobody can publish or unpublish.
@@ -17,8 +18,9 @@ served from that copy.
 ## Point npm or pnpm at the cache
 
 Replace `<umbrel-host>` with the Umbrel's LAN or Tailscale address.
-Do not use the Umbrel tile URL as a registry. It is the Verdaccio
-web UI. The Umbrel login on that tile is off.
+Do not use the Umbrel tile URL as a registry. The tile is on port
+25753 and opens the Verdaccio web UI. The Umbrel login on that
+tile is off.
 
 In the project (or your user) `.npmrc`:
 

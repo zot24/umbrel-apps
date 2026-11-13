@@ -5,8 +5,9 @@ CNCF Distribution `registry` image in proxy mode, with a read-only
 web UI on the Umbrel tile.
 
 - App id: `zot24-docker-cache`
-- App version: 3.1.3
+- App version: 3.1.4
 - Host port (registry, no login): 25750
+- Umbrel tile (web UI): 25752
 - Registry image: `registry:3.1.2@sha256:82f6ff4a7f982960c8aa51617fea3aabc485df6e55cce80d22deb1de36f1bc3c`
 - UI image: `joxit/docker-registry-ui:2.6.0@sha256:bb5956a6b378706f1c3a92c947d0a0c606e280460cd9e37c0198caf46399c839`
 - Remote: `https://registry-1.docker.io`
@@ -21,10 +22,10 @@ quay.io, and other registries do not go through it.
 
 ## The Umbrel tile (web UI)
 
-The tile opens a read-only page of cached repositories and tags,
-behind the Umbrel dashboard login. The UI talks to the registry
-over the app's internal network (`http://registry:5000`). It does
-not use host port 25750, and it cannot delete images.
+The tile is on port 25752. It opens a read-only page of cached
+repositories and tags, behind the Umbrel dashboard login. The UI
+talks to the registry over the app's internal network
+(`http://registry:5000`). It cannot delete images.
 
 Port 25750 is a direct publish of the registry. Docker clients use
 that port, and the Umbrel login does not apply to it. Changing the

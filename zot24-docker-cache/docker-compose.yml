@@ -1,13 +1,14 @@
 services:
-  # The Umbrel tile opens the read-only web UI, behind the dashboard
-  # login (PROXY_AUTH_ADD=true). Docker clients must not use the tile
-  # URL. They should use the published host port 25750 (Mac, CI
-  # runners) or the docker-cache alias on the Umbrel network (sibling
-  # containers).
+  # The Umbrel tile (manifest port 25752) opens the read-only web UI,
+  # behind the dashboard login (PROXY_AUTH_ADD=true). Docker clients
+  # must not use the tile URL. They should use the published host
+  # port 25750 (Mac, CI runners) or the docker-cache alias on the
+  # Umbrel network (sibling containers).
   #
-  # Login separation: port 25750 is a direct publish of the registry
-  # service. It does not go through app_proxy, so the Umbrel login
-  # never applies to it. app_proxy points only at the UI (port 80).
+  # These ports must stay different. umbrelOS binds 127.0.0.1 to the
+  # manifest port, and also redirects LAN traffic on that port to the
+  # tile. Port 25750 is a direct publish of the registry. It does not
+  # go through app_proxy, so the Umbrel login never applies to it.
   # Turning PROXY_AUTH_ADD on or off changes only the tile, not 25750.
   app_proxy:
     environment:

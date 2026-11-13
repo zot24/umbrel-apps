@@ -3,7 +3,7 @@ id: zot24-npm-cache
 name: npm Cache
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-npm-cache/icon.svg
 category: developer
-version: "7.1.1"
+version: "7.1.2"
 tagline: A cache-only npm registry on your Umbrel
 description: >-
   This app runs Verdaccio as a cache in front of the public npm
@@ -24,27 +24,28 @@ description: >-
 
 
   Clients on your Mac or a CI runner use http://<umbrel-host>:25751
-  (port 25751 is published on the Umbrel host, and does not go
-  through the dashboard login). Sibling containers on the Umbrel
-  network use http://npm-cache:4873. The Umbrel tile is the
-  Verdaccio web UI, with the dashboard login turned off. Do not
-  use the tile URL as a registry.
+  (port 25751 is a direct publish of Verdaccio, and does not go
+  through the dashboard login). The Umbrel tile is on port 25753,
+  which opens the Verdaccio web UI, with the dashboard login
+  turned off. Sibling containers on the Umbrel network use
+  http://npm-cache:4873. Do not use the tile URL as a registry.
 
 
   Do not publish this port to the public internet or put it on a
   Cloudflare Tunnel.
 releaseNotes: >-
-  Locks the Umbrel tile login off (PROXY_AUTH_ADD=false). The
-  Verdaccio image is still 7.1.0. Host port 25751 is unchanged
-  and remains a direct publish, with no dashboard login. npm
-  and pnpm clients should still use that host port or
-  http://npm-cache:4873, not the tile URL.
+  Moves the Umbrel tile to port 25753 so it no longer shares a
+  host port with the npm client publish. npm and pnpm clients
+  still use host port 25751, a direct publish with no dashboard
+  login, or http://npm-cache:4873. umbrelOS was retrying a bind
+  of 127.0.0.1:25751 every minute because both the tile and the
+  cache publish used that port. The Verdaccio image is still 7.1.0.
 developer: zot24
 website: https://verdaccio.org
 dependencies: []
 repo: https://github.com/zot24/umbrel-apps
 support: https://github.com/zot24/umbrel-apps/issues
-port: 25751
+port: 25753
 gallery: []
 path: ""
 defaultUsername: ""
