@@ -3,7 +3,7 @@ id: zot24-npm-cache
 name: npm Cache
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-npm-cache/icon.svg
 category: developer
-version: "7.1.0"
+version: "7.1.1"
 tagline: A cache-only npm registry on your Umbrel
 description: >-
   This app runs Verdaccio as a cache in front of the public npm
@@ -24,18 +24,21 @@ description: >-
 
 
   Clients on your Mac or a CI runner use http://<umbrel-host>:25751
-  (port 25751 is published on the Umbrel host). Sibling containers
-  on the Umbrel network use http://npm-cache:4873. The Umbrel tile
-  is the Verdaccio web UI, behind the dashboard login. Do not use
-  the tile URL as a registry.
+  (port 25751 is published on the Umbrel host, and does not go
+  through the dashboard login). Sibling containers on the Umbrel
+  network use http://npm-cache:4873. The Umbrel tile is the
+  Verdaccio web UI, with the dashboard login turned off. Do not
+  use the tile URL as a registry.
 
 
   Do not publish this port to the public internet or put it on a
   Cloudflare Tunnel.
 releaseNotes: >-
-  First release. Official Verdaccio 7.1.0, digest-pinned, proxying
-  registry.npmjs.org. Host port 25751. Publishing, unpublishing,
-  and user signup are disabled.
+  Locks the Umbrel tile login off (PROXY_AUTH_ADD=false). The
+  Verdaccio image is still 7.1.0. Host port 25751 is unchanged
+  and remains a direct publish, with no dashboard login. npm
+  and pnpm clients should still use that host port or
+  http://npm-cache:4873, not the tile URL.
 developer: zot24
 website: https://verdaccio.org
 dependencies: []
