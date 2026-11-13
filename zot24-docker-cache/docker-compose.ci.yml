@@ -1,0 +1,8 @@
+# Override for GitHub Actions and local compose, where Umbrel is not
+# present to inject the app_proxy image. The registry service is the
+# same as docker-compose.yml.
+services:
+  app_proxy:
+    image: busybox:1.37
+    command: ["sleep", "infinity"]
+    restart: "no"

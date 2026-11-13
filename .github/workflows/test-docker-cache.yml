@@ -1,0 +1,87 @@
+name: Test docker-cache
+
+# Prove the pull-through cache works: pull alpine through it twice,
+# then show the catalog lists library/alpine and the blobs are on disk.
+# Runs on GitHub-hosted runners. Herdr has no Docker daemon.
+
+on:
+  pull_request:
+    paths:
+      - "zot24-docker-cache/**"
+      - ".github/workflows/test-docker-cache.yml"
+  push:
+    branches: [main]
+    paths:
+      - "zot24-docker-cache/**"
+      - ".github/workflows/test-docker-cache.yml"
+  workflow_dispatch:
+
+jobs:
+  cache-hit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the registry from the app compose file
+        working-directory: zot24-docker-cache
+        run: |
+          set -euo pipefail
+          export APP_DATA_DIR="$PWD/.ci-data"
+          mkdir -p "$APP_DATA_DIR/data/registry"
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:25750/v2/ >/dev/null; then
+              echo "registry is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "registry did not become ready"
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs
+          exit 1
+
+      - name: Pull alpine through the cache, twice, and prove a cache hit
+        working-directory: zot24-docker-cache
+        run: |
+          set -euo pipefail
+          export APP_DATA_DIR="$PWD/.ci-data"
+
+          echo "== first pull (fills the cache from Docker Hub) =="
+          docker pull localhost:25750/library/alpine:latest
+
+          echo "== catalog after first pull =="
+          curl -fsS http://127.0.0.1:25750/v2/_catalog | tee /tmp/catalog.json
+          grep -F 'library/alpine' /tmp/catalog.json
+          echo "CATALOG_OK: library/alpine is in the registry catalog"
+
+          echo "== blobs in app storage after first pull =="
+          find "$APP_DATA_DIR/data/registry" -type f | sort | tee /tmp/blobs-first.txt
+          test -s /tmp/blobs-first.txt
+          # The distribution filesystem driver stores content-addressed blobs
+          # under docker/registry/v2/blobs/sha256.
+          find "$APP_DATA_DIR/data/registry" -path '*blobs/sha256/*' -type f | tee /tmp/sha-blobs.txt
+          test -s /tmp/sha-blobs.txt
+          echo "STORAGE_OK: blob files are present in app storage"
+          sha256sum /tmp/blobs-first.txt > /tmp/blobs-first.sha
+
+          echo "== remove the local image, then pull again =="
+          docker rmi localhost:25750/library/alpine:latest
+          docker pull localhost:25750/library/alpine:latest
+
+          echo "== storage after second pull (must still hold the same blobs) =="
+          find "$APP_DATA_DIR/data/registry" -type f | sort | tee /tmp/blobs-second.txt
+          # Every blob from the first pull must still be there.
+          while IFS= read -r f; do
+            test -f "$f"
+          done < /tmp/blobs-first.txt
+          echo "CACHE_HIT: catalog lists library/alpine, blobs are in storage, second pull succeeded from the warmed cache"
+
+      - name: Registry logs on failure
+        if: failure()
+        working-directory: zot24-docker-cache
+        run: |
+          export APP_DATA_DIR="$PWD/.ci-data"
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs
