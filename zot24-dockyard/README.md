@@ -39,6 +39,19 @@ Drive the daemon however you like:
   Umbrel and must be treated that way. Anyone who holds it can start a
   privileged container inside Dockyard and reach the host.
 
+## Docker Hub cache
+
+The nested daemon uses the sibling [Docker Hub Cache](../zot24-docker-cache)
+app as a registry mirror (`http://docker-cache:5000`). The first pull of a
+Docker Hub image is stored on the Umbrel; later pulls of the same image
+are served from that copy. Images from other registries (ghcr.io, quay.io,
+and so on) are not cached and still go to their own hosts.
+
+The cache speaks HTTP, so it is listed under `insecure-registries`. If the
+cache app is stopped, dockerd falls back to Docker Hub on its own. To
+turn the mirror off, remove the `--registry-mirror` and
+`--insecure-registry` flags from the dind service and update the app.
+
 ## Reaching what you deploy
 
 Publish a port from your stack; it binds on Dockyard's own container, which is
