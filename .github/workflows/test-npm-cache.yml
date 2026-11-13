@@ -102,7 +102,10 @@ jobs:
           JSON
           echo "ok" > "$pub/index.js"
           set +e
-          # npm publish ignores --prefix for the package directory, so cd into it.
+          # A dummy token makes npm send the request to Verdaccio instead of
+          # stopping at the local ENEEDAUTH check. Signup is disabled, so
+          # there is no real user to log in as.
+          printf '%s\n' "//127.0.0.1:25751/:_authToken=not-a-real-token" > "$pub/.npmrc"
           (cd "$pub" && npm publish --registry "$REGISTRY" --cache "$(mktemp -d)") > /tmp/publish.out 2>&1
           pub_code=$?
           set -e
