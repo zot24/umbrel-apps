@@ -67,8 +67,10 @@ jobs:
           echo "== tarball in Verdaccio storage after first install =="
           find "$APP_DATA_DIR/data" -type f -name '*.tgz' | sort | tee /tmp/tarballs-first.txt
           test -s /tmp/tarballs-first.txt
-          grep -E '/ms/-/ms-.*\.tgz$' /tmp/tarballs-first.txt
-          tarball=$(grep -E '/ms/-/ms-.*\.tgz$' /tmp/tarballs-first.txt | head -1)
+          # Verdaccio 7 stores the tarball at data/ms/ms-<ver>.tgz (older
+          # versions used data/ms/-/ms-<ver>.tgz). Accept either.
+          grep -E '/ms/(.*/)?ms-[^/]+\.tgz$' /tmp/tarballs-first.txt
+          tarball=$(grep -E '/ms/(.*/)?ms-[^/]+\.tgz$' /tmp/tarballs-first.txt | head -1)
           test -s "$tarball"
           first_mtime=$(stat -c %Y "$tarball")
           first_hash=$(sha256sum "$tarball" | awk '{print $1}')
