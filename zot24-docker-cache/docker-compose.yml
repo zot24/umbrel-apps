@@ -1,0 +1,46 @@
+services:
+  # The tile is only a convenience view of the registry API, behind the
+  # Umbrel login. Docker clients must not use the tile URL. They should
+  # use the published host port 25750 (Mac, CI runners) or the
+  # docker-cache alias on the Umbrel network (sibling containers).
+  app_proxy:
+    environment:
+      APP_HOST: zot24-docker-cache_registry_1
+      APP_PORT: 5000
+      PROXY_AUTH_ADD: "true"
+
+  registry:
+    # Official CNCF Distribution registry, multi-arch index digest.
+    # Umbrel rejects an image with no digest. Verified with crane:
+    #   crane digest registry:3.1.2
+    image: registry:3.1.2@sha256:82f6ff4a7f982960c8aa51617fea3aabc485df6e55cce80d22deb1de36f1bc3c
+    restart: on-failure
+    stop_grace_period: 1m
+    environment:
+      REGISTRY_PROXY_REMOTEURL: https://registry-1.docker.io
+      REGISTRY_PROXY_TTL: 168h
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+      REGISTRY_LOG_LEVEL: info
+    volumes:
+      - ${APP_DATA_DIR}/data/registry:/var/lib/registry
+    ports:
+      - "25750:5000"
+    networks:
+      default:
+        aliases:
+          - docker-cache
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:5000/v2/",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
