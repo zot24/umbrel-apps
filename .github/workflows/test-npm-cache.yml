@@ -102,7 +102,8 @@ jobs:
           JSON
           echo "ok" > "$pub/index.js"
           set +e
-          npm publish --registry "$REGISTRY" --cache "$(mktemp -d)" --prefix "$pub" --dry-run=false > /tmp/publish.out 2>&1
+          # npm publish ignores --prefix for the package directory, so cd into it.
+          (cd "$pub" && npm publish --registry "$REGISTRY" --cache "$(mktemp -d)") > /tmp/publish.out 2>&1
           pub_code=$?
           set -e
           cat /tmp/publish.out
@@ -110,7 +111,12 @@ jobs:
             echo "PUBLISH_UNEXPECTED_SUCCESS: npm publish was accepted, but this cache must reject it"
             exit 1
           fi
-          echo "PUBLISH_REJECTED: npm publish exited $pub_code (expected non-zero)"
+          # The failure must come from the registry (auth or ACL), not a local npm error.
+          if ! grep -Ei '403|401|forbidden|not allowed|ENEEDAUTH|unauthorized|publish.*denied' /tmp/publish.out; then
+            echo "PUBLISH_WRONG_FAILURE: npm publish failed, but not because Verdaccio rejected it"
+            exit 1
+          fi
+          echo "PUBLISH_REJECTED: npm publish exited $pub_code after Verdaccio refused the upload"
 
       - name: Verdaccio logs on failure
         if: failure()
