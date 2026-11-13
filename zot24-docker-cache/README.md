@@ -1,13 +1,16 @@
 # Docker Hub Cache (zot24-docker-cache)
 
 A Docker Hub pull-through cache for an Umbrel, using the official
-CNCF Distribution `registry` image in proxy mode.
+CNCF Distribution `registry` image in proxy mode, with a read-only
+web UI on the Umbrel tile.
 
 - App id: `zot24-docker-cache`
-- Host port: 25750
-- Image: `registry:3.1.2@sha256:82f6ff4a7f982960c8aa51617fea3aabc485df6e55cce80d22deb1de36f1bc3c`
+- App version: 3.1.3
+- Host port (registry, no login): 25750
+- Registry image: `registry:3.1.2@sha256:82f6ff4a7f982960c8aa51617fea3aabc485df6e55cce80d22deb1de36f1bc3c`
+- UI image: `joxit/docker-registry-ui:2.6.0@sha256:bb5956a6b378706f1c3a92c947d0a0c606e280460cd9e37c0198caf46399c839`
 - Remote: `https://registry-1.docker.io`
-- Cache TTL: 7 days, with storage deletes enabled
+- Cache TTL: 7 days, with storage deletes enabled on the registry
 
 The first pull of an image goes to Docker Hub and is stored under
 the app data directory. Later pulls of the same image are served
@@ -15,6 +18,17 @@ from that copy.
 
 This mirror only covers Docker Hub images. Pulls from ghcr.io,
 quay.io, and other registries do not go through it.
+
+## The Umbrel tile (web UI)
+
+The tile opens a read-only page of cached repositories and tags,
+behind the Umbrel dashboard login. The UI talks to the registry
+over the app's internal network (`http://registry:5000`). It does
+not use host port 25750, and it cannot delete images.
+
+Port 25750 is a direct publish of the registry. Docker clients use
+that port, and the Umbrel login does not apply to it. Changing the
+tile's login setting does not change access to 25750.
 
 ## Point Docker at the cache
 

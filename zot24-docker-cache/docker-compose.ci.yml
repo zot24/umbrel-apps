@@ -1,8 +1,12 @@
 # Override for GitHub Actions and local compose, where Umbrel is not
 # present to inject the app_proxy image. The registry service is the
-# same as docker-compose.yml.
+# same as docker-compose.yml. The UI is published on 8080 so CI can
+# reach it; on the Umbrel it is only reached through app_proxy.
 services:
   app_proxy:
     image: busybox:1.37
     command: ["sleep", "infinity"]
     restart: "no"
+  ui:
+    ports:
+      - "8080:80"

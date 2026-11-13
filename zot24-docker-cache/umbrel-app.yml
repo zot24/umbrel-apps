@@ -3,13 +3,18 @@ id: zot24-docker-cache
 name: Docker Hub Cache
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-docker-cache/icon.svg
 category: developer
-version: "3.1.2"
+version: "3.1.3"
 tagline: A Docker Hub pull-through cache on your Umbrel
 description: >-
   This app runs the official CNCF Distribution registry as a pull-through
   cache for Docker Hub. The first pull of an image goes to Docker Hub and
   is stored on the Umbrel. Later pulls of the same image are served from
   that local copy, at LAN or Tailscale speed.
+
+
+  The Umbrel tile opens a read-only web UI of the cached repositories
+  and tags. The tile is behind the dashboard login. Image deletes from
+  the UI are turned off.
 
 
   Point Docker at it with the registry-mirrors setting (see the README).
@@ -19,10 +24,10 @@ description: >-
 
 
   Clients on your Mac or a CI runner use http://<umbrel-host>:25750
-  (port 25750 is published on the Umbrel host). Sibling containers on
-  the Umbrel network use http://docker-cache:5000. Do not use the
-  Umbrel tile URL: it sits behind the dashboard login, and Docker
-  cannot sign in.
+  (port 25750 is published on the Umbrel host, and does not go through
+  the dashboard login). Sibling containers on the Umbrel network use
+  http://docker-cache:5000. Do not use the Umbrel tile URL as a
+  registry: Docker cannot sign in.
 
 
   Docker treats a registry-mirror as a shortcut, not a requirement.
@@ -32,14 +37,18 @@ description: >-
 
 
   Cached images expire after 7 days (REGISTRY_PROXY_TTL=168h). Deletes
-  are enabled so the registry's scheduler can reclaim expired entries.
-  Do not publish this port to the public internet or put it on a
-  Cloudflare Tunnel. Anyone who can reach it can pull through your
-  cache and share your Docker Hub rate limit.
+  are enabled on the registry so its scheduler can reclaim expired
+  entries. The web UI cannot delete images. Do not publish this port
+  to the public internet or put it on a Cloudflare Tunnel. Anyone who
+  can reach it can pull through your cache and share your Docker Hub
+  rate limit.
 releaseNotes: >-
-  First release. Official registry 3.1.2, digest-pinned, in Docker Hub
-  proxy mode. Host port 25750. Cache TTL is 7 days, with storage
-  deletes enabled so expired entries can be reclaimed.
+  Adds a read-only web UI (joxit/docker-registry-ui 2.6.0,
+  digest-pinned). The Umbrel tile opens the UI, behind the dashboard
+  login. Docker clients still use host port 25750, which is unchanged
+  and does not go through that login. The UI talks to the registry on
+  the internal app network, not on the public host port. Image deletes
+  from the UI are off. The registry image is still 3.1.2.
 developer: zot24
 website: https://distribution.github.io/distribution/
 dependencies: []
