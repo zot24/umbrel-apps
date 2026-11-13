@@ -3,7 +3,7 @@ id: zot24-docker-cache
 name: Docker Hub Cache
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-docker-cache/icon.svg
 category: developer
-version: "3.1.3"
+version: "3.1.4"
 tagline: A Docker Hub pull-through cache on your Umbrel
 description: >-
   This app runs the official CNCF Distribution registry as a pull-through
@@ -24,9 +24,10 @@ description: >-
 
 
   Clients on your Mac or a CI runner use http://<umbrel-host>:25750
-  (port 25750 is published on the Umbrel host, and does not go through
-  the dashboard login). Sibling containers on the Umbrel network use
-  http://docker-cache:5000. Do not use the Umbrel tile URL as a
+  (port 25750 is a direct publish of the registry, and does not go
+  through the dashboard login). The Umbrel tile is on port 25752,
+  which opens the web UI. Sibling containers on the Umbrel network
+  use http://docker-cache:5000. Do not use the Umbrel tile URL as a
   registry: Docker cannot sign in.
 
 
@@ -43,18 +44,18 @@ description: >-
   can reach it can pull through your cache and share your Docker Hub
   rate limit.
 releaseNotes: >-
-  Adds a read-only web UI (joxit/docker-registry-ui 2.6.0,
-  digest-pinned). The Umbrel tile opens the UI, behind the dashboard
-  login. Docker clients still use host port 25750, which is unchanged
-  and does not go through that login. The UI talks to the registry on
-  the internal app network, not on the public host port. Image deletes
-  from the UI are off. The registry image is still 3.1.2.
+  Moves the Umbrel tile to port 25752 so it no longer shares a host
+  port with the registry. Docker clients still use host port 25750,
+  a direct publish with no dashboard login. umbrelOS was retrying a
+  bind of 127.0.0.1:25750 every minute because both the tile and the
+  registry publish used that port. The registry and UI images are
+  unchanged.
 developer: zot24
 website: https://distribution.github.io/distribution/
 dependencies: []
 repo: https://github.com/zot24/umbrel-apps
 support: https://github.com/zot24/umbrel-apps/issues
-port: 25750
+port: 25752
 gallery: []
 path: ""
 defaultUsername: ""
