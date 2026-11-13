@@ -2,7 +2,9 @@ name: Test docker-cache
 
 # Prove the pull-through cache works: pull alpine through it twice,
 # then show the catalog lists library/alpine and the blobs are on disk.
-# Runs on GitHub-hosted runners. Herdr has no Docker daemon.
+# Also prove the read-only UI is up and lists library/alpine through
+# its own nginx proxy. Runs on GitHub-hosted runners. Herdr has no
+# Docker daemon.
 
 on:
   pull_request:
@@ -25,7 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Start the registry from the app compose file
+      - name: Start the registry and UI from the app compose file
         working-directory: zot24-docker-cache
         run: |
           set -euo pipefail
@@ -35,11 +37,23 @@ jobs:
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:25750/v2/ >/dev/null; then
               echo "registry is up"
+              break
+            fi
+            sleep 2
+            if [ "$i" -eq 30 ]; then
+              echo "registry did not become ready"
+              docker compose -f docker-compose.yml -f docker-compose.ci.yml logs
+              exit 1
+            fi
+          done
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then
+              echo "ui is up"
               exit 0
             fi
             sleep 2
           done
-          echo "registry did not become ready"
+          echo "ui did not become ready"
           docker compose -f docker-compose.yml -f docker-compose.ci.yml logs
           exit 1
 
@@ -79,7 +93,29 @@ jobs:
           done < /tmp/blobs-first.txt
           echo "CACHE_HIT: catalog lists library/alpine, blobs are in storage, second pull succeeded from the warmed cache"
 
-      - name: Registry logs on failure
+      - name: Prove the UI lists library/alpine and is read-only
+        working-directory: zot24-docker-cache
+        run: |
+          set -euo pipefail
+          export APP_DATA_DIR="$PWD/.ci-data"
+
+          echo "== UI home page =="
+          curl -fsS http://127.0.0.1:8080/ | tee /tmp/ui.html
+          grep -F 'docker-registry-ui' /tmp/ui.html
+          grep -F 'is-image-remove-activated="false"' /tmp/ui.html
+          echo "UI_READONLY: is-image-remove-activated is false"
+
+          echo "== catalog through the UI nginx proxy (not the host port) =="
+          curl -fsS http://127.0.0.1:8080/v2/_catalog | tee /tmp/ui-catalog.json
+          grep -F 'library/alpine' /tmp/ui-catalog.json
+          echo "UI_CATALOG_OK: the UI proxy lists library/alpine"
+
+          echo "== tags through the UI nginx proxy =="
+          curl -fsS http://127.0.0.1:8080/v2/library/alpine/tags/list | tee /tmp/ui-tags.json
+          grep -F 'latest' /tmp/ui-tags.json
+          echo "UI_TAGS_OK: the UI proxy lists the latest tag"
+
+      - name: Registry and UI logs on failure
         if: failure()
         working-directory: zot24-docker-cache
         run: |

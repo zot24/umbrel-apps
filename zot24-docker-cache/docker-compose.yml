@@ -1,12 +1,18 @@
 services:
-  # The tile is only a convenience view of the registry API, behind the
-  # Umbrel login. Docker clients must not use the tile URL. They should
-  # use the published host port 25750 (Mac, CI runners) or the
-  # docker-cache alias on the Umbrel network (sibling containers).
+  # The Umbrel tile opens the read-only web UI, behind the dashboard
+  # login (PROXY_AUTH_ADD=true). Docker clients must not use the tile
+  # URL. They should use the published host port 25750 (Mac, CI
+  # runners) or the docker-cache alias on the Umbrel network (sibling
+  # containers).
+  #
+  # Login separation: port 25750 is a direct publish of the registry
+  # service. It does not go through app_proxy, so the Umbrel login
+  # never applies to it. app_proxy points only at the UI (port 80).
+  # Turning PROXY_AUTH_ADD on or off changes only the tile, not 25750.
   app_proxy:
     environment:
-      APP_HOST: zot24-docker-cache_registry_1
-      APP_PORT: 5000
+      APP_HOST: zot24-docker-cache_ui_1
+      APP_PORT: 80
       PROXY_AUTH_ADD: "true"
 
   registry:
@@ -39,6 +45,43 @@ services:
           "-O",
           "/dev/null",
           "http://127.0.0.1:5000/v2/",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  ui:
+    # Joxit docker-registry-ui, multi-arch index digest.
+    # Umbrel rejects an image with no digest. Verified with crane:
+    #   crane digest joxit/docker-registry-ui:2.6.0
+    # No host port: the UI is only reached through app_proxy.
+    # It talks to the registry on the compose network, not on 25750.
+    image: joxit/docker-registry-ui:2.6.0@sha256:bb5956a6b378706f1c3a92c947d0a0c606e280460cd9e37c0198caf46399c839
+    restart: on-failure
+    stop_grace_period: 30s
+    environment:
+      SINGLE_REGISTRY: "true"
+      DOCKER_REGISTRY_UI_TITLE: Docker Hub Cache
+      REGISTRY_TITLE: Docker Hub Cache
+      NGINX_PROXY_PASS_URL: http://registry:5000
+      NGINX_RESOLVER: 127.0.0.11
+      DELETE_IMAGES: "false"
+      ENABLE_VERSION_NOTIFICATION: "false"
+      SHOW_CATALOG_NB_TAGS: "true"
+      CATALOG_DEFAULT_EXPANDED: "true"
+    depends_on:
+      registry:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:80/",
         ]
       interval: 10s
       timeout: 5s
