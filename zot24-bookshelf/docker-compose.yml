@@ -1,0 +1,28 @@
+services:
+  app_proxy:
+    environment:
+      APP_HOST: zot24-bookshelf_web_1
+      APP_PORT: 8080
+
+  web:
+    # Built by zot24/bookshelf (publish-image.yml on a vX.Y.Z tag). Umbrel
+    # rejects unpinned images, so this installs only once a follow-up commit
+    # pins the @sha256 digest of that build.
+    image: ghcr.io/zot24/bookshelf:0.1.0
+    user: "1000:1000"
+    restart: on-failure
+    init: true
+    environment:
+      DATA_DIR: /data
+    # CALIBRE_URL, CALIBRE_USERNAME, CALIBRE_PASSWORD, CALIBRE_PUBLIC_URL
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

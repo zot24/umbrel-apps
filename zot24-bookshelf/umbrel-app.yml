@@ -1,0 +1,46 @@
+manifestVersion: 1.1
+id: zot24-bookshelf
+name: Bookshelf
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-bookshelf/icon.svg
+category: media
+version: "0.1.0"
+tagline: Your Calibre library as a real bookshelf
+description: >-
+  Bookshelf shows your Calibre library as a shelf of colorful spines. Each
+  spine takes its colors from the book's cover. Tap a spine to see the cover
+  and details, then read or download the book. Search filters the shelf.
+
+
+  Bookshelf only reads from Calibre's content server. It never edits books
+  or metadata, and Calibre itself is not changed.
+
+
+  Setup:
+
+  1. Turn on Calibre's content server (calibre-server, or "Connect/share >
+     Start Content server" in the Calibre app). Calibre-Web has a different
+     API and does not work as the backend.
+
+  2. Create ~/umbrel/app-data/zot24-bookshelf/data/.env with
+     CALIBRE_URL=http://<calibre host>:<port>, plus CALIBRE_USERNAME and
+     CALIBRE_PASSWORD if the content server requires a login. Optionally set
+     CALIBRE_PUBLIC_URL to Calibre's address in your browser so Read opens
+     EPUBs in Calibre's reader.
+
+  3. Restart Bookshelf.
+releaseNotes: >-
+  0.1.0: First release. Shelf, search, book detail, Read and Download.
+developer: zot24
+website: https://github.com/zot24/bookshelf
+dependencies: []
+repo: https://github.com/zot24/bookshelf
+support: https://github.com/zot24/umbrel-apps/issues
+port: 8697
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
