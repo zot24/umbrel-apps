@@ -27,6 +27,7 @@ Each app folder has a README with its setup, its limits and how it works.
 | [Dockyard](zot24-dockyard/README.md) | `zot24-dockyard` | 8120 | An isolated Docker host on your Umbrel: a full Docker daemon in its own network namespace, apart from Umbrel's own Docker, to deploy and run your own containers. |
 | [Openship](zot24-openship/README.md) | `zot24-openship` | 3001 | The Openship deploy control plane (dashboard and API). It manages remote servers over SSH, and does not build or run apps on the Umbrel. |
 | [Lifeboat](zot24-lifeboat/README.md) | `zot24-lifeboat` | 7746 | Nightly encrypted backups of a Supabase project (database and Storage files), on the Umbrel and in Cloudflare R2, with one-button restore and restore drills. |
+| [Spines](zot24-spines/README.md) | `zot24-spines` | 8787 | A wall of album jewel cases that play in the browser, and a shelf of books from Calibre-Web. Media stays read-only. The music path is not set yet. |
 
 nworth and Openship have their own login. The other web UIs are behind the Umbrel login.
 
