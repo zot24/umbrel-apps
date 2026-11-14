@@ -8,11 +8,17 @@ Your Calibre library as a real bookshelf. Source and app docs: [zot24/bookshelf]
 
 ## Calibre
 
-Bookshelf reads the Calibre content server's JSON API and never writes to it. Calibre-Web (the "Calibre" app in Umbrel's official store) has a different API and does not work as the backend.
+Bookshelf mounts the library of Umbrel's Calibre-Web app read-only:
 
-## Configure
+```yaml
+- ${UMBREL_ROOT}/app-data/calibre-web/data/books:/library:ro
+```
 
-Create `~/umbrel/app-data/zot24-bookshelf/data/.env` and restart the app:
+That is Calibre-Web's `${APP_DATA_DIR}/data/books:/books` volume in [getumbrel/umbrel-apps `calibre-web/docker-compose.yml`](https://github.com/getumbrel/umbrel-apps/blob/f4c4f96a2498035f5778d29cba0a2a83be8c531b/calibre-web/docker-compose.yml). Its starter `metadata.db` lives there. The `${UMBREL_ROOT}/app-data/<app>/...:ro` mount is the same pattern `albyhub` and `mempool` use to read `lightning`'s data. `dependencies: [calibre-web]` makes Umbrel install Calibre-Web first.
+
+Bookshelf opens `metadata.db` read-only and immutable and never writes to the library. If Calibre-Web's library lives in a subfolder of `/books`, Bookshelf finds `metadata.db` one level down.
+
+To use a Calibre content server instead, create `~/umbrel/app-data/zot24-bookshelf/data/.env`:
 
 ```sh
 CALIBRE_URL=http://<calibre host>:<port>
@@ -21,7 +27,7 @@ CALIBRE_PASSWORD=...
 CALIBRE_PUBLIC_URL=http://umbrel.local:<calibre port>   # optional, for Read on EPUBs
 ```
 
-Without `CALIBRE_URL` the app opens and tells you to set it. Spine colors are cached in `data/palettes.json`.
+It is used only when the mounted library has no `metadata.db`. Spine colors are cached in `data/palettes.json`.
 
 ## Install
 

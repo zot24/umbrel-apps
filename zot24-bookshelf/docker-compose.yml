@@ -14,12 +14,14 @@ services:
     init: true
     environment:
       DATA_DIR: /data
-    # CALIBRE_URL, CALIBRE_USERNAME, CALIBRE_PASSWORD, CALIBRE_PUBLIC_URL
+    # Optional: CALIBRE_URL and its login, used only when /library has no metadata.db.
     env_file:
       - path: ${APP_DATA_DIR}/data/.env
         required: false
     volumes:
       - ${APP_DATA_DIR}/data:/data
+      # Calibre-Web's library (its /books), read-only. Same cross-app mount as albyhub and mempool use for lnd.
+      - ${UMBREL_ROOT}/app-data/calibre-web/data/books:/library:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 30s
