@@ -17,13 +17,17 @@ services:
     environment:
       SPINES_DATA: /data
       SPINES_BIND: 0.0.0.0:8787
+      SPINES_MEDIA: /media
+      SPINES_MUSIC: /media/music
       SPINES_BOOKS: /books
     volumes:
       - ${APP_DATA_DIR}/data:/data
       # Calibre-Web's library, read-only. Same kind of cross-app mount albyhub and mempool use.
       - ${UMBREL_ROOT}/app-data/calibre-web/data/books:/books:ro
-      # Music is not mounted. The host folder on this Umbrel is not known.
-      # Add a read-only volume and SPINES_MUSIC=/music when that path is confirmed.
+      # Downloads, read-only. The Files app shows this as Downloads.
+      # The first-open screen starts at /media/music, which is Downloads/music,
+      # the same folder the official Navidrome app mounts.
+      - ${UMBREL_ROOT}/data/storage/downloads:/media:ro
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/api/health"]
       interval: 30s

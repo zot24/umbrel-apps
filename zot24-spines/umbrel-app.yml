@@ -13,13 +13,14 @@ description: >-
 
 
   The catalog, generated spines, and cover cache live in this app's data
-  folder. Books come from Calibre-Web, mounted read-only. The music folder
-  is not mounted until its host path is known. Spines does not edit tags,
-  does not download files, and does not replace Calibre.
+  folder. Books come from Calibre-Web, mounted read-only. Music defaults to
+  Downloads/music and can be pointed at another folder under Downloads.
+  Spines does not edit tags, does not download files, and does not replace
+  Calibre.
 releaseNotes: >-
   0.1.0: Music jewel-case wall with in-browser playback, and the bookshelf
   ported from zot24/bookshelf. Books come from Calibre-Web, mounted
-  read-only. The music folder is not mounted until its host path is known.
+  read-only. Music starts at Downloads/music and can be changed on first open.
 developer: zot24
 website: https://github.com/zot24/spines
 dependencies:

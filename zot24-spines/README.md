@@ -18,7 +18,7 @@ Calibre-Web is a dependency, so Umbrel installs it first. Spines opens `metadata
 
 ## Music
 
-The music folder on this Umbrel is not known. The package does not guess a path. Where do the albums live? A follow-up can add a read-only volume and `SPINES_MUSIC=/music`.
+The package mounts `${UMBREL_ROOT}/data/storage/downloads` read-only at `/media`. That is the Downloads folder in the Files app. The first-open screen starts at `/media/music`, which is `Downloads/music`, the same folder the official Navidrome app uses. Another folder under Downloads can be chosen there, or later from Library. The choice is stored in this app's data folder.
 
 ## Data
 
