@@ -1,0 +1,17 @@
+diff --git a/cloudflared/umbrel-app.yml b/cloudflared/umbrel-app.yml
+index 9148a8ef31..708d9efb0a 100644
+--- a/cloudflared/umbrel-app.yml
++++ b/cloudflared/umbrel-app.yml
+@@ -32,9 +32,9 @@ submission: https://github.com/getumbrel/umbrel-apps/pull/891
+ repo: https://github.com/Radiokot/umbrel-cloudflared
+ support: https://github.com/Radiokot/umbrel-cloudflared/issues
+ gallery:
+-  - 1.jpg
+-  - 2.jpg
+-  - 3.jpg
++  - 1.webp
++  - 2.webp
++  - 3.webp
+ releaseNotes: >-
+   This update includes important security fixes and updates the Cloudflare Tunnel daemon to version 2026.10.4. We recommend updating as soon as possible.
+ 
