@@ -1,0 +1,36 @@
+services:
+  app_proxy:
+    environment:
+      APP_HOST: zot24-spines_web_1
+      APP_PORT: "8787"
+
+  web:
+    # Not published by this change. Umbrel rejects an unpinned image.
+    # A later commit, after a human publishes the image, pins ghcr.io/zot24/spines@sha256:...
+    image: ghcr.io/zot24/spines:0.1.0
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: on-failure
+    init: true
+    environment:
+      SPINES_DATA: /data
+      SPINES_BIND: 0.0.0.0:8787
+      SPINES_MEDIA: /media
+      SPINES_MUSIC: /media/music
+      SPINES_BOOKS: /books
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+      # Calibre-Web's library, read-only. Same kind of cross-app mount albyhub and mempool use.
+      - ${UMBREL_ROOT}/app-data/calibre-web/data/books:/books:ro
+      # Downloads, read-only. The Files app shows this as Downloads.
+      # The first-open screen starts at /media/music, which is Downloads/music,
+      # the same folder the official Navidrome app mounts.
+      - ${UMBREL_ROOT}/data/storage/downloads:/media:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

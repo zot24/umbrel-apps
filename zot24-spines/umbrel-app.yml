@@ -1,0 +1,38 @@
+manifestVersion: 1.1
+id: zot24-spines
+name: Spines
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-spines/icon.svg
+category: media
+version: "0.1.0"
+tagline: A wall of albums and a shelf of books
+description: >-
+  Spines is one library for music and books. Albums stand as jewel cases.
+  Tap a case and it slides out and plays in the browser. Books stand as
+  spines on a plank, colored from their covers, taken from the Calibre-Web
+  library on this Umbrel.
+
+
+  The catalog, generated spines, and cover cache live in this app's data
+  folder. Books come from Calibre-Web, mounted read-only. Music defaults to
+  Downloads/music and can be pointed at another folder under Downloads.
+  Spines does not edit tags, does not download files, and does not replace
+  Calibre.
+releaseNotes: >-
+  0.1.0: Music jewel-case wall with in-browser playback, and the bookshelf
+  ported from zot24/bookshelf. Books come from Calibre-Web, mounted
+  read-only. Music starts at Downloads/music and can be changed on first open.
+developer: zot24
+website: https://github.com/zot24/spines
+dependencies:
+  - calibre-web
+repo: https://github.com/zot24/spines
+support: https://github.com/zot24/umbrel-apps/issues
+port: 8787
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""
