@@ -1,0 +1,34 @@
+# Same server as docker-compose.yml, without Umbrel's app_proxy.
+# Pass SESSION_SECRET_KEY and CREATE_SUPERUSER in the environment.
+# Do not write those values into a file in this repository.
+services:
+  data-init:
+    image: alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
+    user: "0:0"
+    restart: "no"
+    volumes:
+      - rustrak-local-data:/data
+    command: ["sh", "-c", "mkdir -p /data/ingest && chown -R 65532:65532 /data"]
+
+  web:
+    image: rustrak/rustrak-server:v0.30.1@sha256:32fc99dfc61b48fce0ea63020eacf4fccfe69bd774cd4520ea989d5689ec18c3
+    restart: "no"
+    init: true
+    stop_grace_period: 30s
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    ports:
+      - "8686:8080"
+    environment:
+      SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:?set SESSION_SECRET_KEY}
+      CREATE_SUPERUSER: ${CREATE_SUPERUSER:?set CREATE_SUPERUSER}
+      PUBLIC_URL: ${PUBLIC_URL:-http://127.0.0.1:8686}
+      RUSTRAK_TELEMETRY: "off"
+      INGEST_DIR: /data/ingest
+      RUST_LOG: info
+    volumes:
+      - rustrak-local-data:/data
+
+volumes:
+  rustrak-local-data:

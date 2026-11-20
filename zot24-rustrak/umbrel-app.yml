@@ -1,0 +1,70 @@
+manifestVersion: 1.1
+id: zot24-rustrak
+name: Rustrak
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-rustrak/icon.svg
+category: developer
+version: "0.30.1"
+tagline: Self-hosted error tracker for Sentry SDKs
+description: >-
+  Rustrak is a self-hosted error tracker that speaks the Sentry protocol.
+  Point any Sentry SDK at a project DSN from this app and the error shows
+  up as an issue. One container serves the dashboard and the ingest API.
+  Events live in SQLite on this app's data volume.
+
+
+  Sign-in:
+
+
+  - Open the tile. The page is Rustrak's own login. Umbrel's proxy login
+    is off so Sentry SDKs can post to the same address.
+
+  - Username is admin@rustrak.local. The password is the one Umbrel shows
+    on this tile.
+
+  - That account is created on the first start, and only when the database
+    has no users yet. Changing the tile password later does not change it.
+    Rustrak has no password reset in the dashboard.
+
+
+  Sending errors:
+
+
+  - Create a project, copy its DSN, and set it in your Sentry SDK.
+
+  - The DSN host is http://<this Umbrel's .local name>:8686. The machine
+    that runs the SDK has to reach that address.
+
+  - Do not put this app on the public internet. The ingest API is open to
+    anyone who has a DSN, and the login page is on the same port.
+
+
+  Limits:
+
+
+  - SQLite only. There is no Postgres service in this package.
+
+  - Anonymous telemetry to the Rustrak project is off.
+
+  - The image is rustrak/rustrak-server, AGPL-3.0. Source and docs are at
+    https://rustrak.dev and https://github.com/rustrak/rustrak.
+releaseNotes: >-
+  First release. Rustrak 0.30.1 with SQLite on the app data volume.
+  The tile shows a per-install admin password. Session cookies stay
+  valid across restarts.
+developer: zot24
+website: https://rustrak.dev
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 8686
+gallery:
+  - https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-rustrak/gallery/1.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-rustrak/gallery/2.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-rustrak/gallery/3.png
+path: ""
+defaultUsername: "admin@rustrak.local"
+defaultPassword: ""
+deterministicPassword: true
+torOnly: false
+submitter: zot24
+submission: ""
