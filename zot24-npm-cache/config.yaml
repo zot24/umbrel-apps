@@ -1,0 +1,45 @@
+# Cache-only Verdaccio in front of registry.npmjs.org.
+# Publishing and unpublishing are denied for every package.
+# Signup is disabled (max_users: -1). Do not add a user file
+# that would change that.
+
+storage: /verdaccio/storage/data
+plugins: /verdaccio/plugins
+
+web:
+  title: npm Cache
+  login: false
+  gravatar: false
+
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+    max_users: -1
+
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+
+packages:
+  '@*/*':
+    access: $all
+    publish: nobody
+    unpublish: nobody
+    proxy: npmjs
+  '**':
+    access: $all
+    publish: nobody
+    unpublish: nobody
+    proxy: npmjs
+
+server:
+  keepAliveTimeout: 60
+
+middlewares:
+  audit:
+    enabled: true
+
+log:
+  type: stdout
+  format: pretty
+  level: http

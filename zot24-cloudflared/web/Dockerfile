@@ -1,5 +1,5 @@
-# use Node 18 image as a builder
-FROM node:18-alpine AS builder
+# use Node 22 image as a builder
+FROM node:22-alpine AS builder
 
 # work under the /app directory
 WORKDIR /app
@@ -21,8 +21,8 @@ RUN npm run build
 # they are no longer needed.
 RUN npm prune --production
 
-# take the distroless Node 18 image
-FROM gcr.io/distroless/nodejs18-debian11
+# take the distroless Node 22 image
+FROM gcr.io/distroless/nodejs22-debian13
 
 # work under the /app directory
 WORKDIR /app

@@ -25,10 +25,12 @@ Each app folder has a README with its setup, its limits and how it works.
 | [GitHub Runner](zot24-github-runner/README.md) | `zot24-github-runner` | 3500 | Self-hosted GitHub Actions runners for your private repositories. Jobs with `runs-on: [self-hosted, umbrel]` run on the Umbrel, one fresh container per job, inside a Docker daemon private to the app. GitHub does not bill self-hosted minutes. |
 | [Cloudflare Tunnel](zot24-cloudflared/README.md) | `zot24-cloudflared` | 4500 | Cloudflare Tunnel for other Umbrel apps. Separate from the official `cloudflared` app on port 4499. The connector installs a new cloudflared by itself. |
 | [Dockyard](zot24-dockyard/README.md) | `zot24-dockyard` | 8120 | An isolated Docker host on your Umbrel: a full Docker daemon in its own network namespace, apart from Umbrel's own Docker, to deploy and run your own containers. |
+| [Rustrak](zot24-rustrak/README.md) | `zot24-rustrak` | 8686 | Self-hosted error tracker for Sentry SDKs. SQLite on the app data volume. Its own login, so SDKs can post to the tile address. |
 | [Openship](zot24-openship/README.md) | `zot24-openship` | 3001 | The Openship deploy control plane (dashboard and API). It manages remote servers over SSH, and does not build or run apps on the Umbrel. |
 | [Lifeboat](zot24-lifeboat/README.md) | `zot24-lifeboat` | 7746 | Nightly encrypted backups of a Supabase project (database and Storage files), on the Umbrel and in Cloudflare R2, with one-button restore and restore drills. |
+| [Spines](zot24-spines/README.md) | `zot24-spines` | 8787 | A wall of album jewel cases that play in the browser, and a shelf of books from Calibre-Web. Media stays read-only. Music starts at Downloads/music and can be changed on first open. |
 
-nworth and Openship have their own login. The other web UIs are behind the Umbrel login.
+nworth, Openship, and Rustrak have their own login. The other web UIs are behind the Umbrel login.
 
 ## How an update reaches your Umbrel
 
@@ -43,7 +45,7 @@ How a change gets a new version depends on where the app's image comes from:
 |------|-------|--------------------------------------|
 | GitHub Runner, Cursor Sandboxes, Herdr, Playwright Renderer, Cloudflare Tunnel, Lifeboat | Built in this repository (`ghcr.io/zot24/…`) | `Build: <app>` builds the images for amd64 and arm64, tags them with the version in `umbrel-app.yml`, and the bot commits the new digests to `docker-compose.yml` (`chore: pin …` or `chore: update … image`). The build starts only for changes to the image sources. |
 | nworth | Built in `zot24/nworth` | `Pin nworth image` runs every day. It pins the newest published image and changes the version itself, so no pull request is needed. |
-| Apprise, Dockyard, Openship, Proton Bridge | Upstream images | Change the image in `docker-compose.yml` and the version in the same pull request. |
+| Apprise, Dockyard, Openship, Proton Bridge, Rustrak | Upstream images | Change the image in `docker-compose.yml` and the version in the same pull request. |
 
 Two weekly workflows open their own pull requests with a new version:
 `Update: GitHub Actions runner` (the `actions/runner` base of the runner image)

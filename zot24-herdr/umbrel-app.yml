@@ -112,12 +112,15 @@ releaseNotes: >-
   TUI's state in /data/.config/herdr is no longer used and can be deleted,
   and a herdr binary left in /data/.local/bin is set aside as herdr.stale.
   `herdr --remote` no longer reaches this box; use the desktop app.
-  herdr-core 0.1.14 to 0.1.21, the latest release. moshi-hook 0.4.43 to
-  0.4.62: Moshi needs 0.4.45 or newer to see herdr-core. Removes the
+  moshi-hook 0.4.58 to 0.4.62: Moshi needs 0.4.45 or newer to see
+  herdr-core. Removes the
   agent-bridge, the internal HTTP API on port 7682 for sibling apps: nothing
   called it, and HERDR_AGENT_TOKEN in /data/.env can be deleted. Updating
   restarts herdr-core: desktop-app terminals come back as a fresh shell in
   their last folder.
+
+
+  0.10.2: image pins refreshed (herdr 0.9.5, herdr-core 0.1.21; see cli-versions.json). Image pins refreshed by zot24-herdr/ci/update-deps.sh.
 
 
   0.10.1: Adds jq to the image, so repo hooks that parse JSON with jq

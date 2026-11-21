@@ -9,11 +9,11 @@ connection — requests carry your real residential IP, not a datacenter one.
 It's a drop-in alternative to Cloudflare Browser Rendering or paid scraping
 APIs for sites that fingerprint or block datacenter IPs.
 
-The public Cloudflare Tunnel is handled by the standalone
-[Cloudflared Umbrel app](https://apps.umbrel.com/app/cloudflared) — declared
-as a dependency so installing this app pulls cloudflared in if it's not
-already on your Umbrel. One tunnel daemon then fronts every home-tunnel app
-on the box.
+The public Cloudflare Tunnel is handled by the
+[Cloudflare Tunnel app in this store](https://github.com/zot24/umbrel-apps/tree/main/zot24-cloudflared)
+(`zot24-cloudflared`), which runs the umbrel-pyg tunnel. This app does
+not declare a dependency on the official Cloudflared app, so installing
+it will not pull that one in.
 
 ## How it's wired
 
@@ -21,7 +21,7 @@ on the box.
    client (e.g. a Cloudflare Worker)
               |
               v   https://playwright.<your-domain>/render
-   Cloudflare Tunnel  ──► Cloudflared Umbrel app (separate)
+   Cloudflare Tunnel  ──► zot24-cloudflared (umbrel-pyg tunnel)
                           |
                           v   ingress: http://zot24-playwright-renderer_playwright_1:3030
                        playwright service (this app)  ──► chromium
@@ -29,8 +29,8 @@ on the box.
 ```
 
 The `app_proxy` Umbrel sidecar fronts the service for the Umbrel dashboard,
-and the Cloudflared app — installed separately and shared with every other
-home-tunnel app — exposes it to the public Internet. The renderer itself
+and zot24-cloudflared — installed separately, running the umbrel-pyg
+tunnel — exposes it to the public Internet. The renderer itself
 enforces bearer-token auth on every `/render` call.
 
 ## Prerequisites
@@ -39,10 +39,10 @@ enforces bearer-token auth on every `/render` call.
 - A domain managed by Cloudflare (free plan is fine).
 - A Cloudflare Tunnel already created in
   [Cloudflare Zero Trust](https://one.dash.cloudflare.com), and the
-  [Cloudflared Umbrel app](https://apps.umbrel.com/app/cloudflared) installed
-  and bound to it. (Umbrel will offer to install Cloudflared automatically
-  when you install Playwright Renderer — this is the `dependencies` entry in
-  the manifest.)
+  [Cloudflare Tunnel app in this store](https://github.com/zot24/umbrel-apps/tree/main/zot24-cloudflared)
+  (`zot24-cloudflared`) installed and bound to the umbrel-pyg tunnel.
+  This app does not declare a dependency on the official Cloudflared
+  app, so Umbrel will not offer to install that one.
 
 ## One-time Cloudflare setup
 
@@ -51,7 +51,8 @@ If you haven't already wired up Cloudflared:
 1. In the Cloudflare Zero Trust dashboard, go to **Networks → Tunnels →
    Create a tunnel** (cloudflared connector). Copy the **Tunnel token**
    (a long opaque string starting with `eyJ...`).
-2. Install the Cloudflared Umbrel app and paste the token into its config.
+2. Install the Cloudflare Tunnel app from this store (`zot24-cloudflared`)
+   and paste the token into its config.
 3. In the Cloudflare dashboard's tunnel detail page, add a **Public
    Hostname**:
    - Subdomain: `playwright` (or anything you like)
@@ -219,6 +220,6 @@ npm test
 - **`504 render timeout`** — the page didn't reach `networkidle` (or your
   `waitForSelector` didn't match) within the timeout. Increase
   `gotoOptions.timeout` (max 60s) or simplify your selector.
-- **Tunnel down** — check the Cloudflared Umbrel app's container logs and
-  the Tunnel status in the Cloudflare Zero Trust dashboard. (cloudflared is
-  a separate app from this one — see Prerequisites.)
+- **Tunnel down** — check the zot24-cloudflared app's container logs and
+  the umbrel-pyg tunnel status in the Cloudflare Zero Trust dashboard.
+  (The tunnel is a separate app from this one — see Prerequisites.)

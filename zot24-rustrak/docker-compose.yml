@@ -1,0 +1,43 @@
+services:
+  # Rustrak has its own login. The proxy stays in front so the tile port is
+  # still Umbrel's, but it does not require an Umbrel session. Sentry SDKs
+  # POST to this same origin and cannot complete that login.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-rustrak_web_1
+      APP_PORT: 8080
+      PROXY_AUTH_ADD: "false"
+
+  # The image runs as uid 65532 and has no shell. A fresh Umbrel data
+  # directory is root-owned, so SQLite would fail on the first write.
+  # chown is the whole job. Running it again leaves the same owner.
+  data-init:
+    image: alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
+    user: "0:0"
+    restart: "no"
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+    command: ["sh", "-c", "mkdir -p /data/ingest && chown -R 65532:65532 /data"]
+
+  web:
+    # SQLite build. The digest is the multi-arch index for v0.30.1.
+    image: rustrak/rustrak-server:v0.30.1@sha256:32fc99dfc61b48fce0ea63020eacf4fccfe69bd774cd4520ea989d5689ec18c3
+    restart: on-failure
+    init: true
+    stop_grace_period: 30s
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    environment:
+      # Umbrel's APP_SEED is a 64-character hex string, which is the
+      # minimum SESSION_SECRET_KEY length. It is stable for this install.
+      SESSION_SECRET_KEY: ${APP_SEED:?APP_SEED is required}
+      # First boot only. Later edits of APP_PASSWORD do not change the user.
+      CREATE_SUPERUSER: "admin@rustrak.local:${APP_PASSWORD:?APP_PASSWORD is required}"
+      # Host written into every DSN. SDKs must be able to reach it.
+      PUBLIC_URL: "http://${DEVICE_DOMAIN_NAME:-umbrel.local}:${APP_PROXY_PORT:-8686}"
+      RUSTRAK_TELEMETRY: "off"
+      INGEST_DIR: /data/ingest
+      RUST_LOG: info
+    volumes:
+      - ${APP_DATA_DIR}/data:/data

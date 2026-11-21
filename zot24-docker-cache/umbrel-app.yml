@@ -1,0 +1,66 @@
+manifestVersion: 1.1
+id: zot24-docker-cache
+name: Docker Hub Cache
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-docker-cache/icon.svg
+category: developer
+version: "3.1.4"
+tagline: A Docker Hub pull-through cache on your Umbrel
+description: >-
+  This app runs the official CNCF Distribution registry as a pull-through
+  cache for Docker Hub. The first pull of an image goes to Docker Hub and
+  is stored on the Umbrel. Later pulls of the same image are served from
+  that local copy, at LAN or Tailscale speed.
+
+
+  The Umbrel tile opens a read-only web UI of the cached repositories
+  and tags. The tile is behind the dashboard login. Image deletes from
+  the UI are turned off.
+
+
+  Point Docker at it with the registry-mirrors setting (see the README).
+  The mirror only covers images on Docker Hub. Images from GitHub
+  Container Registry, ghcr.io, quay.io, and other registries are not
+  cached and still go to their own hosts.
+
+
+  Clients on your Mac or a CI runner use http://<umbrel-host>:25750
+  (port 25750 is a direct publish of the registry, and does not go
+  through the dashboard login). The Umbrel tile is on port 25752,
+  which opens the web UI. Sibling containers on the Umbrel network
+  use http://docker-cache:5000. Do not use the Umbrel tile URL as a
+  registry: Docker cannot sign in.
+
+
+  Docker treats a registry-mirror as a shortcut, not a requirement.
+  If this app is stopped, Docker falls back to Docker Hub on its own.
+  Because the cache speaks HTTP, non-localhost clients must also list
+  the address under insecure-registries.
+
+
+  Cached images expire after 7 days (REGISTRY_PROXY_TTL=168h). Deletes
+  are enabled on the registry so its scheduler can reclaim expired
+  entries. The web UI cannot delete images. Do not publish this port
+  to the public internet or put it on a Cloudflare Tunnel. Anyone who
+  can reach it can pull through your cache and share your Docker Hub
+  rate limit.
+releaseNotes: >-
+  Moves the Umbrel tile to port 25752 so it no longer shares a host
+  port with the registry. Docker clients still use host port 25750,
+  a direct publish with no dashboard login. umbrelOS was retrying a
+  bind of 127.0.0.1:25750 every minute because both the tile and the
+  registry publish used that port. The registry and UI images are
+  unchanged.
+developer: zot24
+website: https://distribution.github.io/distribution/
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 25752
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: false
+torOnly: false
+submitter: zot24
+submission: ""

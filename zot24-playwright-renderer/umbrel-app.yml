@@ -3,7 +3,7 @@ id: zot24-playwright-renderer
 name: Playwright Renderer
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-playwright-renderer/icon.svg
 category: developer
-version: "0.3.2"
+version: "0.3.3"
 tagline: Self-hosted headless-browser renderer with residential-IP egress
 description: >-
   Playwright Renderer is a project-agnostic self-hosted headless-browser
@@ -24,9 +24,10 @@ description: >-
     requests a residential IP fingerprint that sidesteps datacenter-IP rate
     limits and bot detection.
 
-  - Pairs with the standalone Cloudflared Umbrel app — declared as a
-    dependency so installing this app installs the tunnel daemon too, and a
-    single cloudflared instance can serve every home-tunnel app on the box.
+  - Pairs with the Cloudflare Tunnel app in this store (zot24-cloudflared),
+    which runs the umbrel-pyg tunnel. This app does not declare a
+    dependency on the official Cloudflared app, so installing it will
+    not pull that one in.
 
   - Drop-in compatible: response shape mirrors Cloudflare Browser Rendering's
     /content endpoint so clients can swap backends without code changes.
@@ -62,9 +63,9 @@ description: >-
 
   Setup Instructions:
 
-  1. Install the Cloudflared Umbrel app and configure your tunnel + tunnel
-     token there. (This app declares cloudflared as a dependency, so Umbrel
-     will prompt for it on install if it's not present.)
+  1. Install the Cloudflare Tunnel app from this store (zot24-cloudflared)
+     and point the umbrel-pyg tunnel at this app. This app does not
+     declare a dependency on the official Cloudflared app.
 
   2. In the Cloudflare Zero Trust dashboard, add a public hostname to your
      tunnel pointing at http://zot24-playwright-renderer_playwright_1:3030.
@@ -80,6 +81,15 @@ description: >-
   5. Test with: curl -X POST https://playwright.<your-domain>/render
      -H "Authorization: Bearer <token>" -d '{"url":"https://example.com"}'
 releaseNotes: >-
+  0.3.3: Drops the official Cloudflared app (`cloudflared`) as a
+  declared dependency. The public hostname is served by the umbrel-pyg
+  tunnel, which is already run by the Cloudflare Tunnel app in this
+  store (`zot24-cloudflared`). That app's id does not satisfy a
+  `cloudflared` dependency, so leaving it declared would prompt Umbrel
+  to install the official app. Docs now point at zot24-cloudflared.
+  No image change.
+
+
   0.3.2: The 0.3.0 image copied server.js and left out autologin.js.
   server.js requires that module, so the container exited on boot with
   "Cannot find module './autologin.js'" and never stayed up. The image
@@ -123,8 +133,7 @@ releaseNotes: >-
   is effectively no 2FA; use a dedicated scraping account).
 developer: zot24
 website: https://github.com/zot24/umbrel-apps
-dependencies:
-  - cloudflared
+dependencies: []
 repo: https://github.com/zot24/umbrel-apps
 support: https://github.com/zot24/umbrel-apps/issues
 port: 3030
