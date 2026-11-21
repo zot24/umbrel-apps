@@ -28,6 +28,7 @@ Each app folder has a README with its setup, its limits and how it works.
 | [Rustrak](zot24-rustrak/README.md) | `zot24-rustrak` | 8686 | Self-hosted error tracker for Sentry SDKs. SQLite on the app data volume. Its own login, so SDKs can post to the tile address. |
 | [Openship](zot24-openship/README.md) | `zot24-openship` | 3001 | The Openship deploy control plane (dashboard and API). It manages remote servers over SSH, and does not build or run apps on the Umbrel. |
 | [Lifeboat](zot24-lifeboat/README.md) | `zot24-lifeboat` | 7746 | Nightly encrypted backups of a Supabase project (database and Storage files), on the Umbrel and in Cloudflare R2, with one-button restore and restore drills. |
+| [Spines](zot24-spines/README.md) | `zot24-spines` | 8787 | A wall of album jewel cases that play in the browser, and a shelf of books from Calibre-Web. Media stays read-only. Music starts at Downloads/music and can be changed on first open. |
 
 nworth, Openship, and Rustrak have their own login. The other web UIs are behind the Umbrel login.
 
