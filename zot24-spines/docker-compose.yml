@@ -5,9 +5,8 @@ services:
       APP_PORT: "8787"
 
   web:
-    # Not published by this change. Umbrel rejects an unpinned image.
-    # A later commit, after a human publishes the image, pins ghcr.io/zot24/spines@sha256:...
-    image: ghcr.io/zot24/spines:0.1.0
+    # Published from zot24/spines v0.1.0. The manifest is linux/amd64.
+    image: ghcr.io/zot24/spines:0.1.0@sha256:25c02b02ff11bc3e6bf7829300a9ca2e74a5ae2e311e6a8800f1b4ca2d67a5e0
     user: "1000:1000"
     read_only: true
     tmpfs:

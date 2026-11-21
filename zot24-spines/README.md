@@ -4,7 +4,7 @@ One library for music and books. Source and app docs: [zot24/spines](https://git
 
 - App id: `zot24-spines`
 - UI port: 8787, behind the Umbrel login
-- Image: `ghcr.io/zot24/spines:0.1.0`. This package does not publish it. Umbrel rejects an unpinned image, so the app will not install until a later commit pins a digest.
+- Image: `ghcr.io/zot24/spines:0.1.0@sha256:25c02b02ff11bc3e6bf7829300a9ca2e74a5ae2e311e6a8800f1b4ca2d67a5e0`. The manifest is linux/amd64. The package is private, so the Umbrel host needs a `docker login ghcr.io` that can read it.
 
 ## Books
 
