@@ -2,9 +2,9 @@
 
 | File | Purpose |
 |---|---|
-| `update-deps.sh` | Fetch latest stable herdr + herdr-core + ttyd + moshi-hook, rewrite Dockerfile pins, bump VERSION |
+| `update-deps.sh` | Fetch latest stable herdr-core + ttyd + moshi-hook, rewrite Dockerfile pins, bump VERSION |
 | `update-herdr-deps.yml` | Weekly Action: run the script, open PR if pins moved |
-| `build-herdr.yml` | Copy of the image build workflow with bootstrap/bridge path filters |
+| `build-herdr.yml` | Copy of the image build workflow with server/ path filters |
 
 Both workflows are active: they live in `.github/workflows/` as copies of the
 YAML here. Edit both copies together. Pushing `.github/workflows/*` needs a

@@ -3,57 +3,53 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.10.2"
-tagline: Terminal multiplexer for AI coding agents — always on, attach from anywhere
+version: "0.11.0"
+tagline: Always-on herdr-core machine for the Herdr desktop and phone apps
 description: >-
-  Herdr is a terminal multiplexer purpose-built for running AI coding agents
-  (Claude Code, Codex, Gemini, and more) in parallel. This app runs a
-  persistent Herdr server on your Umbrel so your agents stay alive around the
-  clock — detach from your laptop, reattach from your phone, and everything
-  is exactly where you left it.
+  Herdr runs AI coding agents (Claude Code, Codex, Grok, Kimi, and more) in
+  terminals that stay alive. This app runs herdr-core, the runtime behind the
+  Herdr desktop and phone apps, on your Umbrel. Add the Umbrel as a machine
+  in Herdr and its agents keep running around the clock: close your laptop,
+  check in from your phone, and everything is where you left it.
 
 
   How you attach:
 
 
+  - Herdr desktop app: add this Umbrel as a machine over SSH on port 7683.
+    The Ready screen of the setup page shows the ~/.ssh/config entry to add.
+
+
+  - Herdr phone app: connects to this machine over SSH the same way, and
+    shows the same terminals and agents.
+
+
+  - Moshi (getmoshi.app): pair with the QR on the setup page. Moshi lists
+    this machine's herdr-core terminals in its session picker.
+
+
   - Web: open the app tile. Umbrel login, then the tile password, then a
-    setup page for Claude Code / Codex / Grok / Kimi / GitHub keys. After that you
-    land in the Herdr TUI. The terminal is writable (keyboard works).
-
-
-  - Phone (Moshi or any SSH client): the app runs its own SSH server on port
-    7683, so you connect straight to Herdr — no shell on your Umbrel host and
-    no wrapper script. Key authentication only; a bare login drops you in the
-    Herdr TUI. Moshi (getmoshi.app) has native Herdr support and is the
-    recommended phone client; its session picker works out of the box.
-
-
-  - Laptop thin client: `herdr --remote <your-umbrel>` over that same SSH
-    port, from any machine that has Herdr installed.
-
-
-  - Herdr desktop app: add this Umbrel as a machine over that same SSH port.
-    Its spaces and agents run here, in the app's herdr-core, and keep running
-    while your laptop sleeps. The Ready screen of the setup page shows the
-    ~/.ssh/config entry to add. These terminals are separate from the TUI.
+    setup page for Claude Code / Codex / Grok / Kimi / GitHub keys. Open
+    terminal shows herdr-core's terminal picker: attach to any terminal the
+    Herdr apps run here (ctrl+\ detaches), or start a new one.
 
 
   Features:
 
 
-  - Persistent sessions: the Herdr server runs headless in the container.
-    Closing the browser tab only detaches that client — agents keep running.
+  - Persistent terminals: herdr-core runs headless in the container. Closing
+    the browser tab or the desktop app only detaches — agents keep running.
 
 
-  - Your data stays home: Herdr config, session state, workspaces, and
-    npm-installed agent CLIs all live on the app data volume and survive app
-    updates and container rebuilds.
+  - Your data stays home: herdr-core state, workspaces, and npm-installed
+    agent CLIs all live on the app data volume and survive app updates and
+    container rebuilds.
 
 
   - Agent-CLI ready: Node.js LTS + npm are preinstalled and global installs
     land on the persistent volume, so `npm install -g
-    @anthropic-ai/claude-code` sticks. Git, curl, mosh, and an OpenSSH client
-    are included.
+    @anthropic-ai/claude-code` sticks. Git, curl, gh, mosh, and an OpenSSH
+    client are included.
 
 
   Setup Instructions:
@@ -65,23 +61,25 @@ description: >-
 
   2. Paste API keys (Claude Code, Codex, Grok, GitHub, …) on the setup page. They
      are written to this app's data volume. Empty fields leave existing
-     values. Skip if you only want the TUI.
+     values.
 
 
-  3. Open Herdr. Keep git clones under /data/workspaces so they persist.
+  3. Add your computer's SSH public key on the setup page, then add the
+     machine in the Herdr desktop app. Keep git clones under
+     /data/workspaces so they persist.
 
 
-  4. Phone (Moshi): on the setup page, enter a Tailscale or LAN hostname
-     the phone can reach, then Generate QR and scan it in the Moshi app.
-     User is node, port 7683. Do not screenshot the QR. Fallback: paste
-     an SSH public key on the same page (no restart needed). Never
-     port-forward SSH or expose the web terminal.
+  4. Phone: add the machine in the Herdr phone app, or pair Moshi: on the
+     setup page, enter a Tailscale or LAN hostname the phone can reach, then
+     Generate QR and scan it in the Moshi app. User is node, port 7683. Do
+     not screenshot the QR. Never port-forward SSH or expose the web
+     terminal.
 
 
   Security notes:
 
 
-  - The web UI is Umbrel login, then the tile password, then the TUI.
+  - The web UI is Umbrel login, then the tile password, then the terminal.
     Do not publish port 7681 or tunnel the app to the public internet.
 
 
@@ -98,18 +96,30 @@ description: >-
     credentials — but not your Umbrel host.
 
 
-  - Port 7682 (agent-bridge) is NOT published to the host and is not on the
-    app proxy; it is reachable only by sibling containers, authenticated with
-    HERDR_AGENT_TOKEN. Treat that token like root on this container.
-
-
   - Agent CLIs inside the container can use whatever API keys and git
     credentials you provide. Treat the app data volume like a dev workstation.
 
 
-  - Herdr and herdr-core are free software (Apache-2.0):
+  - herdr-core is free software (Apache-2.0):
     https://github.com/herdrdev — https://herdr.dev
 releaseNotes: >-
+  0.11.0: herdr-core only. The app no longer ships the Herdr TUI: upstream's
+  work is on herdr-core, and the Herdr desktop app, the Herdr phone app and
+  Moshi all use it. The web terminal and a plain SSH login now open
+  herdr-core's terminal picker (`hc`), so they show the same terminals as
+  the Herdr apps, then a shell. Agents running in the TUI stop on update and
+  do not move to herdr-core; your workspaces and keys on /data stay. The
+  TUI's state in /data/.config/herdr is no longer used and can be deleted,
+  and a herdr binary left in /data/.local/bin is set aside as herdr.stale.
+  `herdr --remote` no longer reaches this box; use the desktop app.
+  moshi-hook 0.4.58 to 0.4.62: Moshi needs 0.4.45 or newer to see
+  herdr-core. Removes the
+  agent-bridge, the internal HTTP API on port 7682 for sibling apps: nothing
+  called it, and HERDR_AGENT_TOKEN in /data/.env can be deleted. Updating
+  restarts herdr-core: desktop-app terminals come back as a fresh shell in
+  their last folder.
+
+
   0.10.2: image pins refreshed (herdr 0.9.5, herdr-core 0.1.21; see cli-versions.json). Image pins refreshed by zot24-herdr/ci/update-deps.sh.
 
 

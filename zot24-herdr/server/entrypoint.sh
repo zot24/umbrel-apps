@@ -27,14 +27,7 @@ chmod 700 "$SSH_RUN_DIR"
 # First-run seeding, as the runtime user.
 gosu "$RUN_USER" bash -s <<'EOF'
 set -euo pipefail
-mkdir -p /data/.config/herdr /data/workspaces /data/.npm-global
-
-# Skip the interactive first-run onboarding flow on a headless box; the user
-# finishes setup (agent integrations etc.) from the web terminal or via the
-# internal agent-bridge API used by sibling apps (Hermes).
-if [ ! -f /data/.config/herdr/config.toml ]; then
-    printf 'onboarding = false\n' > /data/.config/herdr/config.toml
-fi
+mkdir -p /data/workspaces /data/.npm-global
 
 # An SSH login is not a container process, so it inherits none of the image's
 # ENV and none of the secrets compose loads from .env. Seed a login profile
@@ -59,13 +52,15 @@ PROFILE
 fi
 
 # Profiles seeded before 0.9.6 put /usr/local/bin after the volume dirs, so
-# login shells (Herdr panes, `bash -lc`) still ran stale copies an older
+# login shells (terminals, `bash -lc`) still ran stale copies an older
 # installer left in /data/.local/bin, e.g. moshi-hook 0.3.x, which Moshi then
 # flags against the 0.4.x daemon. Move the image's dir to the front of that
 # old PATH line, and set the stale binaries aside (renamed, not deleted).
 # herdr-core / hc land there when a desktop app ran `hc machine add` against
 # this box before the image shipped its own, or ran `hc machine update`; the
-# core that runs here comes with app updates, like herdr itself.
+# core that runs here comes with app updates. herdr is the Herdr TUI, which
+# the image dropped in 0.11.0; a copy left on the volume would run a second,
+# separate runtime, so it is set aside too.
 sed -i 's#^export PATH=/data/\.npm-global/bin:#export PATH=/usr/local/bin:/data/.npm-global/bin:#' /data/.profile
 for bin in moshi-hook moshi herdr herdr-core hc; do
     if [ -e "/data/.local/bin/$bin" ] || [ -L "/data/.local/bin/$bin" ]; then
@@ -107,17 +102,11 @@ if [ "${HERDR_BOOTSTRAP_AGENTS:-0}" = "1" ]; then
         echo "[entrypoint] bootstrap-agents failed (non-fatal)" >&2
 fi
 
-# Start the headless herdr server (default session) so agents keep running
-# even when no client is attached, and so `herdr session list` works for SSH
-# clients (e.g. Moshi's herdr picker) before anyone opens the web UI. If it
-# exits early (e.g. a stale socket after an unclean shutdown), the first
-# client attach via ttyd will spawn a fresh server instead.
-gosu "$RUN_USER" herdr server &
-
-# herdr-core (hc): the Herdr desktop app adds this box as an SSH machine
-# (port 7683) and runs that machine's spaces and terminals in this core. It is
-# separate from the TUI server above; the two do not share terminals. Started
-# here so it is up before the first client, and outlives every client: with
+# herdr-core (hc), the runtime: the Herdr desktop and phone apps add this box
+# as an SSH machine (port 7683) and run that machine's terminals and agents in
+# this core; Moshi lists them through moshi-hook; the web terminal opens its
+# picker. Started here so it is up before the first client, and outlives
+# every client: with
 # no systemd user manager in the container, `server start` runs it detached
 # (hc warns about that on stderr), so it lives as long as the container.
 # State and its socket go to /data/.local/state/herdr-core (no
@@ -127,19 +116,15 @@ gosu "$RUN_USER" env SHELL=/usr/local/lib/herdr-umbrel/login/bash \
     herdr-core server start || \
     echo "[entrypoint] herdr-core did not start (non-fatal); the first hc client starts one" >&2
 
-# Internal machine API for sibling Umbrel apps (Hermes, etc.).
-# NOT published through app_proxy. Auth: HERDR_AGENT_TOKEN in /data/.env.
-# Port default 7682 — see exports.sh APP_ZOT24_HERDR_AGENT_PORT.
-gosu "$RUN_USER" node /usr/local/lib/herdr-umbrel/agent-bridge.mjs &
-
 # ---------------------------------------------------------------------------
-# SSH: an sshd inside this container, so a phone (Moshi) or a laptop
-# (`herdr --remote`) attaches straight to the app. The alternative — SSH to the
+# SSH: an sshd inside this container, so the Herdr desktop app, a phone
+# (Herdr's app or Moshi) or plain ssh attaches straight to the app. The alternative — SSH to the
 # Umbrel host and `docker exec` in — needs a host-side wrapper script and puts
 # the umbrel user in the docker group, which is root-equivalent on the box.
 # This keeps the blast radius inside the container.
 #
-# Port 7683, NOT 7682: 7682 is the agent-bridge above. Key-only, no passwords,
+# Port 7683 (7682 was the agent-bridge, removed in 0.10.2; keeping the port
+# keeps existing SSH configs and Moshi pairings). Key-only, no passwords,
 # and sshd runs as the unprivileged runtime user on an unprivileged port, so no
 # root daemon survives startup. Always start sshd: Easy Pair writes the first
 # key after the QR is scanned, and sshd re-reads authorized_keys per
@@ -197,9 +182,9 @@ PermitRootLogin no
 AllowUsers node
 UsePAM no
 
-# Land in the Herdr TUI, exactly like \`docker exec -it … herdr\`. The shim
-# passes an explicit remote command through instead, so Moshi's picker
-# (\`herdr session list --json\`) and \`herdr --remote\` keep working.
+# An interactive login lands in a login shell. The shim passes an explicit
+# remote command through instead, so the Herdr apps (\`herdr-core connect\`)
+# and Moshi's picker (\`moshi-hook mux ls\`) keep working.
 ForceCommand /usr/local/lib/herdr-umbrel/ssh-login.sh
 
 # Moshi's desktop client reaches the moshi-hook gateway by opening an SSH
@@ -228,20 +213,20 @@ chmod 600 "$run_dir/sshd_config"
 echo "ssh: listening on ${ssh_port} (key auth only, user 'node')"
 EOF
 
-# moshi-hook daemon: agent approvals / inbox after Easy Pair. Linux defaults
+# moshi-hook daemon: agent approvals / inbox after Easy Pair, and the
+# herdr-core spaces in Moshi's session picker. Linux defaults
 # to file-backed secrets on /data (no Keychain). Skip install.sh's /dev/tty
 # first-run prompt. Logs go to docker logs — serve never prints Easy Pair URLs.
 gosu "$RUN_USER" env \
     HOME=/data \
     MOSHI_HOOK_SKIP_FIRST_RUN=1 \
-    MOSHI_HERDR_PATH=/usr/local/bin/herdr \
     moshi-hook serve &
 
 # Web UI:
 #   7681  web-gate (loading + tile password + key setup) — app_proxy target
-#   7684  ttyd, localhost only, --writable (without it the TUI paints and
-#         ignores the keyboard). Each attach sources /data/.env so keys
-#         saved in the setup page apply without a full container restart.
+#   7684  ttyd, localhost only, --writable (without it the terminal paints
+#         and ignores the keyboard). Each tab runs attach-shell.sh: hc's
+#         terminal picker, then a login shell.
 #
 # Umbrel login is gate 1. APP_PASSWORD (tile password) is gate 2.
 TTYD_PORT="${HERDR_TTYD_PORT:-7684}"
@@ -250,6 +235,6 @@ gosu "$RUN_USER" ttyd \
     --interface 127.0.0.1 \
     --writable \
     --base-path /t \
-    bash -lc 'set -a; [ -r /data/.env ] && . /data/.env; set +a; exec herdr' &
+    /usr/local/lib/herdr-umbrel/attach-shell.sh &
 
 exec gosu "$RUN_USER" node /usr/local/lib/herdr-umbrel/web-gate.mjs

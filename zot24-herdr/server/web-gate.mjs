@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * herdr web gate — loading + tile-password + setup, then ttyd TUI.
+ * herdr web gate — loading + tile-password + setup, then the ttyd terminal
+ * (herdr-core's picker, then a shell; see attach-shell.sh).
  *
  * Binds :7681 (Umbrel app_proxy). ttyd stays on 127.0.0.1:7684 (--writable).
  * Auth: Umbrel login (proxy) AND the tile password (APP_PASSWORD) as a
@@ -29,7 +30,6 @@ const MOSHI_ENV = {
   ...process.env,
   HOME: "/data",
   MOSHI_HOOK_SKIP_FIRST_RUN: "1",
-  MOSHI_HERDR_PATH: "/usr/local/bin/herdr",
 };
 
 const KEYS = [
@@ -438,7 +438,6 @@ async function handleApi(req, res, url) {
       authed: authed(req),
       password_required: Boolean(APP_PASSWORD),
       setup_done: env.get("HERDR_WEB_SETUP_DONE") === "1",
-      token_configured: Boolean(env.get("HERDR_AGENT_TOKEN") || process.env.HERDR_AGENT_TOKEN),
       bootstrap: env.get("HERDR_BOOTSTRAP_AGENTS") === "1",
       keys: keyStatus(env),
       moshi: {
@@ -530,9 +529,6 @@ async function handleApi(req, res, url) {
     else updates.HERDR_BOOTSTRAP_AGENTS = "1";
     updates.HERDR_BOOTSTRAP_TOOLS = "all";
     updates.HERDR_WEB_SETUP_DONE = "1";
-    if (!env.get("HERDR_AGENT_TOKEN") && !process.env.HERDR_AGENT_TOKEN) {
-      updates.HERDR_AGENT_TOKEN = crypto.randomBytes(36).toString("base64url");
-    }
     upsertEnv(updates);
     if (typeof body.ssh_key === "string" && body.ssh_key.trim()) {
       appendAuthorizedKey(body.ssh_key);
@@ -542,8 +538,7 @@ async function handleApi(req, res, url) {
       ok: true,
       keys: keyStatus(next),
       bootstrap: next.get("HERDR_BOOTSTRAP_AGENTS") === "1",
-      token_configured: Boolean(next.get("HERDR_AGENT_TOKEN") || process.env.HERDR_AGENT_TOKEN),
-      note: "Keys are on disk. New Herdr attaches pick them up. Umbrel Restart applies bootstrap + env to the whole container.",
+      note: "Keys are on disk. New terminals pick them up. Umbrel Restart applies bootstrap + env to the whole container.",
     });
     return;
   }

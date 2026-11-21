@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap agent + platform CLIs onto the herdr persistent volume.
+# Bootstrap agent + platform CLIs onto the Herdr app's persistent volume.
 # Safe to re-run. Prefer this over baking huge npm trees into the image.
 set -euo pipefail
 
@@ -10,7 +10,6 @@ export PATH="/usr/local/bin:/data/.npm-global/bin:/data/.grok/bin:/data/.local/b
 mkdir -p \
   /data/.npm-global \
   /data/workspaces \
-  /data/.config/herdr \
   /data/.grok/bin \
   /data/.local/bin \
   /data/.kimi \
@@ -37,9 +36,6 @@ install_npm_pkg() {
 
 install_claude() {
   install_npm_pkg "@anthropic-ai/claude-code"
-  if have claude && have herdr; then
-    herdr integration install claude >/dev/null 2>&1 || true
-  fi
 }
 
 install_grok() {
@@ -58,20 +54,13 @@ install_grok() {
     log "WARN: grok install failed (network or auth). Retry later."
     return 0
   fi
-  if have grok && have herdr; then
-    herdr integration install grok >/dev/null 2>&1 || true
-  fi
 }
 
 install_codex() {
   install_npm_pkg "@openai/codex"
   # Codex keeps auth, config and hooks in ~/.codex (/data/.codex, on the
-  # volume). herdr refuses to install its hook until that directory exists,
-  # and a fresh install has not created it yet.
+  # volume); a fresh install has not created it yet.
   mkdir -p /data/.codex
-  if have codex && have herdr; then
-    herdr integration install codex >/dev/null 2>&1 || true
-  fi
   codex_login_from_env
 }
 
@@ -116,9 +105,6 @@ install_kimi() {
     log "official kimi script failed — falling back to npm @moonshot-ai/kimi-code"
     install_npm_pkg "@moonshot-ai/kimi-code" || log "WARN: kimi npm install failed"
   fi
-  if have kimi && have herdr; then
-    herdr integration install kimi >/dev/null 2>&1 || true
-  fi
 }
 
 install_pi() {
@@ -126,9 +112,6 @@ install_pi() {
   # pi needs no postinstall. Lands in /data/.npm-global/bin/pi (on PATH).
   log "npm install -g --ignore-scripts @earendil-works/pi-coding-agent"
   npm install -g --ignore-scripts @earendil-works/pi-coding-agent
-  if have pi && have herdr; then
-    herdr integration install pi >/dev/null 2>&1 || true
-  fi
 }
 
 # --- platform CLIs -----------------------------------------------------------
@@ -198,11 +181,11 @@ main() {
   fi
 
   log "done — versions:"
-  for bin in claude codex grok kimi vercel supabase pi gh herdr node npm; do
+  for bin in claude codex grok kimi vercel supabase pi gh hc node npm; do
     if have "$bin"; then
       printf '  %-10s %s\n' "$bin" "$(command -v "$bin")" >&2
       case "$bin" in
-        claude|codex|grok|kimi|vercel|supabase|pi|gh|herdr|node|npm)
+        claude|codex|grok|kimi|vercel|supabase|pi|gh|hc|node|npm)
           "$bin" --version >/dev/null 2>&1 && "$bin" --version 2>&1 | head -1 | sed 's/^/    /' >&2 || true
           ;;
       esac

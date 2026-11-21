@@ -121,20 +121,20 @@
         <label>SSH public key fallback (phone / laptop) <span class="pill" data-k="ssh_key">—</span></label>
         <textarea name="ssh_key" placeholder="ssh-ed25519 AAAA… — skip if you scan the QR"></textarea>
         <label class="check"><input type="checkbox" name="bootstrap" checked /> Install / upgrade Claude, Codex, Grok, Kimi, Pi, Vercel, Supabase on start</label>
-        <p class="hint">After save, open Herdr. Umbrel Restart applies bootstrap to the whole container.</p>
+        <p class="hint">After save, open the terminal. Umbrel Restart applies bootstrap to the whole container.</p>
         <div class="err" id="setup-err"></div>
         <div class="row">
           <button type="submit">Save</button>
-          <button type="button" class="ghost" id="skip">Skip — open Herdr</button>
+          <button type="button" class="ghost" id="skip">Skip — open terminal</button>
         </div>
       </form>
     </div>
 
     <div class="card hidden" id="view-go">
       <h1>Ready</h1>
-      <p class="sub" id="go-sub">Workspace is up. The Moshi QR is not in the TUI — pair the phone here first, then open Herdr.</p>
+      <p class="sub" id="go-sub">Workspace is up. Connect the Herdr app to run agents here, or open a terminal in the browser.</p>
       <div class="row">
-        <button type="button" id="open">Open Herdr</button>
+        <button type="button" id="open">Open terminal</button>
         <button type="button" class="ghost" id="pair">Pair phone</button>
         <button type="button" class="ghost" id="edit">Edit keys</button>
       </div>
@@ -142,7 +142,9 @@
         <h2>Herdr desktop app</h2>
         <p class="hint">Run agents here from the Herdr app on your computer. Add your computer’s SSH public key under Edit keys, then add this to <code>~/.ssh/config</code> on that computer:</p>
         <pre id="desk-config"></pre>
-        <p class="hint">In Herdr, choose Add machine and pick <code>umbrel-herdr</code>. Its spaces run in this app and keep running while your computer sleeps. They are separate from the Herdr TUI that Open Herdr shows.</p>
+        <p class="hint">In Herdr, choose Add machine and pick <code>umbrel-herdr</code>. Its terminals run in this app and keep running while your computer sleeps. Open terminal shows the same terminals: pick one to attach, <code>ctrl+\</code> to detach.</p>
+        <h2>Phone</h2>
+        <p class="hint">The Herdr phone app connects to this machine over SSH the same way (port 7683, user <code>node</code>). Moshi lists these terminals too, once paired with Pair phone.</p>
       </div>
     </div>
   </div>
