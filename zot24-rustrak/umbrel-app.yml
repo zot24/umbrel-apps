@@ -18,12 +18,10 @@ description: >-
   - Open the tile. The page is Rustrak's own login. Umbrel's proxy login
     is off so Sentry SDKs can post to the same address.
 
-  - Username is admin@rustrak.local. The password is the one Umbrel shows
-    on this tile.
-
-  - That account is created on the first start, and only when the database
-    has no users yet. Changing the tile password later does not change it.
-    Rustrak has no password reset in the dashboard.
+  - Username is admin@rustrak.local. The login password is the password
+    Umbrel showed on this tile at first install. There is no reset command.
+    CREATE_SUPERUSER does not change a password after the first user exists,
+    and the dashboard has no reset.
 
 
   Sending errors:
@@ -31,8 +29,9 @@ description: >-
 
   - Create a project, copy its DSN, and set it in your Sentry SDK.
 
-  - The DSN host is http://<this Umbrel's .local name>:8686. The machine
-    that runs the SDK has to reach that address.
+  - The DSN host is http://umbrel.local:8686. If the device name is not
+    umbrel, use http://<device-name>.local:8686. The machine that runs the
+    SDK has to reach that address.
 
   - Do not put this app on the public internet. The ingest API is open to
     anyone who has a DSN, and the login page is on the same port.

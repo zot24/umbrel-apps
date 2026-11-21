@@ -8,12 +8,12 @@ https://rustrak.dev.
 
 ## Sign in
 
-Username `admin@rustrak.local`. Password is the value Umbrel shows on the
-tile (`deterministicPassword: true`).
+Username `admin@rustrak.local`. The login password is the password Umbrel
+showed on the tile at first install. There is no reset command.
 
 Rustrak creates that user on the first start, and only when the database
-has no users. A later change to the tile password does not change the
-account. The dashboard has no password reset. Keep the tile password.
+has no users. `CREATE_SUPERUSER` does not change a password after that.
+The dashboard has no reset. Keep the first tile password.
 
 Umbrel's own proxy login is off. Sentry SDKs post to the same origin as
 the dashboard, and they cannot complete an Umbrel login. The dashboard
@@ -25,9 +25,9 @@ still requires the Rustrak account.
 2. Copy the DSN from the project's SDK settings.
 3. Point a Sentry SDK at that DSN.
 
-The DSN host is `http://<device>.local:8686`, where `<device>.local` is
-this Umbrel's `DEVICE_DOMAIN_NAME` (usually `umbrel.local`). The SDK's
-machine has to reach that address.
+The DSN host is `http://umbrel.local:8686`. If the device name is not
+`umbrel`, use `http://<device-name>.local:8686`. The SDK's machine has
+to reach that address.
 
 Sibling containers can also use `http://zot24-rustrak_web_1:8080` on the
 Umbrel Docker network. A DSN copied from the dashboard uses the `.local`
