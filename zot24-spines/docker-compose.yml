@@ -5,8 +5,8 @@ services:
       APP_PORT: "8787"
 
   web:
-    # Published from zot24/spines v0.1.0. The manifest is linux/amd64.
-    image: ghcr.io/zot24/spines:0.1.0@sha256:25c02b02ff11bc3e6bf7829300a9ca2e74a5ae2e311e6a8800f1b4ca2d67a5e0
+    # Published as ghcr.io/zot24/spines:0.1.1. The manifest is linux/amd64.
+    image: ghcr.io/zot24/spines:0.1.1@sha256:91783f8fea7ee94fc4b77ef1639588d5aca907c2b8b45100a8c3729286381a89
     user: "1000:1000"
     read_only: true
     tmpfs:
