@@ -11,10 +11,7 @@ services:
       APP_PORT: 7681
 
   server:
-    # Internal agent-bridge listens on 7682 inside the container network.
-    # It is intentionally NOT wired through app_proxy. Sibling apps reach it
-    # via Docker DNS: http://zot24-herdr_server_1:7682 with HERDR_AGENT_TOKEN.
-    # Secrets + token: ${APP_DATA_DIR}/data/.env
+    # Secrets: ${APP_DATA_DIR}/data/.env
     # Image + digest are populated by .github/workflows/build.yml on every
     # push that touches server/. Umbrel rejects unpinned images at install
     # time, so the workflow's commit-back step is what makes this app
@@ -26,8 +23,7 @@ services:
     stop_grace_period: 30s
     # SSH straight into the app — the phone/laptop attach path, and the reason
     # you do not need a shell on the Umbrel host. Key-only auth; sshd runs as
-    # the unprivileged runtime user inside the container. 7683 is deliberate:
-    # 7682 is the agent-bridge above and is NOT published. Always on so Moshi
+    # the unprivileged runtime user inside the container. Always on so Moshi
     # Easy Pair can write the first authorized key after a QR scan; empty
     # keys + no passwords = nobody logs in until a key lands.
     #

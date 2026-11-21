@@ -1,44 +1,44 @@
 # Herdr for Umbrel
 
-An [Umbrel](https://umbrel.com) app that runs [Herdr](https://herdr.dev) —
-the terminal multiplexer for AI coding agents — as a persistent server on
-your Umbrel box. Your agents (Claude Code, Codex, Gemini, …) keep running
-24/7 on home hardware; you attach from a browser, your laptop, or your phone
-and everything is exactly where you left it.
+An [Umbrel](https://umbrel.com) app that runs
+[herdr-core](https://herdr.dev/core/), the runtime behind the
+[Herdr](https://herdr.dev) desktop and phone apps, as an always-on machine
+on your Umbrel box. Your agents (Claude Code, Codex, Grok, Kimi, …) keep
+running 24/7 on home hardware; you attach from the Herdr apps, Moshi, or a
+browser, and everything is where you left it.
 
 - **App ID**: `zot24-herdr`
-- **Ports**: 7681 web terminal (behind Umbrel auth, never published) · 7682
-  agent-bridge (internal only, sibling apps) · 7683 SSH (published, key-only)
-- **Upstream**: [herdrdev/herdr](https://github.com/herdrdev/herdr) (Herdr TUI)
-  v0.9.5 and [herdrdev/herdr-core](https://github.com/herdrdev/herdr-core)
-  (`hc`) v0.1.14, both Apache-2.0
+- **Ports**: 7681 web terminal (behind Umbrel auth, never published) · 7683
+  SSH (published, key-only)
+- **Upstream**: [herdrdev/herdr-core](https://github.com/herdrdev/herdr-core)
+  (`hc`) v0.1.21, Apache-2.0
 
 ## How it's wired
 
 ```
-  browser / laptop / phone
+  laptop / phone / browser
         |
-        |  (a) Umbrel app proxy (Umbrel login)      — web UI
-        |  (b) SSH/Mosh into host, over Tailscale   — phone (Moshi)
-        |  (c) herdr --remote, over SSH/Tailscale   — laptop thin client
-        |  (d) Herdr desktop app, over SSH (7683)   — machine in its sidebar
+        |  (a) Herdr desktop app, over SSH (7683)   — machine in its sidebar
+        |  (b) Herdr phone app or Moshi, over SSH   — phone
+        |  (c) Umbrel app proxy (Umbrel login)      — web terminal
+        |  (d) plain ssh (7683)                     — hc picker, then a shell
         v
   zot24-herdr_server_1 container
-    ├── ttyd :7681 ──► herdr        (attach client for browser sessions)
-    ├── herdr server                (headless; owns panes, agents, sessions)
-    └── herdr-core (hc)             (headless; owns the desktop app's terminals)
-              └── /data volume: config, session state, agent CLIs, workspaces
+    ├── herdr-core (hc)             (headless; owns every terminal and agent)
+    ├── ttyd :7684 ──► hc picker    (behind web-gate :7681)
+    ├── sshd :7683                  (key-only; the Herdr apps run `herdr-core connect`)
+    └── moshi-hook                  (Moshi pairing, approvals, session picker)
+              └── /data volume: herdr-core state, agent CLIs, workspaces, keys
 ```
 
-`herdr server` runs headless in the container and owns all panes and agents.
-Clients — the ttyd web terminal, an `ssh` + `docker exec` session, or
-`herdr --remote` — only attach/detach (`ctrl+b q`). Closing every client
-leaves every agent running.
+herdr-core runs headless in the container and owns every terminal. Every
+client only attaches and detaches; closing all of them leaves every agent
+running. The desktop app, the phone app, Moshi, the web terminal and plain
+SSH all see the same terminals.
 
-Herdr now comes in two lines: the Herdr TUI above, and a native desktop app
-built on herdr-core. The container runs a herdr-core too, so the desktop app
-can add this box as a machine (d). The two runtimes do not share terminals:
-agents you start from the desktop app are not in the TUI, and the reverse.
+Up to 0.10.x the app also ran the Herdr TUI (`herdr`), a separate runtime
+that did not share terminals with herdr-core. 0.11.0 dropped it: upstream's
+work is on herdr-core, and every Herdr client now uses it.
 
 ## Installing on Umbrel
 
@@ -55,122 +55,46 @@ https://github.com/zot24/umbrel-apps
 
 ## Attaching
 
-### (a) Web terminal — the app UI
+Every client except the web terminal comes in over the app's own sshd on
+**7683** (published on the host), as user `node`, with a key. You connect to
+the container, not to the Umbrel host, so your user does not need to be in
+the `docker` group. Put the Umbrel and your devices on the same tailnet
+(install the Tailscale Umbrel app); do **not** port-forward anything on your
+router.
 
-Open the Herdr tile in the Umbrel dashboard. ttyd serves the full Herdr TUI
-in the browser; Umbrel's app proxy enforces your Umbrel login. Detach with
-`ctrl+b q` or just close the tab — the server and agents keep running.
+### Adding a key
 
-### (b) Phone — Moshi, straight into the app on 7683 (recommended)
+- **Phone (Moshi):** Easy Pair on the web setup page (Umbrel tile → tile
+  password → **Pair phone**): enter a Tailscale/LAN hostname the phone can
+  reach, Generate QR, scan it in the Moshi app. Do not screenshot the QR.
+  sshd is already running; the scan writes the first key and no restart is
+  needed.
+- **Any other device:** paste its public key on the same page (**Edit
+  keys**), or drop it on disk:
 
-The app runs its own sshd on **7683** (published on the host). You connect to
-the container, not to the Umbrel host — no wrapper script, and your user does
-not need to be in the `docker` group.
+  ```bash
+  # (i) drop it in the app's data dir, from a host shell
+  mkdir -p ~/umbrel/app-data/zot24-herdr/data/.ssh
+  chmod 700 ~/umbrel/app-data/zot24-herdr/data/.ssh
+  echo "ssh-ed25519 AAAA… laptop" >> ~/umbrel/app-data/zot24-herdr/data/.ssh/authorized_keys
+  chmod 600 ~/umbrel/app-data/zot24-herdr/data/.ssh/authorized_keys
 
-**One-time: pair the phone.** Prefer Easy Pair on the web setup page
-(Umbrel tile → tile password → setup): enter a Tailscale/LAN hostname the
-phone can reach, Generate QR, scan it in the Moshi app. User is `node`,
-port **7683**. Do not screenshot the QR. sshd is already running; the scan
-writes the first key and no restart is needed.
-
-Fallback (paste a public key on the same page, or drop it on disk):
-
-```bash
-# (i) drop it in the app's data dir, from a host shell
-mkdir -p ~/umbrel/app-data/zot24-herdr/data/.ssh
-chmod 700 ~/umbrel/app-data/zot24-herdr/data/.ssh
-echo "ssh-ed25519 AAAA… phone" >> ~/umbrel/app-data/zot24-herdr/data/.ssh/authorized_keys
-chmod 600 ~/umbrel/app-data/zot24-herdr/data/.ssh/authorized_keys
-
-# (ii) or via the .env the app already reads (';' between keys), then restart
-#   …/zot24-herdr/data/.env
-#   SSH_AUTHORIZED_KEYS=ssh-ed25519 AAAA… phone;ssh-ed25519 AAAA… laptop
-```
+  # (ii) or via the .env the app already reads (';' between keys), then restart
+  #   …/zot24-herdr/data/.env
+  #   SSH_AUTHORIZED_KEYS=ssh-ed25519 AAAA… phone;ssh-ed25519 AAAA… laptop
+  ```
 
 Empty keys + no passwords = nobody can log in. sshd stays up so Easy Pair
 can land the first key.
 
-**Then, from the phone:**
+### (a) Desktop app — the Umbrel as a Herdr machine
 
-1. Put the Umbrel box and your phone on the same tailnet (install the
-   Tailscale Umbrel app; sign in on both devices). Do **not** port-forward
-   anything on your router.
-2. Connect as user `node` on port 7683 — a bare login lands you in the Herdr
-   TUI directly:
-
-   ```bash
-   ssh -p 7683 node@your-umbrel
-   ```
-
-   An explicit command still runs, which is what makes Moshi's native Herdr
-   picker work with no host-side setup:
-
-   ```bash
-   ssh -p 7683 node@your-umbrel herdr session list --json
-   ```
-
-**Legacy path (still works):** SSH to the host and `docker exec -it
-zot24-herdr_server_1 herdr`.
-
-3. Optional but recommended — install this wrapper on the host so `herdr`
-   works as if it were installed natively (Moshi's herdr picker runs
-   `herdr session list --json`, and `herdr --remote` from a laptop invokes
-   `herdr` over SSH):
-
-   ```bash
-   sudo tee /usr/local/bin/herdr >/dev/null <<'EOF'
-   #!/bin/sh
-   # herdr-on-host: proxy into the zot24-herdr Umbrel app container.
-   if [ -t 0 ] && [ -t 1 ]; then
-       exec docker exec -it zot24-herdr_server_1 herdr "$@"
-   else
-       exec docker exec -i zot24-herdr_server_1 herdr "$@"
-   fi
-   EOF
-   sudo chmod +x /usr/local/bin/herdr
-   ```
-
-   Then plain `herdr` works right after SSH login, and Moshi's session
-   detection picks up your sessions.
-
-For Mosh (survives sleep/network switches): install `mosh` on the **host OS**
-(`sudo apt install mosh`; the container's copy is for outbound use) and allow
-UDP 60000–61000 **on the tailnet only**. Mosh replaces SSH as transport;
-Herdr still owns persistence.
-
-### (c) Laptop — `herdr --remote`
-
-Install Herdr 0.9 or newer locally (`herdr update` if you have an older
-one) and add your laptop's key the same way as the phone's. No host-side
-wrapper is needed; this goes straight to the app's sshd on 7683:
-
-```
-# ~/.ssh/config
-Host umbrel-herdr
-    HostName your-umbrel
-    User node
-    Port 7683
-```
-
-```bash
-herdr --remote umbrel-herdr
-herdr --remote umbrel-herdr --session agents
-```
-
-The local process is a thin client; the server on your Umbrel owns the
-session. Use `--remote-keybindings server` to apply the container's
-keybindings instead of your laptop's.
-
-### (d) Desktop app — the Umbrel as a Herdr machine
-
-The [Herdr desktop app](https://herdr.dev) (macOS, Linux, Windows) draws
-natively and cannot run in a browser. Instead it adds other computers as
-machines over SSH, and this app's sshd on 7683 is that door. Spaces on the
-Umbrel machine run their terminals in the container's herdr-core, so agents
+The [Herdr desktop app](https://herdr.dev) (macOS, Linux, Windows) adds other
+computers as machines over SSH, and this app's sshd on 7683 is that door.
+Terminals on the Umbrel machine run in the container's herdr-core, so agents
 keep working while your laptop sleeps.
 
-1. Add your computer's public key the same way as the phone's (setup page
-   **Edit keys**, or `authorized_keys`).
+1. Add your computer's public key (above).
 2. Add a host to `~/.ssh/config` on that computer. The setup page's Ready
    screen shows this entry with your hostname filled in:
 
@@ -192,11 +116,56 @@ and `/data/.env` keys as an SSH session. An app update or restart stops
 the programs in them; the desktop app's panes come back with a fresh shell
 in their last folder, as after a reboot of any Herdr machine.
 
+Spaces belong to the desktop app's window, not the core: the desktop app
+shows its spaces for this machine, while the phone app, Moshi and the web
+terminal see the terminals without them.
+
+### (b) Phone — the Herdr app or Moshi
+
+- **[Herdr phone app](https://herdr.dev/mobile)** (iPhone, iPad, Android):
+  add this machine over SSH like the desktop app (host, port 7683, user
+  `node`, a key). It needs nothing else on the box and shows the same
+  terminals and agents, with an inbox of agents that need you.
+- **[Moshi](https://getmoshi.app)**: pair with Easy Pair (above). Moshi lists
+  this machine's herdr-core terminals in its session picker through
+  moshi-hook, which the image ships (0.4.62; Moshi needs 0.4.45 or newer)
+  and runs as a daemon. Check from an SSH session with
+  `moshi-hook mux ls --json` and `moshi-hook doctor`.
+
+For Mosh (survives sleep/network switches): install `mosh` on the **host OS**
+(`sudo apt install mosh`; the container's copy is for outbound use) and allow
+UDP 60000–61000 **on the tailnet only**. Mosh replaces SSH as transport;
+herdr-core still owns persistence. Moshi does not scroll herdr-core
+terminals over Mosh; use SSH for scrollback.
+
+### (c) Web terminal — the app UI
+
+Open the Herdr tile in the Umbrel dashboard; Umbrel's app proxy enforces your
+Umbrel login, then the tile password. **Open terminal** starts herdr-core's
+terminal picker (`hc`) in the browser: attach to any terminal the Herdr apps
+run here, or pick **new…** to start one in the core. `ctrl+\` detaches and
+leaves a plain shell, where `hc` opens the picker again. Closing the tab
+only detaches; terminals keep running.
+
+### (d) Plain SSH
+
+```bash
+ssh -p 7683 node@your-umbrel
+```
+
+A bare login lands in the same picker, then a shell. An explicit command
+still runs, which is how the Herdr apps (`herdr-core connect`) and Moshi
+(`moshi-hook mux ls`) reach the box:
+
+```bash
+ssh -p 7683 node@your-umbrel hc ls
+```
+
 ## Signing in (GitHub, Codex, Grok, …)
 
 Easiest: paste keys on the setup page (Umbrel tile → tile password → **Edit
-keys**). They land in `/data/.env`, and an SSH login picks them up right away.
-Herdr panes started before the save don't; restart the app for those.
+keys**). They land in `/data/.env`, and an SSH login and new terminals pick
+them up right away. Terminals started before the save don't; start a new one.
 
 - **GitHub**: a [fine-grained token](https://github.com/settings/personal-access-tokens)
   in the GitHub field is used by `gh` *and* by `git clone/push` over HTTPS,
@@ -251,8 +220,8 @@ its sandbox off (the container is the boundary), e.g.
 
 ## Setting up agents + platform CLIs
 
-This image is the **credential + CLI home** for coding agents. Hermes (and
-humans) drive work here; secrets stay in `/data/.env`.
+This image is the **credential + CLI home** for coding agents; secrets stay
+in `/data/.env`.
 
 ### Bundled vs bootstrapped
 
@@ -271,9 +240,7 @@ humans) drive work here; secrets stay in `/data/.env`.
 
 All bootstrapped tools install onto the **persistent volume**
 (`NPM_CONFIG_PREFIX=/data/.npm-global`, Grok under `/data/.grok`, etc.) so
-they survive image updates. The bootstrap also runs `herdr integration
-install` for Claude Code, Codex, Grok, Kimi and Pi, so Herdr shows each
-agent's state and resumes its session after a restart.
+they survive image updates. herdr-core needs no per-agent integration.
 
 ### One-shot bootstrap (recommended)
 
@@ -283,7 +250,6 @@ In `/data/.env` (see `data-env.example`):
 HERDR_BOOTSTRAP_AGENTS=1
 # HERDR_BOOTSTRAP_TOOLS=all
 # # or a subset: claude codex grok kimi pi vercel supabase
-HERDR_AGENT_TOKEN=generate-a-long-random-string
 
 ANTHROPIC_API_KEY=…
 # XAI_API_KEY=…          # and/or GROK_DEPLOYMENT_KEY=
@@ -298,7 +264,7 @@ GIT_AUTHOR_EMAIL=…
 ```
 
 Restart the Herdr app. On start, `bootstrap-agents.sh` installs any missing
-CLIs. Or run anytime from the web terminal / agent-bridge:
+CLIs. Or run anytime from the web terminal or an SSH session:
 
 ```bash
 bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh
@@ -318,8 +284,6 @@ npm install -g @moonshot-ai/kimi-code
 # Grok
 curl -fsSL https://x.ai/cli/install.sh | GROK_BIN_DIR=/data/.grok/bin HOME=/data bash
 
-herdr integration install claude   # also codex, grok, kimi, pi
-herdr integration status
 ```
 
 ### Workspaces
@@ -337,11 +301,10 @@ Everything lives under the app data volume mounted at `/data` (which is also
 
 | Path | Contents |
 | --- | --- |
-| `/data/.config/herdr/` | config.toml, server socket, session state, logs |
 | `/data/.local/state/herdr-core/` | herdr-core socket, terminal records, saved screens, machine connections, logs |
 | `/data/.config/herdr-core/` | herdr-core `config.toml` and templates |
 | `/data/.npm-global/` | npm-installed CLIs (`claude`, `vercel`, `supabase`, …) |
-| `/data/.codex/` | Codex auth, config + Herdr hook |
+| `/data/.codex/` | Codex auth + config |
 | `/data/.grok/` | Grok Build CLI binary + auth |
 | `/data/.local/bin/`, `/data/.kimi/` | Kimi / other user-local bins |
 | `/data/workspaces/` | your git clones / project dirs |
@@ -349,11 +312,14 @@ Everything lives under the app data volume mounted at `/data` (which is also
 | `/data/.ssh/` | SSH host key + `authorized_keys` (host key generated once, so clients don't see a changed fingerprint after an app update) |
 | `/data/.profile` | seeded once: puts agent CLIs on `PATH` and sources `.env` so an SSH login matches the web terminal |
 
-Persistence semantics are Herdr's own: detach keeps processes alive; a
-container restart restarts the server and restores the session layout, and
-agents with installed integrations resume natively
-(`[session] resume_agents_on_restore`, on by default). Live pane processes
-do not survive a full container stop — same as any Herdr server restart.
+Persistence semantics are herdr-core's own: detach keeps processes alive; a
+container restart restarts the core, and the desktop app's terminals come
+back as a fresh shell in their last folder. Live processes do not survive a
+full container stop.
+
+Installs from 0.10.x or earlier also have `/data/.config/herdr/`, the old
+Herdr TUI's config and session state. Nothing reads it any more; delete it
+if you like.
 
 
 ## Playwright Renderer
@@ -373,61 +339,11 @@ The token is generated on the renderer's first boot, so restart Herdr once
 after installing it. An empty `PLAYWRIGHT_RENDERER_TOKEN` means it is not
 installed or has not booted yet.
 
-## Sibling apps / Hermes agent-bridge
-
-Human attach path stays the web terminal (ttyd on **7681**, Umbrel login).
-
-Machine attach path for sibling containers on the Umbrel Docker network:
-
-| | |
-|---|---|
-| URL | `http://zot24-herdr_server_1:7682` (export `APP_ZOT24_HERDR_AGENT_PORT`) |
-| Auth | `Authorization: Bearer $HERDR_AGENT_TOKEN` |
-| Health | `GET /health` (no auth) |
-| Status | `GET /v1/status` |
-| Shell | `POST /v1/exec` `{"cmd":"claude --version","cwd":"/data/workspaces"}` |
-| Herdr CLI | `POST /v1/herdr` `{"args":["session","list","--json"]}` |
-
-**Not** exposed via `app_proxy`. Treat the token like root on this container.
-
-### `/data/.env` (restart app after edit)
-
-Full template: [`data-env.example`](./data-env.example).
-
-```bash
-HERDR_AGENT_TOKEN=generate-a-long-random-string
-HERDR_BOOTSTRAP_AGENTS=1
-HERDR_BOOTSTRAP_TOOLS=all          # claude codex grok kimi pi vercel supabase
-
-ANTHROPIC_API_KEY=
-# XAI_API_KEY= / GROK_DEPLOYMENT_KEY=
-# MOONSHOT_API_KEY=
-# OPENAI_API_KEY=                 # Codex
-GITHUB_TOKEN=
-GH_TOKEN=
-GIT_AUTHOR_NAME=
-GIT_AUTHOR_EMAIL=
-# VERCEL_TOKEN=
-# SUPABASE_ACCESS_TOKEN=
-```
-
-Bootstrap without restart:
-
-```bash
-bash /usr/local/lib/herdr-umbrel/bootstrap-agents.sh
-```
-
-### Hermes side
-
-1. Put the **same** `HERDR_AGENT_TOKEN` in Hermes env (or a skill secret file).
-2. Call `http://zot24-herdr_server_1:7682` (or the discovered IP) — never the public Umbrel URL for the bridge.
-3. Keep high-value cloud creds in herdr's `/data/.env`; Hermes orchestrates, herdr executes.
-
 ## Updating
 
-Herdr and herdr-core are baked into the image (pinned + sha256-verified).
-App updates ship new versions through the Umbrel store update flow — do
-**not** run `herdr update` or `hc update` inside the container, or
+herdr-core is baked into the image (pinned + sha256-verified). App updates
+ship new versions through the Umbrel store update flow — do **not** run
+`hc update` inside the container, or
 `hc machine update` against it (the image's binaries are root-owned; and an
 in-place update would be lost on the next container rebuild anyway).
 
@@ -445,8 +361,6 @@ in-place update would be lost on the next container rebuild anyway).
   container; the desktop app reaches it through the same key-only SSH on
   7683. Its saved screens in `/data/.local/state/herdr-core/` can hold
   secrets that were on screen.
-- Herdr pane-history replay (`[experimental] pane_history`) can persist
-  secrets visible on screen — leave it off unless you need it.
 - The container runs as an unprivileged user (UID 1000) and needs no
   capabilities beyond the one-shot `/data` chown at startup.
 
@@ -459,7 +373,7 @@ docker compose -f docker-compose.local.yml up --build
 
 State lands in the `herdr-local-data` named volume (a bind mount is
 deliberately not used: macOS Docker Desktop bind mounts can't host the Unix
-sockets herdr's server needs). Reset with
+sockets herdr-core needs). Reset with
 `docker compose -f docker-compose.local.yml down -v`.
 
 ## Repo layout
@@ -468,8 +382,10 @@ This app lives in the [zot24/umbrel-apps](https://github.com/zot24/umbrel-apps)
 community store repo as `zot24-herdr/`:
 
 ```
-server/Dockerfile        # node:22-bookworm-slim + herdr + herdr-core (pinned sha256) + ttyd + mosh + bwrap
-server/entrypoint.sh     # chown /data, seed config, start herdr server + herdr-core + ttyd
+server/Dockerfile        # node:22-bookworm-slim + herdr-core + moshi-hook (pinned sha256) + ttyd + mosh + bwrap
+server/entrypoint.sh     # chown /data, seed config, start herdr-core + sshd + moshi-hook + ttyd
+server/attach-shell.sh   # web terminal + interactive SSH: hc picker, then a login shell
+server/ssh-login.sh      # sshd ForceCommand: runs explicit commands, else attach-shell.sh
 server/login-shell.sh    # $SHELL for herdr-core terminals (login bash)
 docker-compose.yml       # Umbrel production compose (app_proxy + server)
 docker-compose.local.yml # local dev (build from source, publishes 7681)

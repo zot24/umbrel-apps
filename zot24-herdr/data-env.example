@@ -2,9 +2,6 @@
 #   <umbrel>/app-data/zot24-herdr/data/.env
 # then restart the Herdr app.
 
-# --- required for Hermes / sibling app control plane ---
-HERDR_AGENT_TOKEN=replace-me-with-long-random
-
 # --- bootstrap CLIs onto the persistent volume at start ---
 # HERDR_BOOTSTRAP_AGENTS=1
 # Tools (space-separated). Default when unset inside script: all
