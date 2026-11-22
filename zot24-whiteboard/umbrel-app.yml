@@ -1,0 +1,68 @@
+manifestVersion: 1.1
+id: zot24-whiteboard
+name: Whiteboard
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-whiteboard/icon.svg
+category: ai
+version: "0.1.0"
+tagline: A shared canvas where you and AI agents design game characters together
+description: >-
+  Whiteboard is an infinite canvas that you and a small team of AI agents work
+  on at the same time. It starts with game-character design: concept art,
+  lore, pixel-art sprites and animations, character sheets and mechanics.
+
+
+  - Notes, images, SVG concept art, pixel-art sprites with animation frames,
+    references and structured cards, all on one board. Agents and you add,
+    annotate and revise the same items.
+
+  - Four agents out of the box: Sketch (concept art), Pixel (sprites and
+    animation), Loom (lore and mechanics) and Critic. Open any agent's
+    thread to see each step it takes, then steer it, pause, stop, or fork the
+    conversation from any message.
+
+  - You stay in charge. Agents propose new work for you to keep, send back
+    or discard, ask before large changes, and wait for you instead of
+    pushing on.
+
+  - Edit something an agent is working on and the agent notices, says so in
+    its thread, re-reads your change and continues from it. You can also
+    take an item over and hand it back.
+
+  - Project memory and routines: agents remember decisions across sessions
+    and can run standing tasks on a schedule.
+
+  - Lightweight connectors: inbound and outbound webhooks (Slack and
+    Discord format), API tokens for your own agents, URL import, an iCal
+    feed of routines, and export of a character as PNG sprite sheets, JSON
+    and Markdown.
+
+  - Works on a phone: a compact view for status, questions, approvals,
+    notes and steering.
+
+
+  Without an Anthropic API key the agents run on the built-in Studio Sim, a
+  scripted offline collaborator, so everything works without an account. Put
+  ANTHROPIC_API_KEY in the app's data/.env to use Claude.
+
+
+  The login password is the one Umbrel shows on this tile. Do not put this
+  app on the public internet without a tunnel that adds its own login.
+releaseNotes: >-
+  First release.
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 7787
+gallery:
+  - https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-whiteboard/gallery/1.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-whiteboard/gallery/2.png
+  - https://raw.githubusercontent.com/zot24/umbrel-apps/main/zot24-whiteboard/gallery/3.png
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: true
+torOnly: false
+submitter: zot24
+submission: ""

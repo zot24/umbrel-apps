@@ -29,8 +29,9 @@ Each app folder has a README with its setup, its limits and how it works.
 | [Openship](zot24-openship/README.md) | `zot24-openship` | 3001 | The Openship deploy control plane (dashboard and API). It manages remote servers over SSH, and does not build or run apps on the Umbrel. |
 | [Lifeboat](zot24-lifeboat/README.md) | `zot24-lifeboat` | 7746 | Nightly encrypted backups of a Supabase project (database and Storage files), on the Umbrel and in Cloudflare R2, with one-button restore and restore drills. |
 | [Spines](zot24-spines/README.md) | `zot24-spines` | 8787 | A wall of open CD cases that play in the browser, and a shelf of books from Calibre-Web. Media stays read-only. Music starts at Downloads/music and can be changed on first open. |
+| [Whiteboard](zot24-whiteboard/README.md) | `zot24-whiteboard` | 7787 | A shared infinite canvas where you and AI agents design game characters together: concept art, pixel-art sprites and animation, lore and mechanics. Runs offline on a built-in simulated agent, or on Claude with an API key. |
 
-nworth, Openship, and Rustrak have their own login. The other web UIs are behind the Umbrel login.
+nworth, Openship, Rustrak and Whiteboard have their own login. The other web UIs are behind the Umbrel login.
 
 ## How an update reaches your Umbrel
 
@@ -44,7 +45,7 @@ How a change gets a new version depends on where the app's image comes from:
 | Apps | Image | What happens after a merge to `main` |
 |------|-------|--------------------------------------|
 | GitHub Runner, Cursor Sandboxes, Herdr, Playwright Renderer, Cloudflare Tunnel, Lifeboat | Built in this repository (`ghcr.io/zot24/…`) | `Build: <app>` builds the images for amd64 and arm64, tags them with the version in `umbrel-app.yml`, and the bot commits the new digests to `docker-compose.yml` (`chore: pin …` or `chore: update … image`). The build starts only for changes to the image sources. |
-| nworth | Built in `zot24/nworth` | `Pin nworth image` runs every day. It pins the newest published image and changes the version itself, so no pull request is needed. |
+| nworth, Whiteboard | Built in `zot24/nworth` and `zot24/whiteboard` | `Pin nworth image` and `Pin whiteboard image` run every day. Each pins the newest published image and changes the version itself, so no pull request is needed. |
 | Apprise, Dockyard, Openship, Proton Bridge, Rustrak | Upstream images | Change the image in `docker-compose.yml` and the version in the same pull request. |
 
 Two weekly workflows open their own pull requests with a new version:
