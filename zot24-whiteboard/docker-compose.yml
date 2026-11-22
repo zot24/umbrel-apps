@@ -1,0 +1,48 @@
+services:
+  # Whiteboard has its own login (STUDIO_PASSWORD below), so Umbrel's proxy
+  # login is off. The proxy passes the browser's Host header through, so
+  # Whiteboard's same-origin check works under umbrel.local, the IP address
+  # or a Tailscale name. Inbound webhooks (/hooks/*) and API tokens for
+  # bring-your-own agents reach the same port without an Umbrel session.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-whiteboard_web_1
+      APP_PORT: 8787
+      PROXY_AUTH_ADD: "false"
+
+  # The image runs as uid 1000 (node). A data directory that Docker creates
+  # is root-owned, so the first SQLite write would fail. chown is the whole
+  # job; running it again leaves the same owner.
+  data-init:
+    image: alpine:3.22@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f
+    user: "0:0"
+    restart: "no"
+    volumes:
+      - ${APP_DATA_DIR}/data/whiteboard:/data
+    command: ["sh", "-c", "mkdir -p /data/exports && chown -R 1000:1000 /data"]
+
+  # Optional settings (ANTHROPIC_API_KEY, AGENT_MODEL, AGENT_EFFORT, ...) go
+  # in <app-data>/data/.env as KEY=VALUE, read on every start. The database,
+  # uploaded images and folder exports live in data/whiteboard.
+  web:
+    # Built and published by zot24/whiteboard (Publish image). Pinned by
+    # .github/workflows/pin-whiteboard.yml; Umbrel rejects unpinned images.
+    image: ghcr.io/zot24/whiteboard:0.1.0
+    restart: on-failure
+    init: true
+    stop_grace_period: 30s
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: ${APP_DATA_DIR}/data/.env
+        required: false
+    environment:
+      # The per-install password Umbrel shows on the tile.
+      STUDIO_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD is required}
+      # Links in outbound webhooks and the iCal feed point here.
+      PUBLIC_URL: "http://${DEVICE_DOMAIN_NAME:-umbrel.local}:7787"
+      DATA_DIR: /data
+      EXPORT_ROOTS: /data/exports
+    volumes:
+      - ${APP_DATA_DIR}/data/whiteboard:/data

@@ -1,0 +1,28 @@
+# Same server as docker-compose.yml, without Umbrel's app_proxy. Uses the
+# published image (private: `docker login ghcr.io` first). To build from
+# source instead, see zot24/whiteboard.
+#
+#   STUDIO_PASSWORD=pick-one docker compose -f docker-compose.local.yml up
+#
+# Open http://127.0.0.1:7787. Put ANTHROPIC_API_KEY in your shell environment
+# to use Claude instead of the built-in Studio Sim. Do not write keys into a
+# file in this repository.
+services:
+  web:
+    image: ghcr.io/zot24/whiteboard:latest
+    restart: "no"
+    init: true
+    stop_grace_period: 30s
+    ports:
+      - "7787:8787"
+    environment:
+      STUDIO_PASSWORD: ${STUDIO_PASSWORD:?set STUDIO_PASSWORD}
+      PUBLIC_URL: ${PUBLIC_URL:-http://127.0.0.1:7787}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DATA_DIR: /data
+      EXPORT_ROOTS: /data/exports
+    volumes:
+      - whiteboard-local-data:/data
+
+volumes:
+  whiteboard-local-data:
