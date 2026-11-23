@@ -2,7 +2,7 @@
 # update-bin.sh has a checksum-verified newer one on the data volume.
 # The digest is the multi-arch index. update-cloudflared.yml republishes
 # our image hourly so a fresh install does not start years behind.
-FROM cloudflare/cloudflared:2026.11.1@sha256:e613aadbc2d9511785d2e67a86b0c8ac18dd63a3f9af0d06faf04cbfdcb35f2d as cloudflared
+FROM cloudflare/cloudflared:2026.11.2@sha256:55c7e3e8d89d5e8d20b75a82f3602cbf98e06db406e73e282073cfdc5a9a3af6 as cloudflared
 
 # take the alpine image
 FROM alpine:3.18.4
