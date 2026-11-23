@@ -3,7 +3,7 @@ id: zot24-herdr
 name: Herdr
 icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-herdr/icon.svg
 category: developer
-version: "0.11.0"
+version: "0.11.1"
 tagline: Always-on herdr-core machine for the Herdr desktop and phone apps
 description: >-
   Herdr runs AI coding agents (Claude Code, Codex, Grok, Kimi, and more) in
@@ -103,6 +103,9 @@ description: >-
   - herdr-core is free software (Apache-2.0):
     https://github.com/herdrdev — https://herdr.dev
 releaseNotes: >-
+  0.11.1: image pins refreshed (herdr-core 0.1.22; see cli-versions.json). Image pins refreshed by zot24-herdr/ci/update-deps.sh.
+
+
   0.11.0: herdr-core only. The app no longer ships the Herdr TUI: upstream's
   work is on herdr-core, and the Herdr desktop app, the Herdr phone app and
   Moshi all use it. The web terminal and a plain SSH login now open

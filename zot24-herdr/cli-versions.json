@@ -1,9 +1,9 @@
 {
-  "checked_at": "2026-11-21T18:20:24Z",
+  "checked_at": "2026-11-23T12:19:00Z",
   "image_pins": {
     "herdr-core": {
       "current": "0.1.21",
-      "latest_stable": "0.1.21"
+      "latest_stable": "0.1.22"
     },
     "ttyd": {
       "current": "1.7.7",
@@ -17,7 +17,7 @@
   "volume_clis_latest": {
     "claude-code": "2.1.330",
     "vercel": "66.6.0",
-    "supabase": "3.2.0",
+    "supabase": "3.3.0",
     "grok": "install.sh (unpinned)",
     "kimi": "install.sh (unpinned)",
     "gh": "apt (image rebuild)"
