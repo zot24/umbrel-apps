@@ -1,0 +1,68 @@
+manifestVersion: 1.1
+id: zot24-orca
+name: Orca
+icon: https://raw.githubusercontent.com/zot24/umbrel-apps-gallery/main/zot24-orca/icon.svg
+category: developer
+version: "0.1.0"
+tagline: Always-on Orca server for the desktop and phone apps, over Tailscale
+description: >-
+  Runs Orca's headless remote server on your Umbrel. The Umbrel keeps the
+  projects, worktrees, terminals, and agent sessions. The Orca desktop app
+  and the Orca phone app are the UI, and they connect over Tailscale.
+
+
+  Install Tailscale on the Umbrel and on the computer or phone you use
+  Orca from, on the same tailnet. Open this app's tile, enter the Umbrel's
+  Tailscale address (it starts with 100, or use its MagicDNS name), and
+  copy the pairing link into Orca: Settings, Remote Orca Servers, Add
+  Server.
+
+
+  Claude, Codex, and git sign in on the Umbrel. A login on your laptop
+  does not carry over. The tile has a shell for that. Repos belong in
+  /data/workspaces. Agent installs and Orca's state stay on the app data
+  volume across updates.
+
+
+  This is the Linux server build of Orca (orca-ide serve), pinned to
+  1.4.272. It has no browser panes, dictation, or paired web client. Those
+  ship with the desktop app. Keep the desktop and phone apps close to this
+  version. An update restarts the server. Paired clients cannot update it
+  for you.
+
+
+  Security notes:
+
+
+  - Reach port 6768 over Tailscale. Docker also publishes it on the LAN.
+    Do not forward it on your router. The server refuses clients from
+    public internet addresses.
+
+
+  - The pairing link is a password for this Orca. It is shown only on the
+    tile, after the Umbrel login and the tile password. Revoke a client
+    from the desktop app, or clear the address and pair again.
+
+
+  - The shell is a login on this container: your repos, agent logins, and
+    git credentials. Do not publish port 6770 or tunnel the tile.
+
+
+  Orca is MIT licensed: https://github.com/stablyai/orca — https://orca.dev
+releaseNotes: >-
+  First release. Orca server 1.4.272, reached over Tailscale on port 6768.
+  The tile takes the Umbrel's Tailscale address and shows the pairing link.
+developer: zot24
+website: https://github.com/zot24/umbrel-apps
+dependencies: []
+repo: https://github.com/zot24/umbrel-apps
+support: https://github.com/zot24/umbrel-apps/issues
+port: 6770
+gallery: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""
+deterministicPassword: true
+torOnly: false
+submitter: zot24
+submission: ""

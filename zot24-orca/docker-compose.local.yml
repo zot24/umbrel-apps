@@ -1,0 +1,15 @@
+# Same stack without Umbrel. The tile is on http://127.0.0.1:6770 with no
+# tile password. Port 6768 is bound to loopback here; on an Umbrel it is
+# published on every interface so Tailscale can reach it.
+services:
+  server:
+    build:
+      context: ./server
+    ports:
+      - "127.0.0.1:6770:6770"
+      - "127.0.0.1:6768:6768"
+    volumes:
+      - orca-local-data:/data
+
+volumes:
+  orca-local-data:

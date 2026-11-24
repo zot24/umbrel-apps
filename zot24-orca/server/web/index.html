@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orca</title>
+  <style>
+    :root {
+      --bg: #060a0d;
+      --surface: #0b1016;
+      --text: #d4e0d8;
+      --muted: #7a8e82;
+      --green: #50ffa8;
+      --green-dim: #28b870;
+      --amber: #ffc04d;
+      --red: #ff6060;
+      --line: #1c2a24;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text); }
+    body {
+      font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      min-height: 100vh;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 20px 64px; }
+    h1 { font-size: 20px; font-weight: 600; letter-spacing: 0.08em; margin: 0 0 4px; }
+    h2 { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 28px 0 8px; }
+    p { margin: 0 0 12px; }
+    .muted { color: var(--muted); }
+    .panel { border: 1px solid var(--line); background: var(--surface); padding: 16px; margin-top: 12px; }
+    label { display: block; color: var(--muted); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      font: inherit;
+      border-radius: 0;
+    }
+    input:focus { outline: 1px solid var(--green-dim); }
+    .row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    button, .link {
+      background: transparent;
+      color: var(--green);
+      border: 1px solid var(--green-dim);
+      padding: 8px 12px;
+      font: inherit;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    button:hover, .link:hover { background: #10261c; }
+    button.primary { background: var(--green); color: #06140e; border-color: var(--green); }
+    .status { color: var(--amber); }
+    .status.ready { color: var(--green); }
+    .status.bad { color: var(--red); }
+    code, .mono {
+      font: inherit;
+      color: var(--green);
+      word-break: break-all;
+    }
+    .url {
+      display: block;
+      padding: 10px 12px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      margin: 8px 0;
+    }
+    .err { color: var(--red); min-height: 1.2em; margin-top: 8px; }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--muted);
+      margin: 8px 0 0;
+    }
+    ol { margin: 0; padding-left: 1.2em; }
+    li { margin: 6px 0; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>ORCA</h1>
+    <p class="muted" id="subtitle">Remote server on this Umbrel. Clients connect over Tailscale.</p>
+
+    <section id="login" class="panel hidden">
+      <label for="password">Tile password</label>
+      <input id="password" type="password" autocomplete="current-password" autofocus>
+      <div class="row"><button class="primary" id="login-btn" type="button">Sign in</button></div>
+      <div class="err" id="login-err"></div>
+    </section>
+
+    <section id="app" class="hidden">
+      <h2>Tailscale address</h2>
+      <div class="panel">
+        <p class="muted">The address of this Umbrel on your tailnet. A Tailscale IPv4 address starts with 100. A MagicDNS name works too. Leave the port off.</p>
+        <label for="address">Address</label>
+        <input id="address" type="text" spellcheck="false" autocapitalize="off" placeholder="100.64.1.20">
+        <div class="row">
+          <button class="primary" id="save" type="button">Save</button>
+          <button id="clear" type="button">Clear</button>
+        </div>
+        <div class="err" id="save-err"></div>
+      </div>
+
+      <h2>Server</h2>
+      <div class="panel">
+        <p>Status <span id="phase" class="status">…</span></p>
+        <p class="muted" id="endpoint"></p>
+        <div id="pair-block" class="hidden">
+          <p>Pairing link. Treat it like a password. In the Orca desktop app: Settings, Remote Orca Servers, Add Server, paste this link.</p>
+          <span class="url" id="pair-url"></span>
+          <button id="copy" type="button">Copy link</button>
+        </div>
+        <pre id="log"></pre>
+      </div>
+
+      <h2>Agents</h2>
+      <div class="panel">
+        <p class="muted">Claude, Codex, and git sign in on this Umbrel, not on the laptop. The shell is on the app data volume. Repos belong in <code>/data/workspaces</code>.</p>
+        <div class="row"><a class="link" href="/t/">Open shell</a></div>
+        <pre>npm install -g @anthropic-ai/claude-code
+orca-ide account add --agent claude
+orca-ide account add --agent codex
+orca-ide account list
+orca-ide auth login</pre>
+      </div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const login = $('login');
+    const app = $('app');
+
+    function showLogin(message) {
+      login.classList.remove('hidden');
+      app.classList.add('hidden');
+      $('login-err').textContent = message || '';
+    }
+
+    async function copyText(text) {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch {}
+      const area = document.createElement('textarea');
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch {}
+      area.remove();
+      return ok;
+    }
+
+    function render(status) {
+      login.classList.add('hidden');
+      app.classList.remove('hidden');
+      if (!$('address').matches(':focus')) $('address').value = status.address || '';
+      const phase = $('phase');
+      const labels = {
+        'needs-address': 'Waiting for a Tailscale address',
+        starting: 'Starting',
+        ready: 'Ready',
+        exited: 'Stopped, retrying',
+      };
+      phase.textContent = labels[status.phase] || status.phase;
+      phase.className = 'status' + (status.phase === 'ready' ? ' ready' : status.phase === 'exited' ? ' bad' : '');
+      const endpoint = status.advertisedEndpoint || (status.address ? status.address + ':' + status.port : '');
+      $('endpoint').textContent = endpoint ? 'Clients dial ' + endpoint : 'Orca starts after the address is saved.';
+      const pair = $('pair-block');
+      if (status.pairingUrl) {
+        pair.classList.remove('hidden');
+        $('pair-url').textContent = status.pairingUrl;
+      } else {
+        pair.classList.add('hidden');
+      }
+      $('log').textContent = (status.log || []).join('\n');
+      if (status.version) $('subtitle').textContent = 'Orca ' + status.version + ' on this Umbrel. Clients connect over Tailscale.';
+    }
+
+    async function api(path, body) {
+      const res = await fetch(path, {
+        method: body ? 'POST' : 'GET',
+        headers: body ? { 'content-type': 'application/json', 'x-orca-umbrel': '1' } : {},
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        showLogin(data.error || '');
+        return null;
+      }
+      if (!res.ok) throw new Error(data.error || ('Request failed (' + res.status + ')'));
+      return data;
+    }
+
+    async function refresh() {
+      try {
+        const status = await api('/api/status');
+        if (status) render(status);
+      } catch (err) {
+        $('save-err').textContent = err.message;
+      }
+    }
+
+    $('login-btn').addEventListener('click', async () => {
+      $('login-err').textContent = '';
+      try {
+        const res = await fetch('/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-orca-umbrel': '1' },
+          body: JSON.stringify({ password: $('password').value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          $('login-err').textContent = data.error || 'Wrong password.';
+          return;
+        }
+        $('password').value = '';
+        refresh();
+      } catch (err) {
+        $('login-err').textContent = err.message;
+      }
+    });
+    $('password').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') $('login-btn').click();
+    });
+
+    $('save').addEventListener('click', async () => {
+      $('save-err').textContent = '';
+      try {
+        const status = await api('/api/pairing-address', { address: $('address').value.trim() });
+        if (status) render(status);
+      } catch (err) {
+        $('save-err').textContent = err.message;
+      }
+    });
+    $('clear').addEventListener('click', async () => {
+      $('save-err').textContent = '';
+      try {
+        const status = await api('/api/pairing-address', { address: '' });
+        if (status) render(status);
+      } catch (err) {
+        $('save-err').textContent = err.message;
+      }
+    });
+    $('copy').addEventListener('click', async () => {
+      const ok = await copyText($('pair-url').textContent);
+      $('copy').textContent = ok ? 'Copied' : 'Copy failed';
+      setTimeout(() => { $('copy').textContent = 'Copy link'; }, 1500);
+    });
+
+    refresh();
+    setInterval(refresh, 2000);
+  </script>
+</body>
+</html>

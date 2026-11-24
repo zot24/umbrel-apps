@@ -1,0 +1,42 @@
+services:
+  # The tile is the setup page: Tailscale address, pairing link, and a
+  # shell. PROXY_AUTH_ADD is the Umbrel login. The page then asks for the
+  # tile password. Do not publish 6770 or tunnel this app to the internet.
+  app_proxy:
+    environment:
+      APP_HOST: zot24-orca_server_1
+      APP_PORT: 6770
+      PROXY_AUTH_ADD: "true"
+
+  server:
+    # Digest is written by .github/workflows/build-orca.yml after the image
+    # is pushed. Umbrel rejects an unpinned image, so the app installs only
+    # once that commit is on main.
+    image: ghcr.io/zot24/orca-umbrel:0.1.0
+    restart: on-failure
+    init: true
+    stop_grace_period: 20s
+    # Orca's WebSocket. Docker publishes this on every host interface, in
+    # front of host firewalls, so it is reachable on the LAN as well as on
+    # the Umbrel's Tailscale address. That is the attach path: the Orca
+    # desktop and phone apps dial this port on the tailnet. The pairing
+    # grant is the credential. orca-ide is started with --refuse-public, so
+    # a client from a public address is refused. Do not forward 6768 on
+    # the router.
+    ports:
+      - "6768:6768"
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD}
+      APP_SEED: ${APP_SEED}
+      ORCA_REQUIRE_PROXY: "1"
+      APP_PROXY_HOST: zot24-orca_app_proxy_1
+      ORCA_WS_PORT: "6768"
+      GATE_PORT: "6770"
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:6770/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

@@ -19,6 +19,7 @@ Each app folder has a README with its setup, its limits and how it works.
 | [nworth](zot24-nworth/README.md) | `zot24-nworth` | 8484 | Self-hosted personal net-worth and portfolio tracker. |
 | [Playwright Renderer](zot24-playwright-renderer/README.md) | `zot24-playwright-renderer` | 3030 | Headless-browser renderer with residential-IP egress. |
 | [Herdr](zot24-herdr/README.md) | `zot24-herdr` | 7681 | Terminal multiplexer for AI coding agents: a persistent server on your Umbrel, with a browser TUI, phone or laptop attach over Tailscale, and a machine for the Herdr desktop app. |
+| [Orca](zot24-orca/README.md) | `zot24-orca` | 6770 | Headless Orca remote server. The Umbrel keeps projects and agent sessions. The Orca desktop and phone apps connect over Tailscale on port 6768. |
 | [Proton Bridge](zot24-proton-bridge/README.md) | `zot24-proton-bridge` | 7685 | Proton Mail IMAP/SMTP bridge for sibling apps (Hermes, Himalaya). The console is behind the Umbrel login. IMAP 143 and SMTP 25 stay on the container network. |
 | [Apprise](zot24-apprise/README.md) | `zot24-apprise` | 8000 | Notification gateway for Telegram, Discord and 100+ other services. The notify API stays on the container network. |
 | [Cursor Sandboxes](zot24-cursor-sandboxes/README.md) | `zot24-cursor-sandboxes` | 7690 | Machines for Cursor Cloud Agents. Each sandbox is a Cursor "My Machines" worker in its own container, inside a Docker daemon private to the app. Workers connect out only. |
@@ -43,7 +44,7 @@ How a change gets a new version depends on where the app's image comes from:
 
 | Apps | Image | What happens after a merge to `main` |
 |------|-------|--------------------------------------|
-| GitHub Runner, Cursor Sandboxes, Herdr, Playwright Renderer, Cloudflare Tunnel, Lifeboat | Built in this repository (`ghcr.io/zot24/…`) | `Build: <app>` builds the images for amd64 and arm64, tags them with the version in `umbrel-app.yml`, and the bot commits the new digests to `docker-compose.yml` (`chore: pin …` or `chore: update … image`). The build starts only for changes to the image sources. |
+| GitHub Runner, Cursor Sandboxes, Herdr, Playwright Renderer, Cloudflare Tunnel, Lifeboat, Orca | Built in this repository (`ghcr.io/zot24/…`) | `Build: <app>` builds the images for amd64 and arm64, tags them with the version in `umbrel-app.yml`, and the bot commits the new digests to `docker-compose.yml` (`chore: pin …` or `chore: update … image`). The build starts only for changes to the image sources. |
 | nworth | Built in `zot24/nworth` | `Pin nworth image` runs every day. It pins the newest published image and changes the version itself, so no pull request is needed. |
 | Apprise, Dockyard, Openship, Proton Bridge, Rustrak | Upstream images | Change the image in `docker-compose.yml` and the version in the same pull request. |
 
