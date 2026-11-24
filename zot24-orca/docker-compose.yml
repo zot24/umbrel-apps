@@ -12,7 +12,7 @@ services:
     # Digest is written by .github/workflows/build-orca.yml after the image
     # is pushed. Umbrel rejects an unpinned image, so the app installs only
     # once that commit is on main.
-    image: ghcr.io/zot24/orca-umbrel:0.1.0
+    image: ghcr.io/zot24/orca-umbrel:0.1.0@sha256:61c70bc561b7d6435ee6b338e4f988d475726fbfbdb0486003ce1171c6db39fd
     restart: on-failure
     init: true
     stop_grace_period: 20s
